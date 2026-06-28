@@ -8,6 +8,15 @@
 
 const BASE = 'https://biowellness.ar/fhir';
 
+/**
+ * Namespace de Segunda Opinión Médica (SOM). El proyecto SOM corre sobre el MISMO
+ * backend FHIR, pero su contrato (bots `som-solicitar` / `bot-som-report` y la
+ * AccessPolicy del paciente) usa este namespace propio, acordado con el portal
+ * (`drdalessandro/app`, `docs/medplum/bot-som-interface.md`). No tocar estos
+ * strings sin sincronizar con el portal.
+ */
+const SOM_BASE = 'https://segundaopinionmedica.org/fhir';
+
 /** URLs base de StructureDefinition de extensiones custom. */
 export const EXT = {
   // Patient
@@ -69,6 +78,11 @@ export const EXT = {
   // Onboarding / invitación al portal
   /** Canal elegido para invitar al paciente al portal (whatsapp / email / qr). */
   canalInvitacion: `${BASE}/StructureDefinition/canal-invitacion`,
+  // SOM — Segunda Opinión Médica (contrato con el portal).
+  /** Origen de la solicitud SOM (de dónde la disparó el paciente: web/app/etc.). */
+  somOrigin: `${SOM_BASE}/StructureDefinition/som-origin`,
+  /** Contenedor de las secciones del informe SOM (sub-extensiones por sección). */
+  somSections: `${SOM_BASE}/StructureDefinition/som-sections`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */
@@ -91,13 +105,35 @@ export const SYSTEM = {
   config: `${BASE}/Identifier/config`,
   /** Tipo de Task (p. ej. solicitud de turno desde el portal). */
   taskTipo: `${BASE}/CodeSystem/task-tipo`,
+  /** CodeSystem de servicios de Segunda Opinión Médica (ServiceRequest.code). */
+  somServices: `${SOM_BASE}/CodeSystem/som-services`,
 } as const;
 
 /** Códigos de negocio puntuales. */
 export const COD = {
   /** Task.code de una solicitud de turno creada desde el portal del paciente. */
   solicitudTurno: 'solicitud-turno',
+  /** ServiceRequest.code de una solicitud de segunda opinión cardiológica. */
+  somCardiology: 'som-cardiology',
 } as const;
+
+/** Claves EXACTAS de las secciones del informe SOM (sub-extensiones de `som-sections`). */
+export const SOM_SECCIONES = [
+  'executive-summary',
+  'risk-assessment',
+  'history-analysis',
+  'studies-analysis',
+  'conclusions',
+  'pending-studies',
+] as const;
+export type SomSeccion = (typeof SOM_SECCIONES)[number];
+
+/** Código LOINC del documento "Consultation note" (informe SOM en PDF). */
+export const LOINC_INFORME = '11488-4';
+
+/** Nombres canónicos de los bots SOM (deben coincidir con el portal y el deploy). */
+export const BOT_SOM_SOLICITAR = 'som-solicitar';
+export const BOT_SOM_REPORT = 'bot-som-report';
 
 /** Clave del recurso de configuración de Tipo de Cambio (Basic). */
 export const CONFIG_TC_ID = 'config-tipo-cambio';

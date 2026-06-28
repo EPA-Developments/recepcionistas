@@ -138,6 +138,10 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     // Solicitudes de turno propias (las crea el bot; el paciente solo las lee).
     // `patient` mapea a Task.for (que el bot setea al paciente).
     { resourceType: 'Task', readonly: true, criteria: 'Task?patient=%patient' },
+    // SOM — Segunda Opinión Médica: el paciente ve sus solicitudes y su evaluación
+    // de riesgo (las genera el bot interno; el paciente solo las lee).
+    { resourceType: 'ServiceRequest', readonly: true, criteria: 'ServiceRequest?subject=%patient' },
+    { resourceType: 'RiskAssessment', readonly: true, criteria: 'RiskAssessment?subject=%patient' },
     // Catálogo, agenda y profesionales — sólo lectura (para mostrar la oferta).
     { resourceType: 'ObservationDefinition', readonly: true },
     { resourceType: 'Questionnaire', readonly: true },
@@ -150,6 +154,8 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     // Reserva por solicitud: el paciente solo puede ejecutar ESTE bot (crea el Task
     // de solicitud y avisa a Recepción). No puede ejecutar ningún otro bot.
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=bw-solicitar-turno' },
+    // SOM: además puede ejecutar el bot que crea su solicitud de segunda opinión.
+    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar' },
   ],
 };
 

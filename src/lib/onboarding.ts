@@ -55,7 +55,7 @@ export const PORTAL_URL = 'https://bio.medplum.com.ar';
 export function mensajeInvitacion(nombre: string, link: string): MensajeInvitacion {
   const saludo = nombre ? `¡Hola ${nombre}!` : '¡Hola!';
   return {
-    asunto: 'Bienvenido a Bio Wellness | San Isidro',
+    asunto: 'Bienvenido a BioWellness | San Isidro',
     texto:
       `${saludo} Te damos la bienvenida a BioWellness San Isidro 💚\n\n` +
       `Activá tu acceso al portal para ver tus turnos, tu plan, tus pagos y tus estudios. ` +
@@ -66,5 +66,4 @@ export function mensajeInvitacion(nombre: string, link: string): MensajeInvitaci
       `• Android (Chrome): tocá el menú ⋮ → "Añadir a pantalla de inicio".\n\n` +
       `Si no solicitaste esto, podés ignorar este mensaje.`,
   };
-}
 }

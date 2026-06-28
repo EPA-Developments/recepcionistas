@@ -15,8 +15,8 @@ import { writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { build, type Plugin } from 'esbuild';
 import { MedplumClient } from '@medplum/core';
-import type { Bot } from '@medplum/fhirtypes';
-import { CONFIG_TC_ID } from '../fhir/identifiers.js';
+import type { Bot, Subscription } from '@medplum/fhirtypes';
+import { BOT_SOM_REPORT, COD, CONFIG_TC_ID, SYSTEM } from '../fhir/identifiers.js';
 
 /** Runtime de los bots. Medplum BioWellness usa AWS Lambda. Configurable por env. */
 const RUNTIME_VERSION = process.env.BOT_RUNTIME_VERSION ?? 'awslambda';
@@ -45,6 +45,9 @@ const BOTS: DefBot[] = [
   { name: 'bw-limpiar-demo', source: 'src/bots/limpiar-demo.ts', dist: 'dist/bots/limpiar-demo.js', description: 'Cron: borra los datos demo (tag demo) con más de 48 h.' },
   { name: 'bw-enviar-whatsapp', source: 'src/bots/enviar-whatsapp.ts', dist: 'dist/bots/enviar-whatsapp.js', description: 'Envía WhatsApp (Twilio) y registra Communication.' },
   { name: 'bw-solicitar-turno', source: 'src/bots/solicitar-turno.ts', dist: 'dist/bots/solicitar-turno.js', description: 'Crea una solicitud de turno (Task) desde el portal del paciente y avisa a Recepción por WhatsApp.' },
+  // SOM — Segunda Opinión Médica.
+  { name: 'som-solicitar', source: 'src/bots/som-solicitar.ts', dist: 'dist/bots/som-solicitar.js', description: 'SOM: crea una ServiceRequest de segunda opinión cardiológica desde el portal del paciente.' },
+  { name: 'bot-som-report', source: 'src/bots/som-report.ts', dist: 'dist/bots/som-report.js', description: 'SOM: genera el informe (PREVENT + Claude + PDF) ante una ServiceRequest activa. Lo dispara una Subscription.' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */
@@ -135,7 +138,13 @@ async function main(): Promise<void> {
     ids.set(b.name, id);
   }
 
-  // 4) Escribir los ids en medplum.config.json.
+  // 4) Asegurar la Subscription que dispara el informe SOM (apunta a bot-som-report).
+  const somReportId = ids.get(BOT_SOM_REPORT);
+  if (somReportId) {
+    await asegurarSubscriptionSom(medplum, somReportId);
+  }
+
+  // 5) Escribir los ids en medplum.config.json.
   escribirConfig(ids);
 
   if (faltantes.length > 0) {
@@ -176,6 +185,36 @@ async function asegurarBot(medplum: MedplumClient, projectId: string, b: DefBot)
     }
     throw err;
   }
+}
+
+/**
+ * Asegura (idempotente) la Subscription que dispara el informe SOM: ante una
+ * `ServiceRequest` activa con código `som-services|som-cardiology`, invoca al bot
+ * `bot-som-report`. Busca una existente que apunte al mismo bot con el mismo
+ * criterio; si no hay, la crea.
+ */
+async function asegurarSubscriptionSom(medplum: MedplumClient, botId: string): Promise<void> {
+  const criteria = `ServiceRequest?status=active&code=${SYSTEM.somServices}|${COD.somCardiology}`;
+  const endpoint = `Bot/${botId}`;
+  const existentes = await medplum.searchResources('Subscription', '_count=200');
+  const ya = existentes.find((s) => s.criteria === criteria && s.channel?.endpoint === endpoint);
+  if (ya) {
+    if (ya.status !== 'active') {
+      await medplum.updateResource<Subscription>({ ...ya, status: 'active' });
+      console.log('  = Subscription SOM reactivada.');
+    } else {
+      console.log('  = Subscription SOM ya existente.');
+    }
+    return;
+  }
+  const creada = await medplum.createResource<Subscription>({
+    resourceType: 'Subscription',
+    status: 'active',
+    reason: 'SOM: generar informe ante una solicitud de segunda opinión cardiológica.',
+    criteria,
+    channel: { type: 'rest-hook', endpoint },
+  });
+  console.log(`  + Subscription SOM creada (${creada.id}).`);
 }
 
 function esForbidden(err: unknown): boolean {

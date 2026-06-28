@@ -56,6 +56,8 @@ const SPECS: SpecExtension[] = [
   // Communication
   { url: EXT.canal, nombre: 'canal', contexto: ['Communication'], tipoValor: 'code', descripcion: 'Canal de la comunicación (whatsapp/email).' },
   { url: EXT.templateUsado, nombre: 'template-usado', contexto: ['Communication'], tipoValor: 'string', descripcion: 'Template usado para el mensaje.' },
+  // SOM — Segunda Opinión Médica
+  { url: EXT.somOrigin, nombre: 'som-origin', contexto: ['ServiceRequest'], tipoValor: 'string', descripcion: 'Origen de la solicitud SOM (web/app/derivación).' },
 ];
 
 function buildStructureDefinition(spec: SpecExtension): StructureDefinition {
