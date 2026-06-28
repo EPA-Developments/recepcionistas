@@ -58,7 +58,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent<CampanaInp
   for (const m of miembros) {
     const ref = m.entity?.reference;
     if (!ref?.startsWith('Patient/')) continue;
-    const p = await medplum.readResource('Patient', ref.split('/')[1]).catch(() => undefined);
+    const p = await medplum.readResource('Patient', ref.split('/')[1]!).catch(() => undefined);
     if (!p) { fallidos++; continue; }
 
     const dest = contacto(p, canal);

@@ -79,7 +79,7 @@ async function cumple(medplum: MedplumClient, p: Patient, crit: Crit): Promise<b
     const val = (obs[0] as Observation | undefined)?.valueQuantity?.value;
     r = val != null && meets(crit.comparator, val, crit.value);
   } else if (crit.tipo === 'gate' && crit.gateCode) {
-    const di = await medplum.searchOne<DetectedIssue>('DetectedIssue', {
+    const di = await medplum.searchOne('DetectedIssue', {
       patient: getReferenceString(p), code: `${GATE}|${crit.gateCode}`, status: 'final',
     });
     r = !!di;
