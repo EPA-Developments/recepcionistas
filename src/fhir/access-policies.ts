@@ -91,10 +91,10 @@ export const POLICY_TERAPEUTA: AccessPolicy = {
 };
 
 /** Nombre canónico de la policy del portal del paciente (lo usa el bot de invitación). */
-export const NOMBRE_POLICY_PACIENTE = 'Paciente — Portal';
+export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
 
 /**
- * Paciente — Portal: el paciente accede **sólo a lo suyo** desde el portal
+ * Paciente SOM — Portal: el paciente accede **sólo a lo suyo** desde el portal
  * (bio.medplum.com.ar). Ve su agenda, plan, pagos y mensajes, y —ejerciendo su
  * derecho de acceso a sus propios datos— su historia (laboratorio, biomarcadores,
  * vacunas, medicación, plan de cuidado, consentimientos). Lo no listado queda

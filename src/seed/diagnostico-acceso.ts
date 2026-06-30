@@ -8,9 +8,9 @@
  *   npm run diagnostico-acceso -- --paciente=<x> --apply
  *                                                   → REPARA: setea el defaultPatientAccessPolicy
  *                                                     del proyecto y re-apunta la membership del
- *                                                     paciente a la policy "Paciente — Portal".
+ *                                                     paciente a la policy "Paciente SOM — Portal".
  *
- * Por qué existe: el seed hace upsert de la AccessPolicy "Paciente — Portal" (que ya
+ * Por qué existe: el seed hace upsert de la AccessPolicy "Paciente SOM — Portal" (que ya
  * concede ObservationDefinition / Questionnaire / Invoice), pero NO setea el
  * `defaultPatientAccessPolicy` del proyecto ni re-apunta las `ProjectMembership` ya
  * creadas. Si un paciente fue invitado antes de tener la policy correcta —o quedó en
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   console.log(`  Proyecto: ${project.name ?? '(sin nombre)'} · ${projectId}`);
   console.log(`  Servidor: ${medplum.getBaseUrl()}`);
 
-  // 2) AccessPolicy "Paciente — Portal".
+  // 2) AccessPolicy "Paciente SOM — Portal".
   const policy = await medplum.searchOne('AccessPolicy', `name=${encodeURIComponent(NOMBRE_POLICY_PACIENTE)}`);
   if (!policy?.id) {
     console.log(`\n❌ No existe la AccessPolicy "${NOMBRE_POLICY_PACIENTE}" en este proyecto.`);
