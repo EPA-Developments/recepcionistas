@@ -2,9 +2,9 @@
 
 Segunda Opinión Médica (SOM, Dr. Barbagelata · segundaopinionmedica.org) es un
 proyecto de **salud cardiovascular convencional** que corre sobre el MISMO backend
-Medplum (FHIR R4) que la recepción de BioWellness. Esta primera entrega agrega el
+Medplum (FHIR R4) que la recepción de Segunda Opinión Médica. Esta primera entrega agrega el
 **contrato de backend** que el portal (`drdalessandro/app`, PR #2) ya espera, sin
-tocar las piezas existentes de BioWellness (se reusan los patrones, no se duplican).
+tocar las piezas existentes de Segunda Opinión Médica (se reusan los patrones, no se duplican).
 
 ## Namespace
 
@@ -49,7 +49,7 @@ Bot ejecutable `Bot?name=som-solicitar`. Debe quedar idéntica al espejo del por
 - **Escala de `RiskAssessment.prediction.probabilityDecimal`.** Se emite en
   **porcentaje (0–100)**. Confirmar con el portal que es la escala esperada.
 - **Catálogo de servicios SOM.** Todavía está el catálogo de terapias funcionales
-  de BioWellness. El reemplazo por los servicios cardiovasculares de SOM espera la
+  de Segunda Opinión Médica. El reemplazo por los servicios cardiovasculares de SOM espera la
   **lista de precios/reglas** (no se inventan).
 - **Proyecto Medplum canónico.** Definir el `MEDPLUM_PROJECT_ID`/credenciales del
   proyecto SOM antes de `npm run seed` / `npm run deploy:bots`. Esta entrega es solo

@@ -212,8 +212,8 @@ export async function handler(
     template: consumo ? 'reserva-plan' : 'reserva-tentativa',
     pacienteRef: e.pacienteRef,
     body: consumo
-      ? `BioWellness: ¡tu turno de ${servicio.nombre} quedó confirmado con tu plan para el ${fmtFechaHora.format(inicio)}! Te quedan ${consumo.restantes} sesiones. ¡Te esperamos! 💚`
-      : `BioWellness: reservamos tu turno de ${servicio.nombre} para el ${fmtFechaHora.format(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💚`,
+      ? `Segunda Opinión Médica: ¡tu turno de ${servicio.nombre} quedó confirmado con tu plan para el ${fmtFechaHora.format(inicio)}! Te quedan ${consumo.restantes} sesiones. ¡Te esperamos! 💚`
+      : `Segunda Opinión Médica: reservamos tu turno de ${servicio.nombre} para el ${fmtFechaHora.format(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💚`,
   });
 
   return {

@@ -18,7 +18,7 @@ import { MedplumClient } from '@medplum/core';
 import type { Bot, Subscription } from '@medplum/fhirtypes';
 import { BOT_SOM_REPORT, COD, CONFIG_TC_ID, SYSTEM } from '../fhir/identifiers.js';
 
-/** Runtime de los bots. Medplum BioWellness usa AWS Lambda. Configurable por env. */
+/** Runtime de los bots. Medplum Segunda Opinión Médica usa AWS Lambda. Configurable por env. */
 const RUNTIME_VERSION = process.env.BOT_RUNTIME_VERSION ?? 'awslambda';
 
 interface DefBot {

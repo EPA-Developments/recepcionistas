@@ -49,15 +49,15 @@ export const PORTAL_URL = 'https://bio.medplum.com.ar';
 
 /**
  * Cuerpo de la invitación al portal (mismo link mágico en todos los canales).
- * Personalizado para BioWellness San Isidro: asunto de bienvenida + sugerencia de
+ * Personalizado para Segunda Opinión Médica San Isidro: asunto de bienvenida + sugerencia de
  * añadir el portal a la pantalla de inicio (PWA).
  */
 export function mensajeInvitacion(nombre: string, link: string): MensajeInvitacion {
   const saludo = nombre ? `¡Hola ${nombre}!` : '¡Hola!';
   return {
-    asunto: 'Bienvenido a BioWellness | San Isidro',
+    asunto: 'Bienvenido a Segunda Opinión Médica | San Isidro',
     texto:
-      `${saludo} Te damos la bienvenida a BioWellness San Isidro 💚\n\n` +
+      `${saludo} Te damos la bienvenida a Segunda Opinión Médica San Isidro 💚\n\n` +
       `Activá tu acceso al portal para ver tus turnos, tu plan, tus pagos y tus estudios. ` +
       `Entrá a este link y elegí tu contraseña:\n\n${link}\n\n` +
       `Después vas a poder ingresar siempre desde:\n${PORTAL_URL}\n\n` +

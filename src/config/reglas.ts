@@ -57,11 +57,11 @@ export const CASCADA_TB = {
   costoFiscal: 0.25,
   /** Costo fijo de enfermería (USD), sin IVA. */
   enfermeriaUSD: 15,
-  /** Factor que queda para BW tras el 15% de honorarios médicos. */
-  factorBw: 0.85,
+  /** Factor que queda para SOM tras el 15% de honorarios médicos. */
+  factorSom: 0.85,
   /** Honorario de médicos prescriptores. */
   honorarioMedicos: 0.15,
-  /** Piso de margen neto de BW. */
+  /** Piso de margen neto de SOM. */
   margenNetoMin: 0.25,
 } as const;
 

@@ -110,7 +110,7 @@ export async function handler(
     await enviarWhatsApp(medplum, event.secrets, {
       template: 'plan-asignado',
       pacienteRef: e.pacienteRef,
-      body: `BioWellness: ¡activamos tu ${descripcion}! Tenés ${sesiones} sesiones${
+      body: `Segunda Opinión Médica: ¡activamos tu ${descripcion}! Tenés ${sesiones} sesiones${
         e.tipo === 'membresia' ? ' este mes' : ` (vencen el ${new Date(periodEnd!).toLocaleDateString('es-AR')})`
       }. ¡Te esperamos! 💚`,
     });

@@ -190,7 +190,7 @@ después):
    duplica) y la AccessPolicy **"Paciente — Portal"**. Recupera el link mágico
    (`/setpassword/{id}/{secret}`) y lo entrega por el canal elegido:
    - **whatsapp** → Twilio;
-   - **email** → mail BioWellness (SES, `medplum.sendEmail`);
+   - **email** → mail Segunda Opinión Médica (SES, `medplum.sendEmail`);
    - **qr** → devuelve el link y el front lo dibuja como **QR** (client-side, el
      link nunca sale a un tercero).
 
@@ -230,7 +230,7 @@ npm run datos-demo -- --limpiar          # borra TODOS los datos demo
 npm run datos-demo -- --limpiar-vencidos # borra solo los demo de > 48 h
 ```
 
-Todo lo creado lleva `meta.tag = demo` (system `https://biowellness.ar/demo`). La
+Todo lo creado lleva `meta.tag = demo` (system `https://segundaopinionmedica.org/demo`). La
 limpieza borra **solo** lo etiquetado demo (por `_tag` + `_lastUpdated`); **nunca**
 toca datos reales.
 

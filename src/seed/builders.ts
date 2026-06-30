@@ -31,7 +31,7 @@ import { EXTENSIONES } from '../fhir/extensions.js';
 import { ACCESS_POLICIES } from '../fhir/access-policies.js';
 import { CONFIG_TC_ID, EXT, SYSTEM } from '../fhir/identifiers.js';
 
-const BASE = 'https://biowellness.ar/fhir';
+const BASE = 'https://segundaopinionmedica.org/fhir';
 
 function canonical(tipo: string, codigo: string): string {
   return `${BASE}/${tipo}/${codigo}`;
@@ -41,7 +41,7 @@ export function buildActivityDefinition(s: Servicio): ActivityDefinition {
   const ext: Extension[] = [
     { url: EXT.precioUsd, valueDecimal: s.precioUSD },
     { url: EXT.reglaPricingRecurso, valueCode: s.reglaPricing },
-    { url: EXT.splitBw, valueCode: s.split.tipo },
+    { url: EXT.splitSom, valueCode: s.split.tipo },
     { url: EXT.requierePrescripcion, valueBoolean: s.requierePrescripcion },
   ];
   if (s.precioARS != null) {

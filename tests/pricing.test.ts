@@ -101,15 +101,15 @@ describe('Catálogo — Paquetes', () => {
 });
 
 describe('Pricing — Cascada TB / IV (R-08)', () => {
-  it('AC-08: IV NAD+ 250, neto BW = (250×0.75 − insumo − 15) × 0.85', () => {
+  it('AC-08: IV NAD+ 250, neto SOM = (250×0.75 − insumo − 15) × 0.85', () => {
     const insumo = 30;
     const dist = cascadaTB(250, insumo);
     const base = 250 * 0.75 - insumo - 15; // 142.5
-    expect(dist.bwUSD).toBe(redondearUSD(base * 0.85)); // 121.13
+    expect(dist.somUSD).toBe(redondearUSD(base * 0.85)); // 121.13
     expect(dist.prescriptoresUSD).toBe(redondearUSD(base * 0.15)); // 21.38
   });
 
-  it('Marca cuando el neto BW cae bajo el piso de 25% de margen', () => {
+  it('Marca cuando el neto SOM cae bajo el piso de 25% de margen', () => {
     // Insumo alto fuerza el neto por debajo del piso.
     const dist = cascadaTB(250, 200);
     expect(dist.bajoMargenMinimo).toBe(true);
@@ -117,15 +117,15 @@ describe('Pricing — Cascada TB / IV (R-08)', () => {
 });
 
 describe('Pricing — Splits (R-08)', () => {
-  it('HBOT => 100% BW', () => {
+  it('HBOT => 100% SOM', () => {
     const dist = calcularSplit(getServicio('HBOT_MONO'), 165);
-    expect(dist.bwUSD).toBe(165);
+    expect(dist.somUSD).toBe(165);
     expect(dist.terapeutaUSD).toBeUndefined();
   });
 
   it('Masaje => 50/50 con el terapeuta', () => {
     const dist = calcularSplit(getServicio('MASAJE_DEPORTIVO'), 90);
-    expect(dist.bwUSD).toBe(45);
+    expect(dist.somUSD).toBe(45);
     expect(dist.terapeutaUSD).toBe(45);
   });
 });

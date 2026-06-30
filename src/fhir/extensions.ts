@@ -1,5 +1,5 @@
 /**
- * StructureDefinitions de las extensiones custom de BioWellness.
+ * StructureDefinitions de las extensiones custom de Segunda Opinión Médica.
  * Se generan a partir de una tabla compacta (url, contexto, tipo de valor).
  * El seed las carga en Medplum para registrar el modelo de datos del Bloque 0.
  */
@@ -38,7 +38,7 @@ const SPECS: SpecExtension[] = [
   // ActivityDefinition (catálogo)
   { url: EXT.precioUsd, nombre: 'precio-usd', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en USD.' },
   { url: EXT.reglaPricingRecurso, nombre: 'regla-pricing-recurso', contexto: ['ActivityDefinition'], tipoValor: 'code', descripcion: 'Regla de pricing del recurso.' },
-  { url: EXT.splitBw, nombre: 'split-bw', contexto: ['ActivityDefinition'], tipoValor: 'code', descripcion: 'Tipo de split de ingresos.' },
+  { url: EXT.splitSom, nombre: 'split-som', contexto: ['ActivityDefinition'], tipoValor: 'code', descripcion: 'Tipo de split de ingresos.' },
   { url: EXT.requierePrescripcion, nombre: 'requiere-prescripcion', contexto: ['ActivityDefinition'], tipoValor: 'boolean', descripcion: 'Requiere prescripción médica.' },
   // PlanDefinition (combos)
   { url: EXT.secuenciaOrdenada, nombre: 'secuencia-ordenada', contexto: ['PlanDefinition'], tipoValor: 'boolean', descripcion: 'El combo tiene secuencia ordenada (HBOT primero).' },
@@ -50,7 +50,7 @@ const SPECS: SpecExtension[] = [
   { url: EXT.sesionesUsadas, nombre: 'sesiones-usadas', contexto: ['Coverage', 'Contract'], tipoValor: 'integer', descripcion: 'Sesiones consumidas en el ciclo.' },
   { url: EXT.precioBloqueadoFm, nombre: 'precio-bloqueado-fm', contexto: ['Coverage', 'Contract'], tipoValor: 'decimal', descripcion: 'Precio bloqueado en USD para FM.' },
   // Invoice / ChargeItem
-  { url: EXT.montoSplitBw, nombre: 'monto-split-bw', contexto: ['Invoice', 'ChargeItem'], tipoValor: 'Money', descripcion: 'Monto que corresponde a BW.' },
+  { url: EXT.montoSplitSom, nombre: 'monto-split-som', contexto: ['Invoice', 'ChargeItem'], tipoValor: 'Money', descripcion: 'Monto que corresponde a SOM.' },
   { url: EXT.montoSplitProfesional, nombre: 'monto-split-profesional', contexto: ['Invoice', 'ChargeItem'], tipoValor: 'Money', descripcion: 'Monto que corresponde al profesional / prescriptores.' },
   { url: EXT.tcAplicado, nombre: 'tc-aplicado', contexto: ['Invoice', 'ChargeItem'], tipoValor: 'decimal', descripcion: 'Tipo de cambio aplicado al cobro.' },
   // Communication

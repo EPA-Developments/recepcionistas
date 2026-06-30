@@ -1,12 +1,12 @@
 /**
- * Sistemas (URLs canónicas) e identificadores FHIR de BioWellness.
+ * Sistemas (URLs canónicas) e identificadores FHIR de Segunda Opinión Médica.
  *
  * Convención: kebab-case para los nombres de extensión, bajo el namespace
- * `https://biowellness.ar/fhir/...`. Centralizado acá para que el seed, los
+ * `https://segundaopinionmedica.org/fhir/...`. Centralizado acá para que el seed, los
  * bots y los tests usen exactamente los mismos strings.
  */
 
-const BASE = 'https://biowellness.ar/fhir';
+const BASE = 'https://segundaopinionmedica.org/fhir';
 
 /**
  * Namespace de Segunda Opinión Médica (SOM). El proyecto SOM corre sobre el MISMO
@@ -45,7 +45,7 @@ export const EXT = {
   precioUsd: `${BASE}/StructureDefinition/precio-usd`,
   precioArs: `${BASE}/StructureDefinition/precio-ars`,
   reglaPricingRecurso: `${BASE}/StructureDefinition/regla-pricing-recurso`,
-  splitBw: `${BASE}/StructureDefinition/split-bw`,
+  splitSom: `${BASE}/StructureDefinition/split-som`,
   requierePrescripcion: `${BASE}/StructureDefinition/requiere-prescripcion`,
   // PlanDefinition (combos)
   secuenciaOrdenada: `${BASE}/StructureDefinition/secuencia-ordenada`,
@@ -65,7 +65,7 @@ export const EXT = {
   /** Ciclo facturado (YYYY-MM) de la membresía. */
   cicloMes: `${BASE}/StructureDefinition/ciclo-mes`,
   // Invoice / ChargeItem
-  montoSplitBw: `${BASE}/StructureDefinition/monto-split-bw`,
+  montoSplitSom: `${BASE}/StructureDefinition/monto-split-som`,
   montoSplitProfesional: `${BASE}/StructureDefinition/monto-split-profesional`,
   tcAplicado: `${BASE}/StructureDefinition/tc-aplicado`,
   /** Marca de que el Invoice es una seña (depósito). */

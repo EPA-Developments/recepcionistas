@@ -8,9 +8,9 @@
 import type { Servicio, Split } from '../domain/types.js';
 import { MEDICOS, codigoConsulta } from './medicos.js';
 
-const BW100: Split = { tipo: 'BW_100' };
-const IV_TB: Split = { tipo: 'IV_TB_85_15', bw: 85, prescriptores: 15 };
-const MASAJE: Split = { tipo: 'MASAJE_50_50', bw: 50, terapeuta: 50 };
+const SOM100: Split = { tipo: 'SOM_100' };
+const IV_TB: Split = { tipo: 'IV_TB_85_15', som: 85, prescriptores: 15 };
+const MASAJE: Split = { tipo: 'MASAJE_50_50', som: 50, terapeuta: 50 };
 
 export const SERVICIOS: Servicio[] = [
   // ---------------------- 01 · HBOT ----------------------
@@ -22,7 +22,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 165,
     requierePrescripcion: false,
     reglaPricing: 'HBOT_MONO',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
   },
   {
@@ -33,7 +33,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 100, // por persona cuando van 2; 1 sola => precio monoplaza (165)
     requierePrescripcion: false,
     reglaPricing: 'HBOT_BIPLAZA',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
     nota: '2 personas = USD 100 c/u (USD 200 total); 1 persona sola = USD 165.',
   },
@@ -45,7 +45,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 80, // por persona; mínimo 3, máximo 6 plazas
     requierePrescripcion: false,
     reglaPricing: 'HBOT_MULTIPLAZA',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
     nota: 'USD 80/persona. Mínimo 3 personas, máximo 6 plazas.',
   },
@@ -59,7 +59,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 60,
     requierePrescripcion: false,
     reglaPricing: 'POR_SESION',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
     nota: 'v9. Componente de combos = IHHT Express. Ciclos/duración pendientes de confirmar.',
   },
@@ -71,7 +71,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 120,
     requierePrescripcion: false,
     reglaPricing: 'POR_SESION',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
     nota: 'v9. Biohacking / deportivo. Ciclos/duración pendientes de confirmar.',
   },
@@ -85,7 +85,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 50,
     requierePrescripcion: false,
     reglaPricing: 'POR_SESION',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
   },
 
@@ -98,7 +98,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 200, // por gabinete, INDIVISIBLE, 1 o 2 personas
     requierePrescripcion: false,
     reglaPricing: 'RECOVERY_PRO_INDIVISIBLE',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
     nota: 'USD 200 por gabinete, mismo precio 1 o 2 personas. Nunca por persona ni por componente.',
   },
@@ -112,7 +112,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 60,
     requierePrescripcion: false,
     reglaPricing: 'POR_SESION',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
   },
   {
@@ -123,7 +123,7 @@ export const SERVICIOS: Servicio[] = [
     precioUSD: 90,
     requierePrescripcion: false,
     reglaPricing: 'POR_SESION',
-    split: BW100,
+    split: SOM100,
     fmAplica: true,
   },
 
@@ -236,7 +236,7 @@ function consultasDeMedicos(): Servicio[] {
     practitionerCodigo: m.codigo,
     requierePrescripcion: false,
     reglaPricing: 'POR_SESION' as const,
-    split: BW100,
+    split: SOM100,
     fmAplica: false,
     ...(m.precioProvisorio ? { nota: 'Precio provisorio (Director Médico) — confirmar' } : {}),
   }));

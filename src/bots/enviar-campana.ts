@@ -71,7 +71,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent<CampanaInp
     } else if (canal === 'email') {
       try {
         await medplum.sendEmail({
-          to: dest, subject: input.asunto ?? 'BioWellness', text: cuerpo,
+          to: dest, subject: input.asunto ?? 'Segunda Opinión Médica', text: cuerpo,
           ...(input.from ? { from: input.from } : {}),
         });
         status = 'completed';

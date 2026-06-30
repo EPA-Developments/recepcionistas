@@ -239,9 +239,9 @@ async function generar(medplum: MedplumClient): Promise<void> {
 
   // Comunicaciones (WhatsApp) para Reportes
   const comms: Array<{ paciente?: Patient; template: string; body: string }> = [
-    { paciente: porNombre.get('Lucía'), template: 'reserva-tentativa', body: 'BioWellness: reservamos tu turno (demo).' },
-    { paciente: porNombre.get('Sofía'), template: 'turno-confirmado', body: 'BioWellness: ¡tu turno quedó confirmado! (demo)' },
-    { paciente: porNombre.get('Andrés'), template: 'recordatorio-48h', body: 'BioWellness: te recordamos tu turno (demo).' },
+    { paciente: porNombre.get('Lucía'), template: 'reserva-tentativa', body: 'Segunda Opinión Médica: reservamos tu turno (demo).' },
+    { paciente: porNombre.get('Sofía'), template: 'turno-confirmado', body: 'Segunda Opinión Médica: ¡tu turno quedó confirmado! (demo)' },
+    { paciente: porNombre.get('Andrés'), template: 'recordatorio-48h', body: 'Segunda Opinión Médica: te recordamos tu turno (demo).' },
   ];
   let communications = 0;
   for (const c of comms) {

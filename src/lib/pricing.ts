@@ -16,11 +16,11 @@ import { resolverTC } from '../config/tipo-cambio.js';
 import { redondearUSD, usdAArs } from './money.js';
 
 export interface DistribucionSplit {
-  bwUSD: number;
+  somUSD: number;
   prescriptoresUSD?: number;
   terapeutaUSD?: number;
   proveedorUSD?: number;
-  /** True si el neto de BW quedó por debajo del piso de margen (R-08). */
+  /** True si el neto de SOM quedó por debajo del piso de margen (R-08). */
   bajoMargenMinimo?: boolean;
 }
 
@@ -69,7 +69,7 @@ export function precioSueltoUSD(
 
 /**
  * Cascada de pricing para IV Therapy + Terapias Biológicas (R-08):
- * neto BW = (precio − 25% costo fiscal − insumo Regenerar − USD 15 enfermería) × 85%.
+ * neto SOM = (precio − 25% costo fiscal − insumo Regenerar − USD 15 enfermería) × 85%.
  * El 15% restante es honorario de los médicos prescriptores. Piso: 25% de margen neto.
  *
  * @param precioUSD precio de lista que paga el cliente.
@@ -77,13 +77,13 @@ export function precioSueltoUSD(
  */
 export function cascadaTB(precioUSD: number, insumoUSD: number): DistribucionSplit {
   const baseImponible = precioUSD * (1 - CASCADA_TB.costoFiscal) - insumoUSD - CASCADA_TB.enfermeriaUSD;
-  const bwUSD = redondearUSD(baseImponible * CASCADA_TB.factorBw);
+  const somUSD = redondearUSD(baseImponible * CASCADA_TB.factorSom);
   const prescriptoresUSD = redondearUSD(baseImponible * CASCADA_TB.honorarioMedicos);
   const pisoMinimo = precioUSD * CASCADA_TB.margenNetoMin;
   return {
-    bwUSD,
+    somUSD,
     prescriptoresUSD,
-    bajoMargenMinimo: bwUSD < pisoMinimo,
+    bajoMargenMinimo: somUSD < pisoMinimo,
   };
 }
 
@@ -98,18 +98,18 @@ export function calcularSplit(
 ): DistribucionSplit {
   const split: Split = servicio.split;
   switch (split.tipo) {
-    case 'BW_100':
-      return { bwUSD: redondearUSD(montoUSD) };
+    case 'SOM_100':
+      return { somUSD: redondearUSD(montoUSD) };
     case 'IV_TB_85_15':
       return cascadaTB(montoUSD, opts.insumoUSD ?? 0);
     case 'MASAJE_50_50':
       return {
-        bwUSD: redondearUSD(montoUSD * 0.5),
+        somUSD: redondearUSD(montoUSD * 0.5),
         terapeutaUSD: redondearUSD(montoUSD * 0.5),
       };
     case 'FOODBAR_75_25':
       return {
-        bwUSD: redondearUSD(montoUSD * 0.75),
+        somUSD: redondearUSD(montoUSD * 0.75),
         proveedorUSD: redondearUSD(montoUSD * 0.25),
       };
   }
@@ -170,7 +170,7 @@ function construirLinea(item: ItemCobro, tc?: number): LineaCobro {
         precioUnitarioUSD: 0,
         subtotalUSD: 0,
         subtotalARS: Math.round(s.precioARS * cantidad),
-        split: { bwUSD: 0 },
+        split: { somUSD: 0 },
       };
     }
     const precio = precioSueltoUSD(s, { ocupantes: item.ocupantes ?? 1, fm: item.fm ?? false });
@@ -214,7 +214,7 @@ function construirLinea(item: ItemCobro, tc?: number): LineaCobro {
     precioUnitarioUSD: precio,
     subtotalUSD,
     subtotalARS: usdAArs(subtotalUSD, tc),
-    split: { bwUSD: subtotalUSD },
+    split: { somUSD: subtotalUSD },
   };
 }
 
