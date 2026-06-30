@@ -1,8 +1,8 @@
 {
-  "name": "@biowellness/recepcionistas",
+  "name": "@som/recepcionistas",
   "version": "0.1.0",
   "private": true,
-  "description": "BioWellness San Isidro — Herramienta de Recepción · Bloque 0 (Cimientos). Backend Medplum (FHIR R4).",
+  "description": "Segunda Opinión Médica San Isidro — Herramienta de Recepción · Bloque 0 (Cimientos). Backend Medplum (FHIR R4).",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -24,9 +24,9 @@
     "email:test": "tsx src/seed/diagnostico-email.ts",
     "whatsapp:test": "tsx src/seed/diagnostico-whatsapp.ts",
     "verify": "npm run typecheck && npm run test",
-    "dev": "npm run dev --workspace @biowellness/recepcion-app",
-    "build:app": "npm run build --workspace @biowellness/recepcion-app",
-    "app:typecheck": "npm run typecheck --workspace @biowellness/recepcion-app"
+    "dev": "npm run dev --workspace @som/recepcion-app",
+    "build:app": "npm run build --workspace @som/recepcion-app",
+    "app:typecheck": "npm run typecheck --workspace @som/recepcion-app"
   },
   "dependencies": {
     "@medplum/core": "^3.2.0",

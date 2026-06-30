@@ -252,8 +252,8 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaCom
       template: consumo ? 'reserva-plan' : 'reserva-tentativa',
       pacienteRef: e.pacienteRef,
       body: consumo
-        ? `BioWellness: ¡tu ${combo.nombre} quedó confirmado con tu membresía para las ${fmtHora(inicio)}! Te quedan ${consumo.restantes} sesiones este mes. ¡Te esperamos! 💚`
-        : `BioWellness: reservamos tu ${combo.nombre} para las ${fmtHora(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💚`,
+        ? `Segunda Opinión Médica: ¡tu ${combo.nombre} quedó confirmado con tu membresía para las ${fmtHora(inicio)}! Te quedan ${consumo.restantes} sesiones este mes. ¡Te esperamos! 💚`
+        : `Segunda Opinión Médica: reservamos tu ${combo.nombre} para las ${fmtHora(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💚`,
     });
   }
 

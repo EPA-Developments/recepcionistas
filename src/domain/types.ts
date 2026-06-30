@@ -1,5 +1,5 @@
 /**
- * Tipos de dominio de BioWellness Recepción (Bloque 0).
+ * Tipos de dominio de Segunda Opinión Médica Recepción (Bloque 0).
  *
  * Fuente de verdad de datos: Manual de Protocolos v9 (changelog aplicado sobre v8).
  * Estos tipos describen el catálogo, las membresías, los recursos físicos y las
@@ -24,13 +24,13 @@ export type CategoriaServicio =
 
 /**
  * Distribución de ingresos (split) por servicio (R-08).
- * Los porcentajes son sobre el monto neto facturable de BW.
+ * Los porcentajes son sobre el monto neto facturable de SOM.
  */
 export type Split =
-  | { tipo: 'BW_100' }
-  | { tipo: 'IV_TB_85_15'; bw: 85; prescriptores: 15 }
-  | { tipo: 'MASAJE_50_50'; bw: 50; terapeuta: 50 }
-  | { tipo: 'FOODBAR_75_25'; bw: 75; proveedor: 25 };
+  | { tipo: 'SOM_100' }
+  | { tipo: 'IV_TB_85_15'; som: 85; prescriptores: 15 }
+  | { tipo: 'MASAJE_50_50'; som: 50; terapeuta: 50 }
+  | { tipo: 'FOODBAR_75_25'; som: 75; proveedor: 25 };
 
 /**
  * Regla de pricing especial por recurso físico, cuando el precio no es un

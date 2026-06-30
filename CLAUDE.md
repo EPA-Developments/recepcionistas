@@ -1,6 +1,6 @@
 # CLAUDE.md — Guía del repositorio
 
-Contexto y convenciones para desarrollar en este repo (BioWellness · Recepción ·
+Contexto y convenciones para desarrollar en este repo (Segunda Opinión Médica · Recepción ·
 Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 
 ## Principios
@@ -34,7 +34,7 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 
 - **Idioma:** código, identificadores de negocio y docs en español.
 - **Imports** relativos con extensión `.js` (ESM; `moduleResolution: Bundler`).
-- **Extensiones FHIR:** kebab-case bajo `https://biowellness.ar/fhir/...`,
+- **Extensiones FHIR:** kebab-case bajo `https://segundaopinionmedica.org/fhir/...`,
   centralizadas en `src/fhir/identifiers.ts`.
 - **Reglas:** cada regla referencia su código `R-xx` y, si tiene, su caso `AC-xx`.
 - **Dinero:** precios de lista en USD; conversión a ARS solo al cobrar

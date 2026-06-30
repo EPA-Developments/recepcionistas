@@ -41,7 +41,7 @@ function Login(): JSX.Element {
         <Stack gap="md">
           <Stack gap={2} align="center">
             <Title order={2} c="teal.7">
-              BioWellness
+              Segunda Opinión Médica
             </Title>
             <Text c="dimmed" size="sm">
               Recepción · San Isidro

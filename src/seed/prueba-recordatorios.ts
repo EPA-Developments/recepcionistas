@@ -25,7 +25,7 @@ import { cicloMes } from '../lib/planes.js';
 /** Id del paciente de prueba (fijo por defecto; configurable para apuntar a uno real). */
 const PATIENT_ID = process.env.PRUEBA_PATIENT_ID ?? '9647fb20-c13a-49c0-b32c-50549bb2c1d9';
 /** Sistema de identifier para los recursos de prueba (upsert idempotente). */
-const PRUEBA = 'https://biowellness.ar/fhir/Identifier/prueba';
+const PRUEBA = 'https://segundaopinionmedica.org/fhir/Identifier/prueba';
 /** PRIME Standard Individual: 8 sesiones/mes, base BIO RECOVERY. */
 const PLAN = 'PRIME_STD_IND';
 const SESIONES_MES = 8;
@@ -33,7 +33,7 @@ const SESIONES_USADAS = 5; // → 3 libres "por agendar"
 
 /** Contacto del paciente (reemplazá por los tuyos para un envío real). */
 const TELEFONO = process.env.PRUEBA_TELEFONO ?? '+5491100000000';
-const EMAIL = process.env.PRUEBA_EMAIL ?? 'prueba@biowellness.ar';
+const EMAIL = process.env.PRUEBA_EMAIL ?? 'prueba@segundaopinionmedica.org';
 
 function construir(ahora: Date) {
   const inicio = new Date(ahora.getTime() + 20 * 60 * 60_000); // +20h → ventana de 24h
@@ -45,7 +45,7 @@ function construir(ahora: Date) {
     status: 'active',
     identifier: [{ system: PRUEBA, value: 'recordatorio-membresia' }],
     beneficiary: { reference: `Patient/${PATIENT_ID}` },
-    payor: [{ display: 'BioWellness' }],
+    payor: [{ display: 'Segunda Opinión Médica' }],
     extension: [
       { url: EXT.tipoCobertura, valueCode: 'membresia' },
       { url: EXT.planCodigo, valueString: PLAN },

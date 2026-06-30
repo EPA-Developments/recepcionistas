@@ -2,7 +2,7 @@
 
 Recursos FHIR estándar con extensiones custom donde el estándar no cubre el caso
 (Documento de Requerimientos v4, §4). Las extensiones viven bajo el namespace
-`https://biowellness.ar/fhir/StructureDefinition/...` (ver `src/fhir/identifiers.ts`).
+`https://segundaopinionmedica.org/fhir/StructureDefinition/...` (ver `src/fhir/identifiers.ts`).
 Naming: **kebab-case**.
 
 ## Recursos y extensiones

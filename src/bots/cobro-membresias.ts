@@ -90,7 +90,7 @@ export async function handler(
       await enviarWhatsApp(medplum, event.secrets, {
         template: 'membresia-renovada',
         pacienteRef,
-        body: `BioWellness: renovamos tu Membresía ${m.tier} para ${ciclo}. Tenés ${m.sesionesMes} sesiones disponibles este mes. 💚`,
+        body: `Segunda Opinión Médica: renovamos tu Membresía ${m.tier} para ${ciclo}. Tenés ${m.sesionesMes} sesiones disponibles este mes. 💚`,
       });
     }
     renovadas++;
