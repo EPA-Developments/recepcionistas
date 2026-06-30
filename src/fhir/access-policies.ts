@@ -91,10 +91,10 @@ export const POLICY_TERAPEUTA: AccessPolicy = {
 };
 
 /** Nombre canónico de la policy del portal del paciente (lo usa el bot de invitación). */
-export const NOMBRE_POLICY_PACIENTE = 'Paciente — Portal';
+export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
 
 /**
- * Paciente — Portal: el paciente accede **sólo a lo suyo** desde el portal
+ * Paciente SOM — Portal: el paciente accede **sólo a lo suyo** desde el portal
  * (bio.medplum.com.ar). Ve su agenda, plan, pagos y mensajes, y —ejerciendo su
  * derecho de acceso a sus propios datos— su historia (laboratorio, biomarcadores,
  * vacunas, medicación, plan de cuidado, consentimientos). Lo no listado queda
@@ -109,7 +109,7 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente — Portal';
  * Catálogo, agenda y profesionales: sólo lectura (para mostrar la oferta).
  *
  * Reservar un turno NO se hace escribiendo `Appointment` directo: el modelo es de
- * **solicitud** (el paciente ejecuta solo el bot `bw-solicitar-turno`, que crea un
+ * **solicitud** (el paciente ejecuta solo el bot `som-solicitar-turno`, que crea un
  * `Task`, y Recepción confirma con los bots de reserva), por eso `Appointment` es de
  * sólo lectura y el acceso a `Bot` está acotado a ese único bot.
  *
@@ -153,7 +153,7 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Binary', readonly: true },
     // Reserva por solicitud: el paciente solo puede ejecutar ESTE bot (crea el Task
     // de solicitud y avisa a Recepción). No puede ejecutar ningún otro bot.
-    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=bw-solicitar-turno' },
+    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar-turno' },
     // SOM: además puede ejecutar el bot que crea su solicitud de segunda opinión.
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar' },
   ],
