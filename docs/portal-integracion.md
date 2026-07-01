@@ -27,7 +27,7 @@ ve **solo lo suyo** vía la AccessPolicy **"Paciente — Portal"**
   paciente; escribe solo su autogestión (perfil, vitales, cuestionarios,
   consentimientos, mensajes).
 - **Reserva por *solicitud* (implementada).** El paciente pide desde el portal y se
-  crea un `Task` (`code=solicitud-turno`) vía el bot **`bw-solicitar-turno`**
+  crea un `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`**
   (lógica pura en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp
   (secret `RECEPCION_WHATSAPP_TO`). La app de recepción tiene la vista **"Solicitudes"**
   para atenderlas y confirmarlas con los bots de reserva. El paciente solo **lee** sus
@@ -36,9 +36,9 @@ ve **solo lo suyo** vía la AccessPolicy **"Paciente — Portal"**
 
 ## Cómo se conectan (hoy)
 
-- **Alta de paciente** (`bw-alta-paciente`): la recepción crea el `Patient`
+- **Alta de paciente** (`som-alta-paciente`): la recepción crea el `Patient`
   (dedupe por DNI/email/teléfono). No da login.
-- **Invitación al portal** (`bw-invitar-paciente`, requiere admin): hace el
+- **Invitación al portal** (`som-invitar-paciente`, requiere admin): hace el
   *invite* de Medplum (`sendEmail:false`, `upsert:true` → reusa el `Patient`,
   no duplica) con la AccessPolicy "Paciente — Portal", y entrega el link mágico
   `/<portal>/setpassword/{id}/{secret}` por **WhatsApp / email / QR**.
@@ -123,9 +123,9 @@ El link de invitación apunta al portal vía el secret **`PORTAL_BASE_URL`**
 
    **Reserva = modelo de solicitud** (implementado): el paciente **no** crea
    `Appointment` ni ejecuta bots de reserva. La policy le suma `Task` de solo lectura
-   (`Task?patient=%patient`) y `Bot` acotado a `bw-solicitar-turno`
-   (`Bot?name=bw-solicitar-turno`) — el único bot que puede ejecutar. Si más adelante
-   se opta por reserva inmediata por bots (`bw-reservar-turno`/`bw-reservar-combo`),
+   (`Task?patient=%patient`) y `Bot` acotado a `som-solicitar-turno`
+   (`Bot?name=som-solicitar-turno`) — el único bot que puede ejecutar. Si más adelante
+   se opta por reserva inmediata por bots (`som-reservar-turno`/`som-reservar-combo`),
    antes endurecerlos para derivar el paciente del login (no del input) y habilitar la
    ejecución solo de esos bots.
 

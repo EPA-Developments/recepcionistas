@@ -1,5 +1,5 @@
 /**
- * Builders FHIR del seed: traducen el catálogo de dominio (Manual v9) a recursos
+ * Builders FHIR del seed: traducen el catálogo de dominio a recursos
  * FHIR R4 (ActivityDefinition, PlanDefinition, CodeSystem, Basic, Location, Schedule).
  * Funciones puras: no hacen IO. El runner (index.ts) los persiste en Medplum.
  */

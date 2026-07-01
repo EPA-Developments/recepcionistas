@@ -41,7 +41,7 @@ async function botIdPorNombre(nombre: string): Promise<string> {
 
 /** Llama al bot de cobro y devuelve el Invoice calculado (total en ARS, splits, TC). */
 export async function calcularCobro(items: ItemCobroInput[], pacienteRef?: string): Promise<Invoice> {
-  const id = await botIdPorNombre('bw-calcular-cobro');
+  const id = await botIdPorNombre('som-calcular-cobro');
   return (await medplum.executeBot(id, { items, pacienteRef, persistir: false })) as Invoice;
 }
 
@@ -79,7 +79,7 @@ export interface ResultadoReserva {
 
 /** Llama al bot de reserva: valida y (si confirma) crea el turno + Slot ocupado. */
 export async function reservarTurno(input: ReservaInput): Promise<ResultadoReserva> {
-  const id = await botIdPorNombre('bw-reservar-turno');
+  const id = await botIdPorNombre('som-reservar-turno');
   return (await medplum.executeBot(id, input)) as ResultadoReserva;
 }
 
@@ -113,15 +113,15 @@ export interface ResultadoCombo {
   planRestantes?: number;
 }
 
-/** Llama al bot de combo: agenda los componentes en secuencia (HBOT primero). */
+/** Llama al bot de combo: agenda los componentes en secuencia. */
 export async function reservarCombo(input: ComboInput): Promise<ResultadoCombo> {
-  const id = await botIdPorNombre('bw-reservar-combo');
+  const id = await botIdPorNombre('som-reservar-combo');
   return (await medplum.executeBot(id, input)) as ResultadoCombo;
 }
 
 /** Envía un WhatsApp (y registra Communication). Best-effort: usado para el resumen de la pre-agenda. */
 export async function enviarWhatsApp(input: { pacienteRef: string; template: string; body: string }): Promise<void> {
-  const id = await botIdPorNombre('bw-enviar-whatsapp');
+  const id = await botIdPorNombre('som-enviar-whatsapp');
   await medplum.executeBot(id, input);
 }
 
@@ -129,7 +129,7 @@ export type EstadoTurno = 'arrived' | 'checked-in' | 'fulfilled' | 'cancelled';
 
 /** Cambia el estado de un turno (check-in/out): el bot actualiza Appointment + Encounter + Slot. */
 export async function cambiarEstadoTurno(appointmentId: string, estado: EstadoTurno): Promise<void> {
-  const id = await botIdPorNombre('bw-estado-turno');
+  const id = await botIdPorNombre('som-estado-turno');
   await medplum.executeBot(id, { appointmentId, estado });
 }
 
@@ -144,7 +144,7 @@ export interface ResultadoSena {
 
 /** Registra la seña (50%), confirma el turno y dispara el WhatsApp de confirmación. */
 export async function pagarSena(appointmentId: string, medioPago: string): Promise<ResultadoSena> {
-  const id = await botIdPorNombre('bw-pagar-sena');
+  const id = await botIdPorNombre('som-pagar-sena');
   return (await medplum.executeBot(id, { appointmentId, medioPago })) as ResultadoSena;
 }
 
@@ -157,7 +157,7 @@ export interface ResultadoLinkMP {
 
 /** Genera un link de MercadoPago para pagar la seña. */
 export async function linkMercadoPago(appointmentId: string): Promise<ResultadoLinkMP> {
-  const id = await botIdPorNombre('bw-link-mercadopago');
+  const id = await botIdPorNombre('som-link-mercadopago');
   return (await medplum.executeBot(id, { appointmentId })) as ResultadoLinkMP;
 }
 
@@ -181,7 +181,7 @@ export interface ResultadoAsignarPlan {
 
 /** Asigna una membresía/paquete al paciente (crea Coverage + cobro inicial + WhatsApp). */
 export async function asignarPlan(input: AsignarPlanInput): Promise<ResultadoAsignarPlan> {
-  const id = await botIdPorNombre('bw-asignar-plan');
+  const id = await botIdPorNombre('som-asignar-plan');
   return (await medplum.executeBot(id, input)) as ResultadoAsignarPlan;
 }
 
@@ -204,7 +204,7 @@ export interface ResultadoAltaPaciente {
 
 /** Da de alta (o actualiza, sin duplicar) el paciente. No le da acceso al portal. */
 export async function altaPaciente(input: AltaPacienteInput): Promise<ResultadoAltaPaciente> {
-  const id = await botIdPorNombre('bw-alta-paciente');
+  const id = await botIdPorNombre('som-alta-paciente');
   return (await medplum.executeBot(id, input)) as ResultadoAltaPaciente;
 }
 
@@ -225,6 +225,6 @@ export async function invitarPaciente(
   canal: CanalInvitacion,
   email?: string,
 ): Promise<ResultadoInvitarPaciente> {
-  const id = await botIdPorNombre('bw-invitar-paciente');
+  const id = await botIdPorNombre('som-invitar-paciente');
   return (await medplum.executeBot(id, { pacienteRef, canal, email })) as ResultadoInvitarPaciente;
 }

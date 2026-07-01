@@ -88,7 +88,7 @@ export function ProximosTurnos({ dias }: { dias: number }): JSX.Element {
                     cursor: 'pointer',
                     borderTop: i === 0 ? undefined : '1px solid var(--mantine-color-default-border)',
                   }}
-                  className="bw-fila"
+                  className="som-fila"
                 >
                   <Group gap="md" wrap="nowrap" align="center">
                     <Box w={4} h={36} style={{ background: `var(--mantine-color-${colorEstado(t.estado)}-6)`, borderRadius: 4, flexShrink: 0 }} />
@@ -114,7 +114,7 @@ export function ProximosTurnos({ dias }: { dias: number }): JSX.Element {
         </Stack>
       ))}
 
-      <style>{`.bw-fila:hover{background:var(--mantine-color-default-hover);}`}</style>
+      <style>{`.som-fila:hover{background:var(--mantine-color-default-hover);}`}</style>
 
       <TurnoModal turno={turnoSel} onClose={() => setTurnoSel(null)} onCambiado={() => void refrescar()} />
     </Stack>

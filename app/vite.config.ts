@@ -17,11 +17,11 @@ export default defineConfig({
   // Los secretos van solo en el .env de la raíz (seed/bots), que NO se carga acá.
   envPrefix: ['MEDPLUM_', 'GOOGLE_', 'RECAPTCHA_'],
 
-  // Alias `@bw` -> ../src para reutilizar la lógica pura del backend (semáforo,
+  // Alias `@som` -> ../src para reutilizar la lógica pura del backend (semáforo,
   // tipos, catálogo). `fs.allow: ['..']` permite importar desde la raíz del repo.
   resolve: {
     alias: {
-      '@bw': fileURLToPath(new URL('../src', import.meta.url)),
+      '@som': fileURLToPath(new URL('../src', import.meta.url)),
     },
   },
 

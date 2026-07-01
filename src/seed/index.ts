@@ -43,7 +43,7 @@ async function main(): Promise<void> {
 
   const total = grupos.reduce((acc, [, arr]) => acc + arr.length, 0);
 
-  console.log('=== Seed Segunda Opinión Médica · Bloque 0 (Manual v9) ===');
+  console.log('=== Seed Segunda Opinión Médica · Bloque 0 ===');
   for (const [nombre, arr] of grupos) {
     console.log(`  • ${nombre}: ${arr.length}`);
   }
@@ -186,7 +186,7 @@ function imprimirAdvertencias(): void {
     );
   }
   if (RECURSOS.some((r) => r.provisional)) {
-    avisos.push('La lista de recursos físicos es PROVISIONAL (lista preliminar de 13). Confirmar con Andrés.');
+    avisos.push('La lista de recursos físicos (consultorios/salas) es PROVISIONAL. Confirmar con la operación.');
   }
   if (CONTRAINDICACIONES.some((c) => c.borradorPendienteRevision)) {
     avisos.push('Tabla de contraindicaciones es BORRADOR. Requiere validación del Director Médico.');

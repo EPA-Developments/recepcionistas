@@ -5,7 +5,7 @@ import { altaPaciente, mensajeError } from '../lib/bots';
 
 /**
  * Alta rápida de paciente (registrar cliente). Crea/actualiza el Patient vía el bot
- * bw-alta-paciente (dedupe por DNI/email/teléfono). No da acceso al portal: eso es
+ * som-alta-paciente (dedupe por DNI/email/teléfono). No da acceso al portal: eso es
  * la "Invitación al portal", aparte.
  */
 export function NuevoPacienteModal({

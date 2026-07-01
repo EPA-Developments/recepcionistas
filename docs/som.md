@@ -15,7 +15,7 @@ Las piezas SOM usan su propio namespace, acordado con el portal:
 
 | Bot | Quién lo ejecuta | Qué hace |
 |---|---|---|
-| `som-solicitar` | el paciente (whitelisteado en su AccessPolicy) | Crea una `ServiceRequest` (`status=active`, `code=som-services\|som-cardiology`) con `reasonCode.text=motivo`, `supportingInfo`=cuestionario+estudios y extensión `som-origin`. Clona la mecánica de `bw-solicitar-turno`. |
+| `som-solicitar` | el paciente (whitelisteado en su AccessPolicy) | Crea una `ServiceRequest` (`status=active`, `code=som-services\|som-cardiology`) con `reasonCode.text=motivo`, `supportingInfo`=cuestionario+estudios y extensión `som-origin`. Clona la mecánica de `som-solicitar-turno`. |
 | `bot-som-report` | interno (lo dispara una `Subscription`) | Reúne Patient/Condition/Observation/MedicationRequest + DocumentReference, calcula **PREVENT (AHA 2023)** → `RiskAssessment`, redacta el informe con **Claude `claude-sonnet-4-6`** (6 secciones en la extensión `som-sections`), genera el PDF → `DocumentReference` (LOINC `11488-4`), pasa la `ServiceRequest` a `completed` y notifica al paciente. |
 
 `bot-som-report` se dispara con una `Subscription` sobre
@@ -48,9 +48,13 @@ Bot ejecutable `Bot?name=som-solicitar`. Debe quedar idéntica al espejo del por
   referencia (ACC) antes de producción.
 - **Escala de `RiskAssessment.prediction.probabilityDecimal`.** Se emite en
   **porcentaje (0–100)**. Confirmar con el portal que es la escala esperada.
-- **Catálogo de servicios SOM.** Todavía está el catálogo de terapias funcionales
-  de Segunda Opinión Médica. El reemplazo por los servicios cardiovasculares de SOM espera la
-  **lista de precios/reglas** (no se inventan).
+- **Precios/reglas del catálogo cardiovascular.** El catálogo ya son las consultas
+  de segunda opinión de cardiología y sus subespecialidades (Hemodinamia,
+  Electrofisiología, Medicina Nuclear, Prevención CV, Rehabilitación CV), pero con
+  **precio PENDIENTE** (`precioARS: 0`): faltan la **lista de precios y las reglas**
+  oficiales (no se inventan). Combos, membresías y paquetes quedan vacíos hasta que
+  se definan para el modelo cardiovascular. Confirmar también la **duración** de cada
+  consulta y la **lista real de consultorios/salas** (hoy provisional).
 - **Proyecto Medplum canónico.** Definir el `MEDPLUM_PROJECT_ID`/credenciales del
   proyecto SOM antes de `npm run seed` / `npm run deploy:bots`. Esta entrega es solo
   código (no se seedeó ni deployó).

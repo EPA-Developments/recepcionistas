@@ -6,7 +6,7 @@
  *   npm run datos-demo -- --limpiar-vencidos → borra solo los demo de > 48 h
  *
  * Todo lo creado lleva `meta.tag = demo`. La limpieza (manual o por el cron
- * `bw-limpiar-demo`) borra SOLO lo etiquetado demo: nunca toca datos reales.
+ * `som-limpiar-demo`) borra SOLO lo etiquetado demo: nunca toca datos reales.
  *
  * Genera pacientes, turnos (varios estados), planes (membresía/paquete), un Flag
  * de contraindicación, cobros y comunicaciones, para ver la app con datos.
@@ -15,7 +15,6 @@ import 'dotenv/config';
 import { MedplumClient } from '@medplum/core';
 import type { Appointment, Coverage, Patient, Slot } from '@medplum/fhirtypes';
 import { getServicio } from '../config/catalogo.js';
-import { codigoConsulta } from '../config/medicos.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { META_DEMO, borrarRecursosDemo } from '../bots/_shared.js';
 
@@ -67,16 +66,14 @@ interface TurnoDemo {
   status: Appointment['status'];
 }
 
-const CONSULTA_DOS_SANTOS = codigoConsulta('MED_DOS_SANTOS');
-
 const TURNOS: TurnoDemo[] = [
-  { paciente: 'María', servicioCodigo: 'HBOT_MONO', recursoCodigo: 'R_HBOT_MONO', offsetDias: 0, hhmm: '09:00', status: 'fulfilled' },
-  { paciente: 'Juan', servicioCodigo: 'RED_LIGHT', recursoCodigo: 'R_RED_LIGHT', offsetDias: 0, hhmm: '10:00', status: 'arrived' },
-  { paciente: 'Lucía', servicioCodigo: 'IHHT_EXPRESS', recursoCodigo: 'R_IHHT_1', offsetDias: 0, hhmm: '11:30', status: 'booked' },
-  { paciente: 'Diego', servicioCodigo: 'COMPRESION', recursoCodigo: 'R_IPC06', offsetDias: 0, hhmm: '15:00', status: 'pending' },
-  { paciente: 'Sofía', servicioCodigo: CONSULTA_DOS_SANTOS, recursoCodigo: 'R_CONSULTORIO', offsetDias: 0, hhmm: '16:00', status: 'booked' },
-  { paciente: 'Andrés', servicioCodigo: 'CRIO', recursoCodigo: 'R_COT03', offsetDias: 1, hhmm: '09:30', status: 'booked' },
-  { paciente: 'María', servicioCodigo: 'HBOT_MONO', recursoCodigo: 'R_HBOT_MONO', offsetDias: 1, hhmm: '12:00', status: 'pending' },
+  { paciente: 'María', servicioCodigo: 'CARDIOLOGIA', recursoCodigo: 'R_CONSULTORIO_1', offsetDias: 0, hhmm: '09:00', status: 'fulfilled' },
+  { paciente: 'Juan', servicioCodigo: 'PREVENCION_CV', recursoCodigo: 'R_CONSULTORIO_2', offsetDias: 0, hhmm: '10:00', status: 'arrived' },
+  { paciente: 'Lucía', servicioCodigo: 'ELECTROFISIOLOGIA', recursoCodigo: 'R_CONSULTORIO_1', offsetDias: 0, hhmm: '11:30', status: 'booked' },
+  { paciente: 'Diego', servicioCodigo: 'HEMODINAMIA', recursoCodigo: 'R_CONSULTORIO_2', offsetDias: 0, hhmm: '15:00', status: 'pending' },
+  { paciente: 'Sofía', servicioCodigo: 'CARDIOLOGIA', recursoCodigo: 'R_TELEMEDICINA', offsetDias: 0, hhmm: '16:00', status: 'booked' },
+  { paciente: 'Andrés', servicioCodigo: 'REHABILITACION_CV', recursoCodigo: 'R_SALA_REHAB', offsetDias: 1, hhmm: '09:30', status: 'booked' },
+  { paciente: 'María', servicioCodigo: 'MEDICINA_NUCLEAR', recursoCodigo: 'R_CONSULTORIO_1', offsetDias: 1, hhmm: '12:00', status: 'pending' },
 ];
 
 async function generar(medplum: MedplumClient): Promise<void> {
@@ -131,7 +128,7 @@ async function generar(medplum: MedplumClient): Promise<void> {
       period: { start: inicioISO(0, '00:00') },
       extension: [
         { url: EXT.tipoCobertura, valueCode: 'membresia' },
-        { url: EXT.planCodigo, valueString: 'FOCUS_STD_IND' },
+        { url: EXT.planCodigo, valueString: 'PLAN_DEMO_MENSUAL' },
         { url: EXT.sesionesMes, valueInteger: 8 },
         { url: EXT.sesionesUsadas, valueInteger: 2 },
         { url: EXT.cicloMes, valueString: cicloMes },
@@ -149,7 +146,7 @@ async function generar(medplum: MedplumClient): Promise<void> {
       period: { start: inicioISO(0, '00:00'), end: inicioISO(30, '00:00') },
       extension: [
         { url: EXT.tipoCobertura, valueCode: 'paquete' },
-        { url: EXT.planCodigo, valueString: 'PAQ_HBOT_MONO_X10' },
+        { url: EXT.planCodigo, valueString: 'PAQ_DEMO_X10' },
         { url: EXT.sesionesTotal, valueInteger: 10 },
         { url: EXT.sesionesUsadas, valueInteger: 3 },
       ],
@@ -184,7 +181,7 @@ async function generar(medplum: MedplumClient): Promise<void> {
     const participant: Appointment['participant'] = [
       { actor: { reference: `Patient/${paciente.id}`, display: paciente.name?.[0]?.text }, status: 'accepted' },
     ];
-    if (t.recursoCodigo === 'R_CONSULTORIO' && pract?.id) {
+    if ((t.recursoCodigo.startsWith('R_CONSULTORIO') || t.recursoCodigo === 'R_TELEMEDICINA') && pract?.id) {
       participant.push({ actor: { reference: `Practitioner/${pract.id}`, display: pract.name?.[0]?.text }, status: 'accepted' });
     }
 
@@ -210,9 +207,9 @@ async function generar(medplum: MedplumClient): Promise<void> {
 
   // Cobros (Invoice, ARS) para Reportes
   const cobros: Array<{ paciente?: Patient; desc: string; ars: number; sena: boolean; medio: string }> = [
-    { paciente: maria, desc: 'Seña 50% · HBOT Monoplaza', ars: 119625, sena: true, medio: 'efectivo' },
+    { paciente: maria, desc: 'Seña 50% · Segunda Opinión Cardiología', ars: 119625, sena: true, medio: 'efectivo' },
     { paciente: porNombre.get('Sofía'), desc: 'Consulta — Dra. Dos Santos', ars: 120000, sena: false, medio: 'tarjeta' },
-    { paciente: porNombre.get('Lucía'), desc: 'Seña 50% · IHHT Express', ars: 43500, sena: true, medio: 'mercadopago' },
+    { paciente: porNombre.get('Lucía'), desc: 'Seña 50% · Segunda Opinión Electrofisiología', ars: 43500, sena: true, medio: 'mercadopago' },
   ];
   let invoices = 0;
   for (const c of cobros) {
@@ -289,7 +286,7 @@ async function main(): Promise<void> {
   console.log(`  borrados: ${prev.borrados}`);
   console.log('Generando datos demo (se autodestruyen a las 48 h):');
   await generar(medplum);
-  console.log('\n✓ Datos demo cargados. Se borran solos a las 48 h (bot bw-limpiar-demo) o con: npm run datos-demo -- --limpiar');
+  console.log('\n✓ Datos demo cargados. Se borran solos a las 48 h (bot som-limpiar-demo) o con: npm run datos-demo -- --limpiar');
 }
 
 main().catch((err) => {

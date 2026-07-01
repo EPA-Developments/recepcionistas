@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getServicio } from '../src/config/catalogo.js';
 import {
-  validarOrdenHBOT,
-  recomendarHbotPrevio,
   validarCapacidadRecurso,
   validarDesfasajeRecovery,
   validarVentanaReserva,
@@ -13,6 +11,7 @@ import {
   bannerSeguridad,
   type ReservaRecurso,
 } from '../src/lib/reglas-turno.js';
+import type { Servicio } from '../src/domain/types.js';
 
 /** Helper: arma un Date a partir de "HH:mm" del 2026-06-22 (lunes). */
 function h(hhmm: string): Date {
@@ -23,64 +22,37 @@ function reserva(recursoCodigo: string, desde: string, hasta: string): ReservaRe
   return { recursoCodigo, inicio: h(desde), fin: h(hasta) };
 }
 
-describe('R-01 · HBOT siempre primero', () => {
-  it('AC-02: BIO LONGEVITY = HBOT -> IHHT -> Recovery Pro es válido', () => {
-    const r = validarOrdenHBOT(['HBOT', 'IHHT', 'RECOVERY_PRO']);
-    expect(r.ok).toBe(true);
-  });
-
-  it('Si HBOT no va primero => bloqueo', () => {
-    const r = validarOrdenHBOT(['IHHT', 'HBOT']);
-    expect(r.ok).toBe(false);
-    expect(r.bloqueos[0]?.regla).toBe('R-01');
-  });
-
-  it('IV/TB sin HBOT previo => advertencia (recomendado, no obligatorio)', () => {
-    const r = recomendarHbotPrevio('IV_THERAPY', false);
-    expect(r.ok).toBe(true);
-    expect(r.advertencias).toHaveLength(1);
-  });
-});
-
 describe('R-07 · Capacidad y desfasaje', () => {
-  it('AC-05: G1 09:00-10:00 y G2 09:00-10:00 => bloqueo (mismo arranque)', () => {
-    const r = validarDesfasajeRecovery([
-      reserva('R_RECOVERY_G1', '09:00', '10:00'),
-      reserva('R_RECOVERY_G2', '09:00', '10:00'),
+  it('Mismo consultorio (cap 1) solapado => excede capacidad', () => {
+    const r = validarCapacidadRecurso([
+      reserva('R_CONSULTORIO_1', '09:00', '10:00'),
+      reserva('R_CONSULTORIO_1', '09:30', '10:30'),
     ]);
     expect(r.ok).toBe(false);
     expect(r.bloqueos[0]?.regla).toBe('R-07');
   });
 
-  it('AC-05: G1 09:00-10:00 y G2 09:30-10:30 => OK (desfasaje de 30 min)', () => {
+  it('Turnos contiguos en el mismo consultorio => OK', () => {
+    const r = validarCapacidadRecurso([
+      reserva('R_CONSULTORIO_1', '09:00', '10:00'),
+      reserva('R_CONSULTORIO_1', '10:00', '11:00'),
+    ]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('Sala de rehabilitación (cap 6) admite varias reservas simultáneas', () => {
+    const r = validarCapacidadRecurso([
+      reserva('R_SALA_REHAB', '09:00', '10:00'),
+      reserva('R_SALA_REHAB', '09:00', '10:00'),
+      reserva('R_SALA_REHAB', '09:00', '10:00'),
+    ]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('Consultorios distintos a la misma hora no comparten equipo => OK', () => {
     const r = validarDesfasajeRecovery([
-      reserva('R_RECOVERY_G1', '09:00', '10:00'),
-      reserva('R_RECOVERY_G2', '09:30', '10:30'),
-    ]);
-    expect(r.ok).toBe(true);
-  });
-
-  it('Mismo recurso (cap 1) solapado => excede capacidad', () => {
-    const r = validarCapacidadRecurso([
-      reserva('R_HBOT_MONO', '09:00', '10:00'),
-      reserva('R_HBOT_MONO', '09:30', '10:30'),
-    ]);
-    expect(r.ok).toBe(false);
-  });
-
-  it('Recurso multiplaza (cap 6) admite varias reservas simultáneas', () => {
-    const r = validarCapacidadRecurso([
-      reserva('R_HBOT_MULTIPLAZA', '09:00', '10:00'),
-      reserva('R_HBOT_MULTIPLAZA', '09:00', '10:00'),
-      reserva('R_HBOT_MULTIPLAZA', '09:00', '10:00'),
-    ]);
-    expect(r.ok).toBe(true);
-  });
-
-  it('Turnos contiguos en el mismo recurso (uno termina cuando arranca el otro) => OK', () => {
-    const r = validarCapacidadRecurso([
-      reserva('R_HBOT_MONO', '09:00', '10:00'),
-      reserva('R_HBOT_MONO', '10:00', '11:00'),
+      reserva('R_CONSULTORIO_1', '09:00', '10:00'),
+      reserva('R_CONSULTORIO_2', '09:00', '10:00'),
     ]);
     expect(r.ok).toBe(true);
   });
@@ -127,7 +99,7 @@ describe('R-14 · Cancelación', () => {
 });
 
 describe('R-10 · Saldo de membresía', () => {
-  it('AC-09: 8 consumidas de 8 => 9.ª bloqueada', () => {
+  it('8 consumidas de 8 => 9.ª bloqueada', () => {
     expect(validarSaldoMembresia(8, 8).ok).toBe(false);
   });
 
@@ -139,47 +111,25 @@ describe('R-10 · Saldo de membresía', () => {
 describe('R-02 · Contraindicaciones y banner', () => {
   it('Banner verde sin contraindicaciones, rojo con alguna', () => {
     expect(bannerSeguridad([])).toBe('verde');
-    expect(bannerSeguridad(['HBOT_NEUMOTORAX_NO_TRATADO'])).toBe('rojo');
+    expect(bannerSeguridad(['ALGUNA'])).toBe('rojo');
   });
 
-  it('Absoluta activa sin autorización => bloqueo', () => {
-    const r = validarContraindicaciones(['HBOT'], ['HBOT_NEUMOTORAX_NO_TRATADO']);
-    expect(r.ok).toBe(false);
-    expect(r.bloqueos[0]?.regla).toBe('R-02');
-  });
-
-  it('Absoluta con autorización médica => permite', () => {
-    const r = validarContraindicaciones(['HBOT'], ['HBOT_NEUMOTORAX_NO_TRATADO'], {
-      autorizacionMedica: true,
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it('Relativa => advertencia, no bloqueo', () => {
-    const r = validarContraindicaciones(['HBOT'], ['HBOT_CLAUSTROFOBIA']);
-    expect(r.ok).toBe(true);
-    expect(r.advertencias).toHaveLength(1);
-  });
-
-  it('Contraindicación de otra categoría no afecta', () => {
-    const r = validarContraindicaciones(['RECOVERY_PRO'], ['HBOT_NEUMOTORAX_NO_TRATADO']);
+  it('Sin tabla de contraindicaciones cargada, ningún código bloquea (pendiente clínico)', () => {
+    const r = validarContraindicaciones(['CARDIOLOGIA'], ['CUALQUIER_CODIGO']);
     expect(r.ok).toBe(true);
   });
 });
 
 describe('R-03 · Prescripción médica', () => {
-  it('IV sin prescripción => bloqueo', () => {
-    const r = validarPrescripcion(getServicio('IV_NAD'), false);
+  it('Servicio que requiere prescripción sin prescripción => bloqueo', () => {
+    const conReceta: Servicio = { ...getServicio('CARDIOLOGIA'), requierePrescripcion: true };
+    const r = validarPrescripcion(conReceta, false);
     expect(r.ok).toBe(false);
+    expect(r.bloqueos[0]?.regla).toBe('R-03');
   });
 
-  it('IV con prescripción activa => permite', () => {
-    const r = validarPrescripcion(getServicio('IV_NAD'), true);
-    expect(r.ok).toBe(true);
-  });
-
-  it('Servicio sin prescripción requerida => siempre permite', () => {
-    const r = validarPrescripcion(getServicio('HBOT_MONO'), false);
+  it('Consulta de segunda opinión (sin prescripción requerida) => siempre permite', () => {
+    const r = validarPrescripcion(getServicio('CARDIOLOGIA'), false);
     expect(r.ok).toBe(true);
   });
 });

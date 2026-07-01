@@ -30,18 +30,18 @@ una parte del avance; el resto se resuelve en paralelo.
 | Tabla de contraindicaciones | Ni v8 ni v9 la incluyen. Se cargó un **borrador estándar HBOT/IHHT** (`src/config/contraindicaciones.ts`, todas `borradorPendienteRevision`). | ⚠️ Validar con Director Médico |
 | Rol/alcance Dr. López Alonso | Pendiente de reunión. No frena la recepción. | A confirmar |
 | Precio consulta Dr. Conrado (Director) | **PROVISORIO: ARS 150.000** en `src/config/medicos.ts` (`precioProvisorio`). Dalessandro y Dos Santos = ARS 120.000 (confirmados). | ⚠️ Confirmar monto |
-| Split / honorario de consultas | Hoy la consulta se cobra entera (split `BW_100`). Falta definir cómo se reparte el honorario del médico. | A definir |
+| Split / honorario de consultas | Hoy la consulta se cobra entera (split `SOM_100`). Falta definir cómo se reparte el honorario del médico. | A definir |
 
 ## Gestión de sesiones — CERRADO ✅
 
 El bloque está implementado, testeado y deployado: dashboard "Planes y sesiones"
 (saldo en riesgo), pre-agenda de membresías (serie 2x/3x) y recordatorios de turno
-(24h/1h) + saldo en riesgo por WhatsApp y email (`bw-recordatorios`, cron horario).
+(24h/1h) + saldo en riesgo por WhatsApp y email (`som-recordatorios`, cron horario).
 Ver [`docs/app-recepcion.md`](app-recepcion.md) y [`docs/bots.md`](bots.md).
 
 > **Para que los avisos se envíen** (hoy quedan registrados como `Communication` en
 > estado `preparation` hasta que estén las cuentas) falta lo de abajo + configurar
-> el `cronTimer` del Bot `bw-recordatorios` (`0 * * * *`).
+> el `cronTimer` del Bot `som-recordatorios` (`0 * * * *`).
 
 ## Integraciones / cuentas (en paralelo)
 

@@ -20,7 +20,6 @@ import {
   DESFASAJE_RECOVERY_MIN,
   combinar,
   validarContraindicaciones,
-  validarOrdenHBOT,
   validarVentanaReserva,
   type Issue,
   type ReservaRecurso,
@@ -170,7 +169,6 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaCom
   if (inicio.getTime() <= ahora.getTime()) {
     partes.push({ ok: false, bloqueos: [{ regla: 'R-13', nivel: 'bloqueo', mensaje: 'El turno está en el pasado.' }], advertencias: [] });
   }
-  partes.push(validarOrdenHBOT(categorias));
   partes.push(validarContraindicaciones([...new Set(categorias)], contraindicaciones, { autorizacionMedica: e.autorizacionMedica ?? false }));
   if (e.perfil) {
     partes.push(validarVentanaReserva(e.perfil, ahora, inicio));

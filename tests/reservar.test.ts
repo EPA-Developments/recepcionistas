@@ -32,89 +32,52 @@ function reserva(recursoCodigo: string, desde: string, hasta: string): ReservaRe
 }
 
 describe('validarReserva', () => {
-  it('Turno válido (HBOT mono, sala libre, futuro) => ok', () => {
-    const r = validarReserva(ctx({ servicioCodigo: 'HBOT_MONO', recursoCodigo: 'R_HBOT_MONO', inicio: new Date('2026-06-22T09:00:00-03:00') }));
+  it('Turno válido (consulta de cardiología, consultorio libre, futuro) => ok', () => {
+    const r = validarReserva(ctx({ servicioCodigo: 'CARDIOLOGIA', recursoCodigo: 'R_CONSULTORIO_1', inicio: new Date('2026-06-22T09:00:00-03:00') }));
     expect(r.ok).toBe(true);
     expect(r.bloqueos).toHaveLength(0);
   });
 
   it('Turno en el pasado => bloqueo', () => {
-    const r = validarReserva(ctx({ servicioCodigo: 'HBOT_MONO', recursoCodigo: 'R_HBOT_MONO', inicio: new Date('2026-06-22T07:00:00-03:00') }));
+    const r = validarReserva(ctx({ servicioCodigo: 'CARDIOLOGIA', recursoCodigo: 'R_CONSULTORIO_1', inicio: new Date('2026-06-22T07:00:00-03:00') }));
     expect(r.ok).toBe(false);
   });
 
-  it('Misma sala (cap 1) ya ocupada => bloqueo (R-07)', () => {
+  it('Mismo consultorio (cap 1) ya ocupado => bloqueo (R-07)', () => {
     const r = validarReserva(
       ctx({
-        servicioCodigo: 'HBOT_MONO',
-        recursoCodigo: 'R_HBOT_MONO',
+        servicioCodigo: 'CARDIOLOGIA',
+        recursoCodigo: 'R_CONSULTORIO_1',
         inicio: new Date('2026-06-22T09:00:00-03:00'),
-        reservasExistentes: [reserva('R_HBOT_MONO', '09:00', '10:00')],
+        reservasExistentes: [reserva('R_CONSULTORIO_1', '09:00', '10:00')],
       }),
     );
     expect(r.ok).toBe(false);
     expect(r.bloqueos.some((b) => b.regla === 'R-07')).toBe(true);
   });
 
-  it('Recovery G2 a la misma hora que G1 => bloqueo por desfasaje (R-07)', () => {
+  it('Dos subespecialidades en consultorios distintos a la misma hora => ok', () => {
     const r = validarReserva(
       ctx({
-        servicioCodigo: 'RECOVERY_PRO',
-        recursoCodigo: 'R_RECOVERY_G2',
+        servicioCodigo: 'HEMODINAMIA',
+        recursoCodigo: 'R_CONSULTORIO_2',
         inicio: new Date('2026-06-22T09:00:00-03:00'),
-        reservasExistentes: [reserva('R_RECOVERY_G1', '09:00', '10:00')],
-      }),
-    );
-    expect(r.ok).toBe(false);
-  });
-
-  it('Recovery G2 con 30 min de desfasaje => ok', () => {
-    const r = validarReserva(
-      ctx({
-        servicioCodigo: 'RECOVERY_PRO',
-        recursoCodigo: 'R_RECOVERY_G2',
-        inicio: new Date('2026-06-22T09:30:00-03:00'),
-        reservasExistentes: [reserva('R_RECOVERY_G1', '09:00', '10:00')],
+        reservasExistentes: [reserva('R_CONSULTORIO_1', '09:00', '10:00')],
       }),
     );
     expect(r.ok).toBe(true);
   });
 
-  it('IV NAD+ sin prescripción => bloqueo (R-03)', () => {
-    const r = validarReserva(ctx({ servicioCodigo: 'IV_NAD', recursoCodigo: 'R_SALA_TB', inicio: new Date('2026-06-22T09:00:00-03:00') }));
-    expect(r.ok).toBe(false);
-    expect(r.bloqueos.some((b) => b.regla === 'R-03')).toBe(true);
-  });
-
-  it('IV NAD+ con prescripción => ok (con advertencia de HBOT previo)', () => {
-    const r = validarReserva(ctx({ servicioCodigo: 'IV_NAD', recursoCodigo: 'R_SALA_TB', inicio: new Date('2026-06-22T09:00:00-03:00'), prescripcionActiva: true }));
-    expect(r.ok).toBe(true);
-    expect(r.advertencias.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('Dos consultas en el consultorio a la misma hora => bloqueo (R-07, un solo consultorio)', () => {
+  it('Fuera de la ventana de reserva del perfil público => bloqueo (R-13)', () => {
     const r = validarReserva(
       ctx({
-        servicioCodigo: 'CONSULTA_MED_DALESSANDRO',
-        recursoCodigo: 'R_CONSULTORIO',
-        inicio: new Date('2026-06-22T09:00:00-03:00'),
-        reservasExistentes: [reserva('R_CONSULTORIO', '09:00', '10:00')],
+        servicioCodigo: 'CARDIOLOGIA',
+        recursoCodigo: 'R_CONSULTORIO_1',
+        inicio: new Date('2026-06-25T09:00:00-03:00'), // > 48 h desde AHORA
+        perfil: 'PUBLICO',
       }),
     );
     expect(r.ok).toBe(false);
-    expect(r.bloqueos.some((b) => b.regla === 'R-07')).toBe(true);
-  });
-
-  it('Contraindicación absoluta activa => bloqueo (R-02)', () => {
-    const r = validarReserva(
-      ctx({
-        servicioCodigo: 'HBOT_MONO',
-        recursoCodigo: 'R_HBOT_MONO',
-        inicio: new Date('2026-06-22T09:00:00-03:00'),
-        contraindicacionesActivas: ['HBOT_NEUMOTORAX_NO_TRATADO'],
-      }),
-    );
-    expect(r.ok).toBe(false);
-    expect(r.bloqueos.some((b) => b.regla === 'R-02')).toBe(true);
+    expect(r.bloqueos.some((b) => b.regla === 'R-13')).toBe(true);
   });
 });

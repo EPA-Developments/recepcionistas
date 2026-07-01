@@ -12,19 +12,19 @@ base sobre la que se apoya la pantalla de la recepción. Backend **Medplum (FHIR
 | Pieza | Estado |
 |---|---|
 | Andamiaje TypeScript + tooling | ✅ |
-| Catálogo v9 (servicios, combos, membresías, paquetes) | ✅ |
-| Motor de precios (USD→ARS, splits, cascada TB) | ✅ con tests |
-| Motor de reglas de agenda (R-01..R-14) | ✅ con tests |
+| Catálogo (consultas de cardiología + subespecialidades; precio PENDIENTE) | ✅ |
+| Motor de precios (USD→ARS, split SOM_100) | ✅ con tests |
+| Motor de reglas de agenda (R-02..R-14) | ✅ con tests |
 | Extensiones FHIR + AccessPolicies (recepción) | ✅ |
 | Bots: calcular-cobro · validar-turno · enviar-whatsapp | ✅ + deploy (`npm run deploy:bots`) |
 | Seed del catálogo (idempotente) | ✅ (`--dry-run` sin servidor) |
 | Motor de agenda: Slots + semáforo de salas | ✅ con tests (config provisoria) |
 | Front de recepción (React + Vite) | ✅ login, agenda + semáforo, atención, reserva de turnos |
-| Reserva de turnos (valida + crea Appointment/Slot) | ✅ bot `bw-reservar-turno` |
-| Reserva de combos en secuencia (HBOT primero, auto-sala) | ✅ bot `bw-reservar-combo` |
-| Check-in / check-out + estados en el timeline | ✅ bot `bw-estado-turno` |
-| Reserva con seña 50% (confirma turno) + WhatsApp | ✅ bots `bw-pagar-sena` / `bw-link-mercadopago` |
-| Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `bw-webhook-mercadopago` |
+| Reserva de turnos (valida + crea Appointment/Slot) | ✅ bot `som-reservar-turno` |
+| Reserva de combos en secuencia (auto-sala; sin combos definidos aún) | ✅ bot `som-reservar-combo` |
+| Check-in / check-out + estados en el timeline | ✅ bot `som-estado-turno` |
+| Reserva con seña 50% (confirma turno) + WhatsApp | ✅ bots `som-pagar-sena` / `som-link-mercadopago` |
+| Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `som-webhook-mercadopago` |
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
 | Consultas médicas (3 médicos, 1 consultorio, precio ARS) | ✅ catálogo + `Practitioner` |
 | Harness de tests (casos AC del Anexo A) | ✅ 70 tests |
@@ -70,8 +70,8 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 ```
 src/
   domain/      Tipos de dominio (agnósticos de FHIR)
-  config/      Datos del Manual v9 (catálogo, combos, membresías, paquetes,
-               recursos, horario, contraindicaciones, TC, constantes de reglas)
+  config/      Datos del catálogo (consultas de cardiología + subespecialidades),
+               recursos, horario, contraindicaciones, TC, constantes de reglas
   lib/         Lógica pura: money, pricing, reglas-turno (testeable sin servidor)
   fhir/        Identificadores, extensiones (StructureDefinition), AccessPolicies
   bots/        Medplum Bots: calcular-cobro, validar-turno, enviar-whatsapp

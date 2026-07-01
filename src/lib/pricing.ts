@@ -11,56 +11,30 @@ import { getServicio } from '../config/catalogo.js';
 import { getCombo } from '../config/combos.js';
 import { getMembresia } from '../config/membresias.js';
 import { getPaquete } from '../config/paquetes.js';
-import { CASCADA_TB } from '../config/reglas.js';
 import { resolverTC } from '../config/tipo-cambio.js';
 import { redondearUSD, usdAArs } from './money.js';
 
 export interface DistribucionSplit {
   somUSD: number;
+  /** Reservados para futuros esquemas de honorarios profesionales (hoy sin uso). */
   prescriptoresUSD?: number;
   terapeutaUSD?: number;
   proveedorUSD?: number;
-  /** True si el neto de SOM quedó por debajo del piso de margen (R-08). */
-  bajoMargenMinimo?: boolean;
 }
 
 /**
- * Precio de una sesión suelta en USD, aplicando la regla de pricing del recurso.
- * @param ocupantes cantidad de personas (HBOT biplaza/multiplaza, parejas).
- * @param fm aplica el 20% OFF de Founding Member (solo sueltas, si el servicio lo permite).
+ * Precio de una sesión suelta en USD. Las consultas de segunda opinión se cobran
+ * por sesión (POR_SESION).
+ * @param ocupantes cantidad de personas (default 1).
+ * @param fm aplica el 20% OFF de Founding Member (solo si el servicio lo permite).
  */
 export function precioSueltoUSD(
   servicio: Servicio,
   opts: { ocupantes?: number; fm?: boolean } = {},
 ): number {
   const ocupantes = opts.ocupantes ?? 1;
-  let base: number;
+  let base = servicio.precioUSD * ocupantes;
 
-  switch (servicio.reglaPricing) {
-    case 'HBOT_MONO':
-      base = servicio.precioUSD;
-      break;
-    case 'HBOT_BIPLAZA':
-      // 2 personas => 100 c/u (200 total); 1 sola => precio monoplaza (165).
-      base = ocupantes >= 2 ? servicio.precioUSD * ocupantes : 165;
-      break;
-    case 'HBOT_MULTIPLAZA':
-      // USD 80/persona, mínimo 3.
-      base = servicio.precioUSD * Math.max(ocupantes, 3);
-      break;
-    case 'RECOVERY_PRO_INDIVISIBLE':
-      // USD 200 por gabinete, 1 o 2 personas. Indivisible.
-      base = servicio.precioUSD;
-      break;
-    case 'POR_SESION':
-    case 'CASCADA_TB':
-      base = servicio.precioUSD * ocupantes;
-      break;
-    default:
-      base = servicio.precioUSD * ocupantes;
-  }
-
-  // FM: 20% OFF en sueltas, solo si el servicio lo permite (no IV/TB ni combos/membresías).
   if (opts.fm && servicio.fmAplica) {
     base = base * (1 - 0.2);
   }
@@ -68,50 +42,14 @@ export function precioSueltoUSD(
 }
 
 /**
- * Cascada de pricing para IV Therapy + Terapias Biológicas (R-08):
- * neto SOM = (precio − 25% costo fiscal − insumo Regenerar − USD 15 enfermería) × 85%.
- * El 15% restante es honorario de los médicos prescriptores. Piso: 25% de margen neto.
- *
- * @param precioUSD precio de lista que paga el cliente.
- * @param insumoUSD costo del insumo (lista Regenerar, sin IVA). Requerido para el neto real.
+ * Distribución de ingresos (split) de un monto cobrado. Las consultas de segunda
+ * opinión quedan 100% para el centro (SOM_100).
  */
-export function cascadaTB(precioUSD: number, insumoUSD: number): DistribucionSplit {
-  const baseImponible = precioUSD * (1 - CASCADA_TB.costoFiscal) - insumoUSD - CASCADA_TB.enfermeriaUSD;
-  const somUSD = redondearUSD(baseImponible * CASCADA_TB.factorSom);
-  const prescriptoresUSD = redondearUSD(baseImponible * CASCADA_TB.honorarioMedicos);
-  const pisoMinimo = precioUSD * CASCADA_TB.margenNetoMin;
-  return {
-    somUSD,
-    prescriptoresUSD,
-    bajoMargenMinimo: somUSD < pisoMinimo,
-  };
-}
-
-/**
- * Distribución de ingresos (split) de un monto cobrado, según el servicio (R-08).
- * Para IV/TB usa la cascada (requiere costo de insumo).
- */
-export function calcularSplit(
-  servicio: Servicio,
-  montoUSD: number,
-  opts: { insumoUSD?: number } = {},
-): DistribucionSplit {
+export function calcularSplit(servicio: Servicio, montoUSD: number): DistribucionSplit {
   const split: Split = servicio.split;
   switch (split.tipo) {
     case 'SOM_100':
       return { somUSD: redondearUSD(montoUSD) };
-    case 'IV_TB_85_15':
-      return cascadaTB(montoUSD, opts.insumoUSD ?? 0);
-    case 'MASAJE_50_50':
-      return {
-        somUSD: redondearUSD(montoUSD * 0.5),
-        terapeutaUSD: redondearUSD(montoUSD * 0.5),
-      };
-    case 'FOODBAR_75_25':
-      return {
-        somUSD: redondearUSD(montoUSD * 0.75),
-        proveedorUSD: redondearUSD(montoUSD * 0.25),
-      };
   }
 }
 
@@ -184,7 +122,7 @@ function construirLinea(item: ItemCobro, tc?: number): LineaCobro {
       precioUnitarioUSD: precio,
       subtotalUSD,
       subtotalARS: usdAArs(subtotalUSD, tc),
-      split: calcularSplit(s, subtotalUSD, { insumoUSD: item.insumoUSD }),
+      split: calcularSplit(s, subtotalUSD),
     };
   }
 
