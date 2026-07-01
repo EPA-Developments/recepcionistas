@@ -1,8 +1,8 @@
 import type { Appointment, Patient, Slot } from '@medplum/fhirtypes';
 import { getDisplayString } from '@medplum/core';
 import { medplum } from '../medplum';
-import { RECURSOS } from '@bw/config/recursos';
-import { EXT } from '@bw/fhir/identifiers';
+import { RECURSOS } from '@som/config/recursos';
+import { EXT } from '@som/fhir/identifiers';
 import type { TurnoTimeline } from './timeline';
 
 /**

@@ -41,13 +41,13 @@ import { cargarPlanesActivos, planUsable, type PlanPaciente } from '../lib/plane
 import { PreAgendaModal } from '../components/PreAgendaModal';
 import { InvitarPortal } from '../components/InvitarPortal';
 import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
-import { SERVICIOS } from '@bw/config/catalogo';
-import { COMBOS } from '@bw/config/combos';
-import { MEMBRESIAS } from '@bw/config/membresias';
-import { PAQUETES } from '@bw/config/paquetes';
-import { recursosParaCategoria } from '@bw/config/recursos';
-import { generarSlots } from '@bw/lib/slots';
-import { HORARIO_SEMANAL } from '@bw/config/horario';
+import { SERVICIOS } from '@som/config/catalogo';
+import { COMBOS } from '@som/config/combos';
+import { MEMBRESIAS } from '@som/config/membresias';
+import { PAQUETES } from '@som/config/paquetes';
+import { recursosParaCategoria } from '@som/config/recursos';
+import { generarSlots } from '@som/lib/slots';
+import { HORARIO_SEMANAL } from '@som/config/horario';
 
 export function Atender({
   pacienteInicialId,
@@ -524,7 +524,7 @@ function PanelReserva({
 
         {esCombo && (
           <Text size="xs" c="dimmed">
-            El sistema agenda los componentes en orden (HBOT primero) y elige una sala libre para cada uno.
+            El sistema agenda los componentes en orden y elige una sala libre para cada uno.
           </Text>
         )}
 

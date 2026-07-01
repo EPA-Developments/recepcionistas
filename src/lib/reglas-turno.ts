@@ -3,10 +3,9 @@
  * Funciones puras: reciben datos planos y devuelven un resultado de validación.
  *
  * Reglas cubiertas:
- *  R-01 HBOT siempre primero            R-07 Desfasaje de recursos compartidos
  *  R-02 Contraindicaciones              R-10 Saldo de membresía
- *  R-03 Prescripción médica (IV/TB)     R-13 Ventana de reserva
- *                                       R-14 Cancelación / reagenda
+ *  R-03 Prescripción médica             R-13 Ventana de reserva
+ *  R-07 Desfasaje de recursos           R-14 Cancelación / reagenda
  */
 import type { CategoriaServicio, Servicio } from '../domain/types.js';
 import { CONTRAINDICACIONES_POR_CODIGO } from '../config/contraindicaciones.js';
@@ -98,45 +97,6 @@ export function validarPrescripcion(servicio: Servicio, prescripcionActiva: bool
         regla: 'R-03',
         nivel: 'bloqueo',
         mensaje: `"${servicio.nombre}" requiere prescripción médica activa (Dalessandro / Dos Santos).`,
-      },
-    ]);
-  }
-  return resultado([]);
-}
-
-// --------------------------------------------------------------------------
-// R-01 · HBOT siempre primero
-// --------------------------------------------------------------------------
-
-/**
- * En una secuencia de componentes (p. ej. un combo), si hay HBOT debe ir primero.
- * @param categoriasEnOrden categorías en el orden en que se ejecutan.
- */
-export function validarOrdenHBOT(categoriasEnOrden: CategoriaServicio[]): ResultadoValidacion {
-  const idx = categoriasEnOrden.indexOf('HBOT');
-  if (idx > 0) {
-    return resultado([
-      {
-        regla: 'R-01',
-        nivel: 'bloqueo',
-        mensaje: 'La sesión de HBOT debe agendarse primero en la secuencia.',
-      },
-    ]);
-  }
-  return resultado([]);
-}
-
-/**
- * Recomendación (no bloqueante) de HBOT previo a IV/TB. El Manual lo marca como
- * "altamente recomendable, no obligatorio"; por eso es advertencia, no bloqueo.
- */
-export function recomendarHbotPrevio(categoria: CategoriaServicio, huboHbotPrevio: boolean): ResultadoValidacion {
-  if ((categoria === 'IV_THERAPY' || categoria === 'TERAPIA_BIOLOGICA') && !huboHbotPrevio) {
-    return resultado([
-      {
-        regla: 'R-01',
-        nivel: 'advertencia',
-        mensaje: 'Se recomienda una sesión de HBOT previa para máxima efectividad.',
       },
     ]);
   }

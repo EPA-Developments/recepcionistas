@@ -36,12 +36,12 @@ una parte del avance; el resto se resuelve en paralelo.
 
 El bloque está implementado, testeado y deployado: dashboard "Planes y sesiones"
 (saldo en riesgo), pre-agenda de membresías (serie 2x/3x) y recordatorios de turno
-(24h/1h) + saldo en riesgo por WhatsApp y email (`bw-recordatorios`, cron horario).
+(24h/1h) + saldo en riesgo por WhatsApp y email (`som-recordatorios`, cron horario).
 Ver [`docs/app-recepcion.md`](app-recepcion.md) y [`docs/bots.md`](bots.md).
 
 > **Para que los avisos se envíen** (hoy quedan registrados como `Communication` en
 > estado `preparation` hasta que estén las cuentas) falta lo de abajo + configurar
-> el `cronTimer` del Bot `bw-recordatorios` (`0 * * * *`).
+> el `cronTimer` del Bot `som-recordatorios` (`0 * * * *`).
 
 ## Integraciones / cuentas (en paralelo)
 

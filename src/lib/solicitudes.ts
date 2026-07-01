@@ -1,20 +1,20 @@
 /**
  * Solicitudes de turno desde el portal del paciente (modelo de "solicitud").
  *
- * El paciente **pide** un turno (terapia + preferencia de horario); Recepción lo
- * **confirma** con los bots de reserva (que aplican las reglas: R-01 HBOT primero,
- * R-07 capacidad/desfasaje, R-13 ventana, seña 50%). El portal nunca escribe la
+ * El paciente **pide** un turno (servicio + preferencia de horario); Recepción lo
+ * **confirma** con los bots de reserva (que aplican las reglas: R-07
+ * capacidad/desfasaje, R-13 ventana, seña 50%). El portal nunca escribe la
  * agenda ni decide nada: solo registra la preferencia.
  *
  * Lógica pura (sin FHIR ni red): valida la solicitud y arma los textos. El bot
- * `bw-solicitar-turno` orquesta (crea el `Task` y avisa a Recepción).
+ * `som-solicitar-turno` orquesta (crea el `Task` y avisa a Recepción).
  */
 export interface SolicitudTurno {
   /** Paciente que pide, ej. "Patient/123". */
   pacienteRef: string;
-  /** Terapia elegida (texto que vio el paciente, ej. "Cámara hiperbárica (HBOT)"). */
+  /** Servicio elegido (texto que vio el paciente, ej. "Segunda opinión — Cardiología"). */
   terapia: string;
-  /** Código de categoría de la terapia, si el portal lo manda (ej. "HBOT"). */
+  /** Código de categoría del servicio, si el portal lo manda (ej. "CARDIOLOGIA"). */
   terapiaCodigo?: string;
   /** Fecha/hora preferida en ISO (opcional). */
   preferenciaInicio?: string;

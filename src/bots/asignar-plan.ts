@@ -4,7 +4,7 @@
  * Crea el Coverage del plan (sesiones del ciclo/totales, usadas=0), emite el cobro
  * inicial (membresía: mes en curso; paquete: total, con FM si aplica) y envía el
  * WhatsApp de bienvenida. El saldo se descuenta al reservar (R-10) y, en membresías,
- * se renueva los días 1-5 (bot bw-cobro-membresias).
+ * se renueva los días 1-5 (bot som-cobro-membresias).
  *
  * Toda la decisión vive acá: el front solo elige paciente + plan + medio de pago.
  */

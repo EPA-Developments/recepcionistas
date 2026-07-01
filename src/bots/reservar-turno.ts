@@ -27,7 +27,6 @@ const fmtFechaHora = new Intl.DateTimeFormat('es-AR', {
 });
 import {
   combinar,
-  recomendarHbotPrevio,
   validarContraindicaciones,
   validarPrescripcion,
   validarRecursos,
@@ -91,7 +90,6 @@ export function validarReserva(ctx: ContextoReserva): ResultadoValidacion {
   }
 
   partes.push(validarPrescripcion(ctx.servicio, ctx.prescripcionActiva));
-  partes.push(recomendarHbotPrevio(ctx.servicio.categoria, false));
   partes.push(
     validarContraindicaciones([ctx.servicio.categoria], ctx.contraindicacionesActivas, {
       autorizacionMedica: ctx.autorizacionMedica,

@@ -1,7 +1,7 @@
 import type { Appointment, Invoice } from '@medplum/fhirtypes';
 import { medplum } from '../medplum';
-import { RECURSOS_POR_CODIGO } from '@bw/config/recursos';
-import { EXT } from '@bw/fhir/identifiers';
+import { RECURSOS_POR_CODIGO } from '@som/config/recursos';
+import { EXT } from '@som/fhir/identifiers';
 
 export interface Reportes {
   hoy: {

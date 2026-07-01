@@ -1,9 +1,9 @@
 import type { Appointment, Coverage, Patient } from '@medplum/fhirtypes';
 import { getDisplayString } from '@medplum/core';
 import { medplum } from '../medplum';
-import { estadoDeCoverage, planCodigoDeCoverage } from '@bw/fhir/coverage';
-import { saldoPlan } from '@bw/lib/planes';
-import { EXT } from '@bw/fhir/identifiers';
+import { estadoDeCoverage, planCodigoDeCoverage } from '@som/fhir/coverage';
+import { saldoPlan } from '@som/lib/planes';
+import { EXT } from '@som/fhir/identifiers';
 import { nombreYBase } from './planes';
 
 /**

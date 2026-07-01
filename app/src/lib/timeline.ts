@@ -1,9 +1,9 @@
 import type { Appointment, Patient, Slot } from '@medplum/fhirtypes';
 import { getDisplayString } from '@medplum/core';
 import { medplum } from '../medplum';
-import { RECURSOS } from '@bw/config/recursos';
-import { HORARIO_SEMANAL } from '@bw/config/horario';
-import { EXT } from '@bw/fhir/identifiers';
+import { RECURSOS } from '@som/config/recursos';
+import { HORARIO_SEMANAL } from '@som/config/horario';
+import { EXT } from '@som/fhir/identifiers';
 
 export interface TurnoTimeline {
   appointmentId: string;

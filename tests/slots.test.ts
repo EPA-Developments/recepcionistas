@@ -5,8 +5,8 @@ import type { RecursoFisico } from '../src/domain/types.js';
 import type { HorarioDia } from '../src/config/horario.js';
 
 const recursos: RecursoFisico[] = [
-  { codigo: 'R_A', nombre: 'Recurso A', tipo: 'HBOT', capacidad: 1 },
-  { codigo: 'R_B', nombre: 'Recurso B', tipo: 'IHHT', capacidad: 1 },
+  { codigo: 'R_A', nombre: 'Recurso A', tipo: 'CONSULTORIO', capacidad: 1 },
+  { codigo: 'R_B', nombre: 'Recurso B', tipo: 'CONSULTORIO', capacidad: 1 },
 ];
 
 // Lunes 09:00-11:00 abierto; resto cerrado.

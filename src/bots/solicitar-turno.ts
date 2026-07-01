@@ -7,7 +7,7 @@
  * reserva (que aplican las reglas). Toda la decisión vive en recepción.
  *
  * Seguridad: el paciente solo puede ejecutar ESTE bot (su AccessPolicy acota
- * `Bot?name=bw-solicitar-turno`) y solo puede leer sus propios `Task`. Para que el
+ * `Bot?name=som-solicitar-turno`) y solo puede leer sus propios `Task`. Para que el
  * `requester` no se pueda falsificar, conviene crear el Bot con `runAsUser` en
  * Medplum; mientras tanto, Recepción verifica la solicitud contra el paciente real
  * antes de reservar.
