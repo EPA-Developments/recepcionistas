@@ -30,7 +30,7 @@ una parte del avance; el resto se resuelve en paralelo.
 | Tabla de contraindicaciones | Ni v8 ni v9 la incluyen. Se cargó un **borrador estándar HBOT/IHHT** (`src/config/contraindicaciones.ts`, todas `borradorPendienteRevision`). | ⚠️ Validar con Director Médico |
 | Rol/alcance Dr. López Alonso | Pendiente de reunión. No frena la recepción. | A confirmar |
 | Precio consulta Dr. Conrado (Director) | **PROVISORIO: ARS 150.000** en `src/config/medicos.ts` (`precioProvisorio`). Dalessandro y Dos Santos = ARS 120.000 (confirmados). | ⚠️ Confirmar monto |
-| Split / honorario de consultas | Hoy la consulta se cobra entera (split `BW_100`). Falta definir cómo se reparte el honorario del médico. | A definir |
+| Split / honorario de consultas | Hoy la consulta se cobra entera (split `SOM_100`). Falta definir cómo se reparte el honorario del médico. | A definir |
 
 ## Gestión de sesiones — CERRADO ✅
 
