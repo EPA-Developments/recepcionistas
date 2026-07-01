@@ -1,5 +1,5 @@
 /**
- * Seed de prueba para `bw-recordatorios`.
+ * Seed de prueba para `som-recordatorios`.
  *
  *   npm run seed:prueba-recordatorios -- --dry-run   → muestra qué crearía (sin red)
  *   npm run seed:prueba-recordatorios                → upsert en Medplum (.env)
@@ -12,9 +12,9 @@
  * deje el recordatorio listo para volver a dispararse.
  *
  * Luego, para probar el bot:
- *   npx medplum bot execute bw-recordatorios '{}'
+ *   npx medplum bot execute som-recordatorios '{}'
  *   # si hoy faltan >7 días para fin de mes, forzá la ventana de saldo:
- *   npx medplum bot execute bw-recordatorios '{"ventanaSaldoDias":15}'
+ *   npx medplum bot execute som-recordatorios '{"ventanaSaldoDias":15}'
  */
 import 'dotenv/config';
 import { MedplumClient } from '@medplum/core';
@@ -26,8 +26,8 @@ import { cicloMes } from '../lib/planes.js';
 const PATIENT_ID = process.env.PRUEBA_PATIENT_ID ?? '9647fb20-c13a-49c0-b32c-50549bb2c1d9';
 /** Sistema de identifier para los recursos de prueba (upsert idempotente). */
 const PRUEBA = 'https://segundaopinionmedica.org/fhir/Identifier/prueba';
-/** PRIME Standard Individual: 8 sesiones/mes, base BIO RECOVERY. */
-const PLAN = 'PRIME_STD_IND';
+/** Membresía de prueba: 8 sesiones/mes (solo para probar el recordatorio de saldo). */
+const PLAN = 'PLAN_PRUEBA';
 const SESIONES_MES = 8;
 const SESIONES_USADAS = 5; // → 3 libres "por agendar"
 
@@ -58,14 +58,14 @@ function construir(ahora: Date) {
   const appointment: Appointment = {
     resourceType: 'Appointment',
     status: 'booked',
-    description: 'BIO RECOVERY · HBOT',
+    description: 'Segunda Opinión — Cardiología',
     start: inicio.toISOString(),
     end: fin.toISOString(),
     identifier: [{ system: PRUEBA, value: 'recordatorio-turno' }],
     participant: [{ actor: { reference: `Patient/${PATIENT_ID}` }, status: 'accepted' }],
     extension: [
-      { url: EXT.itemTipo, valueCode: 'combo' },
-      { url: EXT.itemCodigo, valueString: 'BIO_RECOVERY' },
+      { url: EXT.itemTipo, valueCode: 'servicio' },
+      { url: EXT.itemCodigo, valueString: 'CARDIOLOGIA' },
     ],
   };
 
@@ -124,10 +124,10 @@ async function main(): Promise<void> {
   const ahora = new Date();
   const { coverage, appointment, inicio, ciclo } = construir(ahora);
 
-  console.log('=== Seed de prueba · bw-recordatorios ===');
+  console.log('=== Seed de prueba · som-recordatorios ===');
   console.log(`  • Patient ${PATIENT_ID} (tel/email de respaldo: ${TELEFONO} / ${EMAIL})`);
   console.log(`  • Membresía ${PLAN}: ${SESIONES_MES - SESIONES_USADAS} de ${SESIONES_MES} libres · ciclo ${ciclo}`);
-  console.log(`  • Turno BIO RECOVERY 'booked' a las ${inicio.toLocaleString('es-AR')} (~20h → ventana 24h)`);
+  console.log(`  • Turno de consulta 'booked' a las ${inicio.toLocaleString('es-AR')} (~20h → ventana 24h)`);
 
   if (dryRun) {
     console.log('\n[dry-run] No se conecta a Medplum. Recursos construidos OK.');
@@ -161,8 +161,8 @@ async function main(): Promise<void> {
   console.log(`  ✓ Communication previas borradas (${previas.length})`);
 
   console.log('\nListo. Probá el bot:');
-  console.log("  npx medplum bot execute bw-recordatorios '{}'");
-  console.log("  npx medplum bot execute bw-recordatorios '{\"ventanaSaldoDias\":15}'   # si faltan >7 días para fin de mes");
+  console.log("  npx medplum bot execute som-recordatorios '{}'");
+  console.log("  npx medplum bot execute som-recordatorios '{\"ventanaSaldoDias\":15}'   # si faltan >7 días para fin de mes");
 }
 
 function requireEnv(nombre: string): string {

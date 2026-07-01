@@ -65,8 +65,8 @@ Hay dos caminos para que un paciente tenga acceso, y conviene que ambos usen la
 - **Auto-registro** (portal): el paciente se crea solo. Medplum le asigna el
   **default patient access policy** del proyecto → configurarlo como
   "Paciente — Portal".
-- **Invitación desde recepción**: la recepción da de alta (`bw-alta-paciente`) y/o
-  invita al portal (`bw-invitar-paciente`) por WhatsApp / email / QR. El bot ya
+- **Invitación desde recepción**: la recepción da de alta (`som-alta-paciente`) y/o
+  invita al portal (`som-invitar-paciente`) por WhatsApp / email / QR. El bot ya
   asigna explícitamente "Paciente — Portal". Ver `docs/bots.md` (onboarding).
 
 > El link de invitación apunta al **portal** (`PORTAL_BASE_URL`,

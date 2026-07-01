@@ -7,7 +7,7 @@ import {
   type SolicitudTurno,
 } from '../src/lib/solicitudes.js';
 
-const base: SolicitudTurno = { pacienteRef: 'Patient/123', terapia: 'Cámara hiperbárica (HBOT)' };
+const base: SolicitudTurno = { pacienteRef: 'Patient/123', terapia: 'Segunda opinión — Cardiología' };
 
 describe('Solicitudes de turno — validación', () => {
   it('OK con paciente y terapia', () => {
@@ -42,7 +42,7 @@ describe('Solicitudes de turno — textos', () => {
 
   it('resumenSolicitud arma el detalle para Recepción', () => {
     const r = resumenSolicitud({ ...base, preferenciaTexto: 'jueves a la tarde', nota: 'vengo con un amigo' });
-    expect(r).toContain('Cámara hiperbárica (HBOT)');
+    expect(r).toContain('Segunda opinión — Cardiología');
     expect(r).toContain('jueves a la tarde');
     expect(r).toContain('vengo con un amigo');
   });
@@ -50,7 +50,7 @@ describe('Solicitudes de turno — textos', () => {
   it('mensajeWhatsAppRecepcion incluye el nombre y la terapia', () => {
     const m = mensajeWhatsAppRecepcion({ ...base, preferenciaTexto: 'mañana' }, 'Juan Pérez');
     expect(m).toContain('Juan Pérez');
-    expect(m).toContain('Cámara hiperbárica (HBOT)');
+    expect(m).toContain('Segunda opinión — Cardiología');
     expect(m).toContain('mañana');
   });
 });

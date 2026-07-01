@@ -9,43 +9,30 @@
 
 export type Moneda = 'USD' | 'ARS';
 
-/** Categorías de servicio (definen reglas de pricing/agenda y split). */
+/**
+ * Categorías de servicio de Segunda Opinión Médica: cardiología convencional y
+ * sus subespecialidades. Definen dónde se agenda cada servicio.
+ */
 export type CategoriaServicio =
-  | 'HBOT'
-  | 'IHHT'
-  | 'RED_LIGHT'
-  | 'RECOVERY_PRO'
-  | 'COMPRESION'
-  | 'CRIO'
-  | 'IV_THERAPY'
-  | 'TERAPIA_BIOLOGICA'
-  | 'MASAJE_OSTEOPATIA'
-  | 'CONSULTA';
+  | 'CARDIOLOGIA'
+  | 'HEMODINAMIA'
+  | 'ELECTROFISIOLOGIA'
+  | 'MEDICINA_NUCLEAR'
+  | 'PREVENCION_CV'
+  | 'REHABILITACION_CV';
 
 /**
- * Distribución de ingresos (split) por servicio (R-08).
- * Los porcentajes son sobre el monto neto facturable de SOM.
+ * Distribución de ingresos (split) por servicio.
+ * Las consultas de Segunda Opinión Médica quedan 100% para el centro (SOM_100).
+ * El esquema de honorarios profesionales queda PENDIENTE de definir.
  */
-export type Split =
-  | { tipo: 'SOM_100' }
-  | { tipo: 'IV_TB_85_15'; som: 85; prescriptores: 15 }
-  | { tipo: 'MASAJE_50_50'; som: 50; terapeuta: 50 }
-  | { tipo: 'FOODBAR_75_25'; som: 75; proveedor: 25 };
+export type Split = { tipo: 'SOM_100' };
 
-/**
- * Regla de pricing especial por recurso físico, cuando el precio no es un
- * simple "precio por sesión" (HBOT por ocupación, Recovery Pro indivisible, etc.).
- */
-export type ReglaPricingRecurso =
-  | 'HBOT_MONO' // 1 plaza, precio fijo
-  | 'HBOT_BIPLAZA' // 2 personas => 100 c/u; 1 sola => precio mono
-  | 'HBOT_MULTIPLAZA' // por persona; mín 3, máx 6
-  | 'RECOVERY_PRO_INDIVISIBLE' // 200 por gabinete, 1 o 2 personas
-  | 'POR_SESION' // precio fijo por sesión
-  | 'CASCADA_TB'; // (precio - 25% fiscal - insumo - 15 enfermería) x 85%, piso 25% margen
+/** Regla de cálculo de precio del servicio. Las consultas se cobran por sesión. */
+export type ReglaPricingRecurso = 'POR_SESION';
 
 export interface Servicio {
-  /** Código de negocio estable (p. ej. "HBOT_MONO"). */
+  /** Código de negocio estable (p. ej. "CARDIOLOGIA"). */
   codigo: string;
   nombre: string;
   categoria: CategoriaServicio;
@@ -134,16 +121,7 @@ export interface Paquete {
 }
 
 /** Tipo de recurso físico agendable. */
-export type TipoRecurso =
-  | 'HBOT'
-  | 'IHHT'
-  | 'RECOVERY_PRO'
-  | 'RED_LIGHT'
-  | 'COMPRESION'
-  | 'CRIO'
-  | 'BOX_CLINICO'
-  | 'CONSULTORIO'
-  | 'SALA';
+export type TipoRecurso = 'CONSULTORIO' | 'SALA';
 
 export interface RecursoFisico {
   codigo: string;

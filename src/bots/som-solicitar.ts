@@ -1,7 +1,7 @@
 /**
  * Bot · Solicitar segunda opinión médica (SOM) desde el portal del paciente.
  *
- * Análogo a `bw-solicitar-turno`, pero para SOM: el paciente adjunta su
+ * Análogo a `som-solicitar-turno`, pero para SOM: el paciente adjunta su
  * cuestionario clínico y sus estudios y pide una segunda opinión cardiológica.
  * Este bot crea una `ServiceRequest` (status `active`) que —vía Subscription—
  * dispara al bot interno `bot-som-report` (PREVENT + informe + PDF).

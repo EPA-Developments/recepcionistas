@@ -1,9 +1,9 @@
 import type { Coverage } from '@medplum/fhirtypes';
 import { medplum } from '../medplum';
-import { estadoDeCoverage, planCodigoDeCoverage } from '@bw/fhir/coverage';
-import { saldoPlan, type EstadoPlan, type SaldoPlan } from '@bw/lib/planes';
-import { MEMBRESIAS_POR_CODIGO } from '@bw/config/membresias';
-import { PAQUETES_POR_CODIGO } from '@bw/config/paquetes';
+import { estadoDeCoverage, planCodigoDeCoverage } from '@som/fhir/coverage';
+import { saldoPlan, type EstadoPlan, type SaldoPlan } from '@som/lib/planes';
+import { MEMBRESIAS_POR_CODIGO } from '@som/config/membresias';
+import { PAQUETES_POR_CODIGO } from '@som/config/paquetes';
 
 /** Plan activo de un paciente con su saldo ya calculado (para mostrar/usar). */
 export interface PlanPaciente {

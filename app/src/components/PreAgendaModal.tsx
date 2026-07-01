@@ -16,10 +16,10 @@ import {
 import { IconCalendarPlus, IconCheck, IconX, IconInfoCircle } from '@tabler/icons-react';
 import { reservarCombo, enviarWhatsApp, mensajeError } from '../lib/bots';
 import type { PlanPaciente } from '../lib/planes';
-import { MEMBRESIAS_POR_CODIGO } from '@bw/config/membresias';
-import { HORARIO_SEMANAL } from '@bw/config/horario';
-import { generarSlots } from '@bw/lib/slots';
-import { generarSerieFechas, diasSugeridos } from '@bw/lib/serie-turnos';
+import { MEMBRESIAS_POR_CODIGO } from '@som/config/membresias';
+import { HORARIO_SEMANAL } from '@som/config/horario';
+import { generarSlots } from '@som/lib/slots';
+import { generarSerieFechas, diasSugeridos } from '@som/lib/serie-turnos';
 
 const LABEL_DIA: Record<number, string> = { 0: 'Dom', 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb' };
 

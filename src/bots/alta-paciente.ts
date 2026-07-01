@@ -3,7 +3,7 @@
  *
  * Crea (o actualiza, sin duplicar) el recurso `Patient` con la demografía mínima:
  * nombre, DNI, teléfono y email. NO da acceso al portal — eso es un paso aparte
- * (`bw-invitar-paciente`). Deduplica por DNI y, si no hay, por email/teléfono.
+ * (`som-invitar-paciente`). Deduplica por DNI y, si no hay, por email/teléfono.
  *
  * No requiere admin del proyecto: la recepción ya tiene permiso de escritura sobre
  * `Patient` por su AccessPolicy.

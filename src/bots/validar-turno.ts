@@ -3,9 +3,8 @@
  *
  * Corre el motor de reglas de agenda sobre un turno propuesto y devuelve el
  * resultado (bloqueos + advertencias). La recepción no decide: el sistema valida
- * orden de protocolo, contraindicaciones, prescripción, capacidad/desfasaje de
- * recursos, ventana de reserva y saldo de membresía (R-01, R-02, R-03, R-07,
- * R-10, R-13).
+ * contraindicaciones, prescripción, capacidad/desfasaje de recursos, ventana de
+ * reserva y saldo de membresía (R-02, R-03, R-07, R-10, R-13).
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { CategoriaServicio } from '../domain/types.js';
@@ -13,9 +12,7 @@ import { getServicio } from '../config/catalogo.js';
 import type { PerfilReserva } from '../config/reglas.js';
 import {
   combinar,
-  recomendarHbotPrevio,
   validarContraindicaciones,
-  validarOrdenHBOT,
   validarPrescripcion,
   validarRecursos,
   validarSaldoMembresia,
@@ -25,7 +22,7 @@ import {
 } from '../lib/reglas-turno.js';
 
 export interface EntradaValidacion {
-  /** Categorías en orden de ejecución (combo) — R-01. */
+  /** Categorías involucradas en el turno (para contraindicaciones) — R-02. */
   secuenciaCategorias?: CategoriaServicio[];
   /** Reservas de recursos para validar capacidad/desfasaje — R-07. */
   reservas?: Array<{ recursoCodigo: string; inicio: string; fin: string }>;
@@ -36,10 +33,9 @@ export interface EntradaValidacion {
   /** Contraindicaciones activas del paciente (códigos) — R-02. */
   contraindicacionesActivas?: string[];
   autorizacionMedica?: boolean;
-  /** Servicio principal (para prescripción y recomendación HBOT) — R-03. */
+  /** Servicio principal (para prescripción) — R-03. */
   servicioCodigo?: string;
   prescripcionActiva?: boolean;
-  huboHbotPrevio?: boolean;
   /** Saldo de membresía — R-10. */
   sesionesUsadas?: number;
   sesionesMes?: number;
@@ -57,10 +53,6 @@ export async function handler(
 export function validarEntrada(e: EntradaValidacion): ResultadoValidacion {
   const partes: ResultadoValidacion[] = [];
 
-  if (e.secuenciaCategorias?.length) {
-    partes.push(validarOrdenHBOT(e.secuenciaCategorias));
-  }
-
   if (e.reservas?.length) {
     const reservas: ReservaRecurso[] = e.reservas.map((r) => ({
       recursoCodigo: r.recursoCodigo,
@@ -77,7 +69,6 @@ export function validarEntrada(e: EntradaValidacion): ResultadoValidacion {
   if (e.servicioCodigo) {
     const servicio = getServicio(e.servicioCodigo);
     partes.push(validarPrescripcion(servicio, e.prescripcionActiva ?? false));
-    partes.push(recomendarHbotPrevio(servicio.categoria, e.huboHbotPrevio ?? false));
     if (e.contraindicacionesActivas?.length) {
       partes.push(
         validarContraindicaciones([servicio.categoria], e.contraindicacionesActivas, {

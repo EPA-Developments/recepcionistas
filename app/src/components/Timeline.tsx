@@ -92,7 +92,7 @@ export function Timeline({
                   return (
                     <Box
                       key={`slot-${i}`}
-                      className="bw-slot"
+                      className="som-slot"
                       title={`Reservar ${fmt(m)} · ${sala.nombre}`}
                       onClick={() => onReservar(sala.codigo, m)}
                       style={{ position: 'absolute', left: i * COL_W, top: 0, width: COL_W, height: ROW_H, cursor: 'pointer' }}

@@ -5,7 +5,7 @@
  *
  * Los secretos de Twilio NO viven en el .env: son **Project Secrets de Medplum** y
  * solo los ve el bot al ejecutarse (event.secrets). Por eso este diagnóstico se
- * conecta con las credenciales del .env y **ejecuta el bot `bw-enviar-whatsapp`**
+ * conecta con las credenciales del .env y **ejecuta el bot `som-enviar-whatsapp`**
  * en el servidor (que sí lee los secrets reales), y reporta el `status` de la
  * Communication que devuelve:
  *   - "completed"          → Twilio aceptó el mensaje (secrets OK). Revisá tu WhatsApp.
@@ -39,9 +39,9 @@ async function main(): Promise<void> {
   await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
   console.log(`Conectado a ${process.env.MEDPLUM_BASE_URL}. Probando WhatsApp a: ${to}`);
 
-  const bot = await medplum.searchOne('Bot', 'name=bw-enviar-whatsapp');
+  const bot = await medplum.searchOne('Bot', 'name=som-enviar-whatsapp');
   if (!bot?.id) {
-    console.error('\n✗ No encontré el bot "bw-enviar-whatsapp". Deployalo: npm run deploy:bots');
+    console.error('\n✗ No encontré el bot "som-enviar-whatsapp". Deployalo: npm run deploy:bots');
     process.exitCode = 1;
     return;
   }

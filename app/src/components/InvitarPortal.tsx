@@ -7,7 +7,7 @@ import { invitarPaciente, mensajeError, type CanalInvitacion } from '../lib/bots
 
 /**
  * Invitación al portal del paciente. La inteligencia vive en el bot
- * bw-invitar-paciente (invite de Medplum); acá sólo elegimos el canal y, para QR,
+ * som-invitar-paciente (invite de Medplum); acá sólo elegimos el canal y, para QR,
  * renderizamos el link que devuelve el bot (client-side, sin mandarlo a terceros).
  */
 export function InvitarPortal({ paciente }: { paciente: Patient }): JSX.Element {

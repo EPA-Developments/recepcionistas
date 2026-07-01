@@ -5,7 +5,7 @@
  *
  * Aísla la capa Medplum→SES: se conecta con las credenciales del .env (la misma
  * ClientApplication del seed/bots) y llama a `medplum.sendEmail()` igual que el bot
- * `bw-invitar-paciente`. Si SES falla, imprime el error COMPLETO (no lo traga,
+ * `som-invitar-paciente`. Si SES falla, imprime el error COMPLETO (no lo traga,
  * como sí hace el bot a propósito) para ver la causa real:
  *   - identidad no verificada / región equivocada;
  *   - SES en sandbox (destinatario no verificado);
