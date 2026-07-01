@@ -89,7 +89,7 @@ export function Solicitudes({ onAtender }: { onAtender: (pacienteId: string) => 
       <Group gap="xs">
         <IconInbox size={22} />
         <Title order={2}>Solicitudes de turno</Title>
-        <Badge variant="light" color="teal">
+        <Badge variant="light" color="somAzul">
           {tasks.length} pendientes
         </Badge>
       </Group>

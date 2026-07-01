@@ -13,7 +13,7 @@ import type { TurnoTimeline } from '../lib/timeline';
 
 const ACCIONES: Array<{ estado: EstadoTurno; label: string; color: string }> = [
   { estado: 'arrived', label: 'Llegó', color: 'orange' },
-  { estado: 'checked-in', label: 'En curso', color: 'teal' },
+  { estado: 'checked-in', label: 'En curso', color: 'somAzul' },
   { estado: 'fulfilled', label: 'Completó', color: 'gray' },
   { estado: 'cancelled', label: 'Cancelar', color: 'red' },
 ];
@@ -126,7 +126,7 @@ export function TurnoModal({
               <Divider label="Seña 50% para confirmar" labelPosition="center" />
               <Group align="flex-end">
                 <Select label="Medio de pago" data={MEDIOS} value={medioPago} onChange={setMedioPago} w={180} />
-                <Button color="teal" loading={cargando === 'sena'} onClick={() => void registrarSena()}>
+                <Button color="somAzul" loading={cargando === 'sena'} onClick={() => void registrarSena()}>
                   Registrar seña
                 </Button>
                 <Button variant="light" loading={cargando === 'mp'} onClick={() => void generarLinkMP()}>
@@ -134,7 +134,7 @@ export function TurnoModal({
                 </Button>
               </Group>
               {mp?.ok && mp.url && (
-                <Alert color="teal" variant="light">
+                <Alert color="somAzul" variant="light">
                   Link de pago:{' '}
                   <Anchor href={mp.url} target="_blank" rel="noreferrer">
                     abrir checkout

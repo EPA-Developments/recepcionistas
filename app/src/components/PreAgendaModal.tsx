@@ -156,7 +156,7 @@ export function PreAgendaModal({
       {plan && (
         <Stack gap="md">
           <Group gap="xs">
-            <Badge color="teal" size="lg" variant="light">
+            <Badge color="somAzul" size="lg" variant="light">
               {plan.nombre}
             </Badge>
             <Badge color="gray" size="lg" variant="light">
@@ -228,7 +228,7 @@ export function PreAgendaModal({
                   {resultados.map((r) => (
                     <Group key={r.fecha} gap="xs" wrap="nowrap">
                       {r.ok ? (
-                        <IconCheck size={16} color="var(--mantine-color-teal-6)" style={{ flexShrink: 0 }} />
+                        <IconCheck size={16} color="var(--mantine-color-somAzul-6)" style={{ flexShrink: 0 }} />
                       ) : (
                         <IconX size={16} color="var(--mantine-color-red-6)" style={{ flexShrink: 0 }} />
                       )}
@@ -245,7 +245,7 @@ export function PreAgendaModal({
                 </Stack>
               </ScrollArea.Autosize>
               {terminado && (
-                <Alert color={agendadas === serie.length ? 'teal' : 'yellow'} variant="light">
+                <Alert color={agendadas === serie.length ? 'somAzul' : 'yellow'} variant="light">
                   {agendadas} de {serie.length} {serie.length === 1 ? 'sesión agendada' : 'sesiones agendadas'}.
                   {agendadas < serie.length && ' Las que fallaron quedan para reintentar o agendar a mano.'}
                 </Alert>

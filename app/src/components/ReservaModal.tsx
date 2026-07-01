@@ -134,7 +134,7 @@ export function ReservaModal({
     <Modal opened={Boolean(preset)} onClose={onClose} title="Reservar turno" size="lg" centered>
       <Stack gap="md">
         <Group gap="xs">
-          <Badge color="teal" size="lg" variant="light">
+          <Badge color="somAzul" size="lg" variant="light">
             {recurso?.nombre ?? preset?.recursoCodigo}
           </Badge>
           <Badge color="gray" size="lg" variant="light">

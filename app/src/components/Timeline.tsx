@@ -49,7 +49,7 @@ export function Timeline({
 
   return (
     <ScrollArea type="auto" offsetScrollbars>
-      <style>{`.bw-slot:hover{background:var(--mantine-color-teal-light);}`}</style>
+      <style>{`.bw-slot:hover{background:var(--mantine-color-somAzul-light);}`}</style>
       <Box style={{ minWidth: NAME_W + trackW }}>
         {/* Encabezado de horas */}
         <Group gap={0} wrap="nowrap">

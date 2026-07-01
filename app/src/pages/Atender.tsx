@@ -261,7 +261,7 @@ function PanelPlanes({
                 {p.nombre}
               </Text>
               <Group gap="xs">
-                <Badge color={p.saldo.disponible ? 'teal' : 'gray'} variant="light">
+                <Badge color={p.saldo.disponible ? 'somAzul' : 'gray'} variant="light">
                   {p.saldo.restantes}/{p.estado.total} sesiones
                 </Badge>
                 {p.saldo.vencido && <Badge color="red">vencido</Badge>}
@@ -332,7 +332,7 @@ function PanelPlanes({
         </Alert>
       )}
       {ok && (
-        <Alert color="teal" mt="md" title="Plan asignado ✓">
+        <Alert color="somAzul" mt="md" title="Plan asignado ✓">
           {ok}
         </Alert>
       )}
@@ -373,7 +373,7 @@ function BannerSeguridad({ pacienteId }: { pacienteId: string }): JSX.Element {
     );
   }
   return (
-    <Alert color="teal" icon={<IconShieldCheck size={20} />} title="Sin contraindicaciones" variant="filled">
+    <Alert color="somAzul" icon={<IconShieldCheck size={20} />} title="Sin contraindicaciones" variant="filled">
       Paciente apto para atención.
     </Alert>
   );
@@ -561,7 +561,7 @@ function PanelReserva({
         )}
 
         {resultado?.creado && (
-          <Alert color="teal" title="Turno reservado ✓">
+          <Alert color="somAzul" title="Turno reservado ✓">
             {resultado.planRestantes !== undefined
               ? `Confirmado con el plan. Quedan ${resultado.planRestantes} sesiones. La sala queda ocupada en la agenda.`
               : 'La sala queda ocupada en la agenda. Tentativo hasta cobrar la seña del 50%.'}
@@ -580,7 +580,7 @@ function PanelReserva({
         )}
 
         {resultadoCombo?.creado && (
-          <Alert color="teal" title="Combo reservado ✓">
+          <Alert color="somAzul" title="Combo reservado ✓">
             {resultadoCombo.planRestantes !== undefined && (
               <Text size="sm" mb="xs">
                 Confirmado con la membresía. Quedan {resultadoCombo.planRestantes} sesiones este mes.
@@ -671,7 +671,7 @@ function PanelCobro({ paciente }: { paciente: Patient }): JSX.Element {
       )}
 
       {totalARS !== undefined && (
-        <Alert color="teal" mt="md" title="Total a cobrar">
+        <Alert color="somAzul" mt="md" title="Total a cobrar">
           <Text size="xl" fw={700}>
             <NumberFormatter prefix="$ " value={totalARS} thousandSeparator="." decimalSeparator="," />
           </Text>

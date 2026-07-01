@@ -9,7 +9,7 @@ const COLOR_NIVEL: Record<NivelUrgencia, string> = {
   critico: 'red',
   pronto: 'orange',
   tranquilo: 'gray',
-  sinAccion: 'teal',
+  sinAccion: 'somAzul',
 };
 
 function plural(n: number, sing: string, plur: string): string {

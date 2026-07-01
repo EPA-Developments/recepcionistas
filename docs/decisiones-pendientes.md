@@ -3,6 +3,36 @@
 Definiciones que dependen de Andrés u otras fuentes. Las **bloqueantes** frenan
 una parte del avance; el resto se resuelve en paralelo.
 
+## Rebrand de dominio: de catálogo BioWellness a modelo Segunda Opinión Médica — ⚠️ BLOQUEANTE
+
+Pedido: reemplazar el modelo actual (Servicios, Combos, Paquetes, Membresías —
+heredado de BioWellness/wellness spa) por el modelo real de Segunda Opinión
+Médica: **Usuarios** (pacientes/clientes) vinculados a **Profesionales**
+(médicos de cabecera), que a su vez solicitan una **Segunda Opinión Médica** a
+especialistas de primera línea en subespecialidades, con atención bilingüe
+(inglés-español).
+
+Es un cambio de arquitectura/regla de negocio *core* (principio 4 del
+CLAUDE.md), no un ajuste visual. Afecta: `src/config/{catalogo,combos,
+paquetes,membresias}.ts`, el motor de pricing (`src/lib/pricing.ts`), los bots
+`reservar-combo`, `cobro-membresias`, `asignar-plan`, y la página "Planes y
+sesiones" (`app/src/pages/PlanesSesiones.tsx`, `panelPlanes.ts`) del lado
+recepción. **No se toca hasta confirmar con Andrés** — el sitio público
+(segundaopinionmedica.org) bloquea el scraping automático (403) y la búsqueda
+web solo trajo datos fragmentarios (consulta 1:1 por Zoom, ejemplo de precio
+~USD 500, sin catálogo de precios fijo visible).
+
+Antes de tocar código, definir:
+
+| # | Pregunta | Por qué importa |
+|---|---|---|
+| 1 | ¿Cuáles son las subespecialidades de "segunda opinión" a modelar (cardiología, oncología, etc.)? | Reemplaza el catálogo de servicios (`src/config/catalogo.ts`). |
+| 2 | ¿Cómo se relacionan Usuario ↔ Profesional (médico de cabecera) ↔ Especialista? ¿El profesional de cabecera "deriva" la solicitud, o el usuario elige directo al especialista? | Define el modelo de dominio (`src/domain/types.ts`) y el flujo de turnos. |
+| 3 | ¿Hay un precio fijo por consulta de segunda opinión (¿variable por especialista?), o se coordina caso a caso como sugiere el sitio? | Reemplaza `pricing.ts`/paquetes/membresías; decide si sigue existiendo lógica de "combos". |
+| 4 | ¿Sigue existiendo algo parecido a "paquetes" o "membresías" (ej. seguimiento con el mismo especialista), o cada segunda opinión es un evento único? | Decide si se elimina o se adapta `paquetes.ts`/`membresias.ts`. |
+| 5 | ¿Qué pasa con los datos/bots actuales de BioWellness (IHHT, HBOT, masajes) — se borran, se archivan, o convive con el nuevo modelo durante una migración? | Alcance del borrado vs. convivencia temporal. |
+| 6 | Atención bilingüe: ¿implica algo en el modelo de datos (idioma preferido del usuario/profesional) o es solo un atributo operativo del centro? | Puede requerir un campo nuevo en `Usuario`/`Profesional`. |
+
 ## Agenda — RESUELTO ✅ (2026-06-20)
 
 | # | Decisión | Definición confirmada por Andrés |

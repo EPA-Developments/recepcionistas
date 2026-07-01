@@ -81,7 +81,7 @@ export function InvitarPortal({ paciente }: { paciente: Patient }): JSX.Element 
       <Group>
         <Button
           leftSection={<IconBrandWhatsapp size={16} />}
-          color="teal"
+          color="somAzul"
           variant="light"
           loading={cargando === 'whatsapp'}
           onClick={() => void invitar('whatsapp')}
@@ -113,7 +113,7 @@ export function InvitarPortal({ paciente }: { paciente: Patient }): JSX.Element 
         </Alert>
       )}
       {ok && (
-        <Alert color="teal" mt="md">
+        <Alert color="somAzul" mt="md">
           {ok}
         </Alert>
       )}

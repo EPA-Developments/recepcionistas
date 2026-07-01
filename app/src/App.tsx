@@ -40,7 +40,7 @@ function Login(): JSX.Element {
       <Paper withBorder shadow="md" p="xl" radius="lg" w={420}>
         <Stack gap="md">
           <Stack gap={2} align="center">
-            <Title order={2} c="teal.7">
+            <Title order={2} c="somAzul.7">
               Segunda Opinión Médica
             </Title>
             <Text c="dimmed" size="sm">

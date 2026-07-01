@@ -145,7 +145,7 @@ export function Reportes(): JSX.Element {
                         {o.turnos}
                       </Text>
                     </Group>
-                    <Progress value={(o.turnos / maxOcup) * 100} color="teal" size="sm" />
+                    <Progress value={(o.turnos / maxOcup) * 100} color="somAzul" size="sm" />
                   </div>
                 ))}
               </Stack>
