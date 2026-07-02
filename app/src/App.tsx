@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Center, Paper, Stack, Title, Text } from '@mantine/core';
-import { SignInForm, useMedplumProfile } from '@medplum/react';
+import { useMedplumProfile } from '@medplum/react';
 import { Shell, type Vista } from './components/Shell';
 import { AgendaDelDia } from './pages/AgendaDelDia';
 import { Solicitudes } from './pages/Solicitudes';
 import { Atender } from './pages/Atender';
 import { Reportes } from './pages/Reportes';
+import { SignInPage } from './pages/SignInPage';
 
 export function App(): JSX.Element {
   const profile = useMedplumProfile();
@@ -14,7 +14,7 @@ export function App(): JSX.Element {
   const [atenderId, setAtenderId] = useState<string | null>(null);
 
   if (!profile) {
-    return <Login />;
+    return <SignInPage />;
   }
 
   const irAtender = (pacienteId: string): void => {
@@ -29,29 +29,5 @@ export function App(): JSX.Element {
       {vista === 'atender' && <Atender pacienteInicialId={atenderId} onPacienteInicialCargado={() => setAtenderId(null)} />}
       {vista === 'reportes' && <Reportes />}
     </Shell>
-  );
-}
-
-function Login(): JSX.Element {
-  return (
-    <Center mih="100vh" bg="gray.0">
-      <Paper withBorder shadow="md" p="xl" radius="lg" w={420}>
-        <Stack gap="md">
-          <Stack gap={2} align="center">
-            <Title order={2} c="somAzul.7">
-              Segunda Opinión Médica
-            </Title>
-            <Text c="dimmed" size="sm">
-              Recepción · San Isidro
-            </Text>
-          </Stack>
-          <SignInForm onSuccess={() => undefined}>
-            <Text ta="center" size="sm" c="dimmed">
-              Ingresá con tu cuenta
-            </Text>
-          </SignInForm>
-        </Stack>
-      </Paper>
-    </Center>
   );
 }

@@ -22,6 +22,20 @@ Al servir detrás de un dominio, `server.allowedHosts` ya permite
 `.segundaopinionmedica.org` (p. ej. `recepcion.segundaopinionmedica.org`) y
 `.medplum.com.ar`.
 
+## Login con Google (Gmail)
+
+El login (`app/src/pages/SignInPage.tsx`) muestra el botón **"Sign in with
+Google"** cuando está seteado `GOOGLE_CLIENT_ID` (env de Vite). Para que
+funcione end-to-end:
+
+1. Crear un **OAuth Client ID** (tipo Web) en Google Cloud Console, con el
+   dominio de la app (p. ej. `https://recepcion.segundaopinionmedica.org`) en
+   *Authorized JavaScript origins*.
+2. Cargar el **mismo Client ID** en el proyecto Medplum (Project Settings →
+   Google Client ID), para que el servidor acepte el token de Google.
+3. El usuario debe **existir en Medplum con ese mismo email**: Google
+   autentica, no crea usuarios nuevos (el alta sigue siendo por invitación).
+
 ## Estructura
 
 - `app/src/pages/` — una por vista (Agenda, Solicitudes, Atender, Reportes).
