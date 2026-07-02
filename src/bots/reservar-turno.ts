@@ -1,13 +1,9 @@
 /**
  * Bot · Reservar turno.
  *
- * Valida un turno propuesto (R-02 contraindicaciones, R-03 prescripción, R-07
- * capacidad/desfasaje, R-13 ventana) y, si está OK, crea el Appointment + un Slot
- * ocupado (para que la agenda lo refleje). Toda la decisión vive acá; el front
- * solo manda la propuesta.
- *
- * Alcance de este slice: un servicio por turno (los combos con secuencia vienen
- * después). La prescripción de IV/TB se pasa explícita hasta modelar ServiceRequest.
+ * Valida un turno propuesto (R-07 capacidad, R-13 ventana) y, si está OK, crea
+ * el Appointment + un Slot ocupado (para que la agenda lo refleje). Toda la
+ * decisión vive acá; el front solo manda la propuesta.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Appointment, AppointmentParticipant, Slot } from '@medplum/fhirtypes';
@@ -15,7 +11,7 @@ import type { Servicio } from '../domain/types.js';
 import { getServicio } from '../config/catalogo.js';
 import type { PerfilReserva } from '../config/reglas.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
-import { cargarReservasDelDia, consumirSesionDePlan, enviarWhatsApp, extraerCodigos, scheduleIdDeRecurso, type ConsumoPlan } from './_shared.js';
+import { cargarReservasDelDia, enviarWhatsApp, scheduleIdDeRecurso } from './_shared.js';
 
 const fmtFechaHora = new Intl.DateTimeFormat('es-AR', {
   day: '2-digit',
@@ -25,15 +21,7 @@ const fmtFechaHora = new Intl.DateTimeFormat('es-AR', {
   hour12: false,
   timeZone: 'America/Argentina/Buenos_Aires',
 });
-import {
-  combinar,
-  validarContraindicaciones,
-  validarPrescripcion,
-  validarRecursos,
-  validarVentanaReserva,
-  type ReservaRecurso,
-  type ResultadoValidacion,
-} from '../lib/reglas-turno.js';
+import { combinar, validarRecursos, validarVentanaReserva, type ReservaRecurso, type ResultadoValidacion } from '../lib/reglas-turno.js';
 
 export interface EntradaReserva {
   pacienteRef: string; // "Patient/123"
@@ -44,12 +32,6 @@ export interface EntradaReserva {
   ocupantes?: number;
   /** Perfil para la ventana de reserva (R-13). Si se omite, no se limita. */
   perfil?: PerfilReserva;
-  /** IV/TB: prescripción activa (hasta modelar ServiceRequest). */
-  prescripcionActiva?: boolean;
-  /** Autorización médica que destraba una contraindicación absoluta (R-02). */
-  autorizacionMedica?: boolean;
-  /** Coverage (paquete) con el que se paga el turno: consume una sesión y confirma sin seña. */
-  coverageId?: string;
   /** Si es false, solo valida (no crea). Default true. */
   confirmar?: boolean;
 }
@@ -58,8 +40,6 @@ export interface ResultadoReserva extends ResultadoValidacion {
   creado: boolean;
   appointmentId?: string;
   slotId?: string;
-  /** Si se usó un plan: sesiones restantes tras consumir esta. */
-  planRestantes?: number;
 }
 
 export interface ContextoReserva {
@@ -67,10 +47,7 @@ export interface ContextoReserva {
   inicio: Date;
   fin: Date;
   recursoCodigo: string;
-  contraindicacionesActivas: string[];
-  prescripcionActiva: boolean;
-  autorizacionMedica: boolean;
-  /** Turnos ya ocupados (de hoy), de todos los recursos, para capacidad/desfasaje. */
+  /** Turnos ya ocupados (de hoy), de todos los recursos, para capacidad. */
   reservasExistentes: ReservaRecurso[];
   perfil?: PerfilReserva;
   ahora: Date;
@@ -88,13 +65,6 @@ export function validarReserva(ctx: ContextoReserva): ResultadoValidacion {
       advertencias: [],
     });
   }
-
-  partes.push(validarPrescripcion(ctx.servicio, ctx.prescripcionActiva));
-  partes.push(
-    validarContraindicaciones([ctx.servicio.categoria], ctx.contraindicacionesActivas, {
-      autorizacionMedica: ctx.autorizacionMedica,
-    }),
-  );
 
   const nueva: ReservaRecurso = { recursoCodigo: ctx.recursoCodigo, inicio: ctx.inicio, fin: ctx.fin };
   partes.push(validarRecursos([...ctx.reservasExistentes, nueva]));
@@ -116,11 +86,7 @@ export async function handler(
   const fin = new Date(inicio.getTime() + servicio.duracionMin * 60_000);
   const ahora = new Date();
 
-  // Contraindicaciones activas del paciente (Flags).
-  const flags = await medplum.searchResources('Flag', `subject=${e.pacienteRef}&status=active`);
-  const contraindicacionesActivas = flags.flatMap(extraerCodigos);
-
-  // Turnos ocupados de hoy (todos los recursos) para capacidad/desfasaje.
+  // Turnos ocupados de hoy (todos los recursos) para capacidad.
   const reservasExistentes = await cargarReservasDelDia(medplum, inicio);
 
   const resultado = validarReserva({
@@ -128,9 +94,6 @@ export async function handler(
     inicio,
     fin,
     recursoCodigo: e.recursoCodigo,
-    contraindicacionesActivas,
-    prescripcionActiva: e.prescripcionActiva ?? false,
-    autorizacionMedica: e.autorizacionMedica ?? false,
     reservasExistentes,
     perfil: e.perfil,
     ahora,
@@ -151,21 +114,6 @@ export async function handler(
     };
   }
 
-  // Si se paga con un plan (paquete): consumir una sesión antes de crear (R-10).
-  let consumo: ConsumoPlan | undefined;
-  if (e.coverageId) {
-    try {
-      consumo = await consumirSesionDePlan(medplum, e.coverageId, { tipo: 'servicio', codigo: e.servicioCodigo }, ahora);
-    } catch (err) {
-      return {
-        ok: false,
-        bloqueos: [{ regla: 'R-10', nivel: 'bloqueo', mensaje: (err as Error).message }],
-        advertencias: resultado.advertencias,
-        creado: false,
-      };
-    }
-  }
-
   const slot: Slot = await medplum.createResource<Slot>({
     resourceType: 'Slot',
     status: 'busy',
@@ -176,7 +124,7 @@ export async function handler(
   });
 
   const participant: AppointmentParticipant[] = [{ actor: { reference: e.pacienteRef }, status: 'accepted' }];
-  // Consultas: sumar al médico como participante (un consultorio, varios médicos).
+  // Consultas con médico asignado: sumar al profesional como participante.
   if (servicio.practitionerCodigo) {
     const pract = await medplum.searchOne('Practitioner', `identifier=${SYSTEM.medico}|${servicio.practitionerCodigo}`);
     if (pract?.id) {
@@ -187,11 +135,10 @@ export async function handler(
     }
   }
 
-  // Con plan: turno CONFIRMADO (la sesión ya está paga). Sin plan: TENTATIVO
-  // hasta cobrar la seña del 50% (pasa a 'booked' al pagar).
+  // Turno TENTATIVO hasta cobrar la seña del 50% (pasa a 'booked' al pagar).
   const appointment: Appointment = await medplum.createResource<Appointment>({
     resourceType: 'Appointment',
-    status: consumo ? 'booked' : 'pending',
+    status: 'pending',
     description: servicio.nombre,
     start: inicio.toISOString(),
     end: fin.toISOString(),
@@ -202,16 +149,13 @@ export async function handler(
       { url: EXT.ocupantes, valueInteger: e.ocupantes ?? 1 },
       { url: EXT.itemTipo, valueCode: 'servicio' },
       { url: EXT.itemCodigo, valueString: e.servicioCodigo },
-      ...(consumo ? [{ url: EXT.coberturaUsada, valueString: `Coverage/${e.coverageId}` }] : []),
     ],
   });
 
   await enviarWhatsApp(medplum, event.secrets, {
-    template: consumo ? 'reserva-plan' : 'reserva-tentativa',
+    template: 'reserva-tentativa',
     pacienteRef: e.pacienteRef,
-    body: consumo
-      ? `Segunda Opinión Médica: ¡tu turno de ${servicio.nombre} quedó confirmado con tu plan para el ${fmtFechaHora.format(inicio)}! Te quedan ${consumo.restantes} sesiones. ¡Te esperamos! 💚`
-      : `Segunda Opinión Médica: reservamos tu turno de ${servicio.nombre} para el ${fmtFechaHora.format(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💚`,
+    body: `Segunda Opinión Médica: reservamos tu turno de ${servicio.nombre} para el ${fmtFechaHora.format(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💙`,
   });
 
   return {
@@ -219,6 +163,5 @@ export async function handler(
     creado: true,
     appointmentId: appointment.id,
     slotId: slot.id,
-    ...(consumo ? { planRestantes: consumo.restantes } : {}),
   };
 }

@@ -49,7 +49,7 @@ export function Timeline({
 
   return (
     <ScrollArea type="auto" offsetScrollbars>
-      <style>{`.bw-slot:hover{background:var(--mantine-color-somAzul-light);}`}</style>
+      <style>{`.som-slot:hover{background:var(--mantine-color-somAzul-light);}`}</style>
       <Box style={{ minWidth: NAME_W + trackW }}>
         {/* Encabezado de horas */}
         <Group gap={0} wrap="nowrap">
@@ -72,11 +72,6 @@ export function Timeline({
               <Text size="sm" fw={500} lineClamp={2}>
                 {sala.nombre}
               </Text>
-              {sala.comparteEquipo && (
-                <Text size="xs" c="grape">
-                  comparte equipo
-                </Text>
-              )}
             </Box>
 
             <Box style={{ position: 'relative', width: trackW, height: ROW_H, backgroundImage: lineas }}>

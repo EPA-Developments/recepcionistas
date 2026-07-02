@@ -4,9 +4,6 @@
  * Consultorios y salas donde se atienden las consultas de segunda opinión. La
  * lista es PROVISIONAL (a confirmar con la operación real): se modela un conjunto
  * mínimo para que la agenda funcione.
- *
- * `comparteCon` modela cuellos de botella de agenda (R-07): dos recursos que
- * comparten una misma clave NO pueden solaparse en la misma franja.
  */
 import type { CategoriaServicio, RecursoFisico, TipoRecurso } from '../domain/types.js';
 
@@ -35,20 +32,4 @@ const CATEGORIA_A_TIPO: Record<CategoriaServicio, TipoRecurso> = {
 export function recursosParaCategoria(categoria: CategoriaServicio): RecursoFisico[] {
   const tipo = CATEGORIA_A_TIPO[categoria];
   return RECURSOS.filter((r) => r.tipo === tipo);
-}
-
-/**
- * Devuelve true si dos recursos comparten algún equipo (cuello de botella),
- * por lo que sus turnos no pueden solaparse (R-07).
- */
-export function compartenEquipo(codigoA: string, codigoB: string): boolean {
-  if (codigoA === codigoB) {
-    return true;
-  }
-  const a = RECURSOS_POR_CODIGO.get(codigoA);
-  const b = RECURSOS_POR_CODIGO.get(codigoB);
-  if (!a?.comparteCon || !b?.comparteCon) {
-    return false;
-  }
-  return a.comparteCon.some((k) => b.comparteCon!.includes(k));
 }

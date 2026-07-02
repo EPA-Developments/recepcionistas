@@ -8,7 +8,6 @@ import {
   Modal,
   Select,
   Stack,
-  Switch,
   Text,
   TextInput,
 } from '@mantine/core';
@@ -48,7 +47,6 @@ export function ReservaModal({
   const [servicioCodigo, setServicioCodigo] = useState<string | null>(null);
   const [fecha, setFecha] = useState(hoy);
   const [hora, setHora] = useState<string | null>(null);
-  const [prescripcion, setPrescripcion] = useState(false);
   const [resultado, setResultado] = useState<ResultadoReserva | null>(null);
   const [reservando, setReservando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +73,6 @@ export function ReservaModal({
       setQuery('');
       setResultado(null);
       setError(null);
-      setPrescripcion(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset]);
@@ -85,8 +82,6 @@ export function ReservaModal({
     const dummy = [{ codigo: '_', nombre: '_', tipo: 'SALA' as const, capacidad: 1 }];
     return generarSlots(dummy, HORARIO_SEMANAL, { desde, dias: 1 }).map((s) => s.inicio.slice(11, 16));
   }, [fecha]);
-
-  const servicio = servicioCodigo ? SERVICIOS.find((s) => s.codigo === servicioCodigo) : undefined;
 
   async function buscar(): Promise<void> {
     if (!query.trim()) {
@@ -115,7 +110,6 @@ export function ReservaModal({
         servicioCodigo,
         recursoCodigo: preset.recursoCodigo,
         inicio: `${fecha}T${hora}:00-03:00`,
-        prescripcionActiva: prescripcion,
         confirmar: true,
       });
       setResultado(r);
@@ -201,14 +195,6 @@ export function ReservaModal({
             setHora(null);
           }}
         />
-
-        {servicio?.requierePrescripcion && (
-          <Switch
-            label="Prescripción médica activa (IV / Terapias Biológicas)"
-            checked={prescripcion}
-            onChange={(e) => setPrescripcion(e.currentTarget.checked)}
-          />
-        )}
 
         {error && (
           <Alert color="orange" icon={<IconInfoCircle size={16} />}>

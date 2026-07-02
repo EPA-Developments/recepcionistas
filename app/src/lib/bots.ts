@@ -8,10 +8,9 @@ import { medplum } from '../medplum';
  */
 
 export interface ItemCobroInput {
-  tipo: 'servicio' | 'combo' | 'membresia' | 'paquete';
+  tipo: 'servicio';
   codigo: string;
   ocupantes?: number;
-  fm?: boolean;
   cantidad?: number;
 }
 
@@ -52,10 +51,6 @@ export interface ReservaInput {
   /** Inicio del turno en ISO (con offset de Argentina). */
   inicio: string;
   ocupantes?: number;
-  prescripcionActiva?: boolean;
-  autorizacionMedica?: boolean;
-  /** Coverage (paquete) con el que se paga el turno: confirma sin seña. */
-  coverageId?: string;
   /** Si es false, solo valida (no crea). */
   confirmar?: boolean;
 }
@@ -73,8 +68,6 @@ export interface ResultadoReserva {
   creado: boolean;
   appointmentId?: string;
   slotId?: string;
-  /** Si se usó un plan: sesiones restantes tras consumir esta. */
-  planRestantes?: number;
 }
 
 /** Llama al bot de reserva: valida y (si confirma) crea el turno + Slot ocupado. */
@@ -83,43 +76,7 @@ export async function reservarTurno(input: ReservaInput): Promise<ResultadoReser
   return (await medplum.executeBot(id, input)) as ResultadoReserva;
 }
 
-export interface ComboInput {
-  pacienteRef: string;
-  comboCodigo: string;
-  inicio: string;
-  autorizacionMedica?: boolean;
-  /** Coverage (membresía) con el que se paga el combo: confirma sin seña. */
-  coverageId?: string;
-  confirmar?: boolean;
-  /** Si es false, el bot no manda el WhatsApp por sesión (para la pre-agenda en serie). */
-  notificar?: boolean;
-}
-
-export interface ItemPlanDTO {
-  servicio: string;
-  recurso: string;
-  desde: string;
-  hasta: string;
-}
-
-export interface ResultadoCombo {
-  ok: boolean;
-  bloqueos: IssueValidacion[];
-  advertencias: IssueValidacion[];
-  creado: boolean;
-  plan: ItemPlanDTO[];
-  appointmentIds?: string[];
-  /** Si se usó una membresía: sesiones restantes tras consumir esta. */
-  planRestantes?: number;
-}
-
-/** Llama al bot de combo: agenda los componentes en secuencia. */
-export async function reservarCombo(input: ComboInput): Promise<ResultadoCombo> {
-  const id = await botIdPorNombre('som-reservar-combo');
-  return (await medplum.executeBot(id, input)) as ResultadoCombo;
-}
-
-/** Envía un WhatsApp (y registra Communication). Best-effort: usado para el resumen de la pre-agenda. */
+/** Envía un WhatsApp (y registra Communication). Best-effort: usado para avisos puntuales. */
 export async function enviarWhatsApp(input: { pacienteRef: string; template: string; body: string }): Promise<void> {
   const id = await botIdPorNombre('som-enviar-whatsapp');
   await medplum.executeBot(id, input);
@@ -159,30 +116,6 @@ export interface ResultadoLinkMP {
 export async function linkMercadoPago(appointmentId: string): Promise<ResultadoLinkMP> {
   const id = await botIdPorNombre('som-link-mercadopago');
   return (await medplum.executeBot(id, { appointmentId })) as ResultadoLinkMP;
-}
-
-export interface AsignarPlanInput {
-  pacienteRef: string;
-  tipo: 'membresia' | 'paquete';
-  planCodigo: string;
-  fm?: boolean;
-  medioPago?: string;
-  cobrar?: boolean;
-}
-
-export interface ResultadoAsignarPlan {
-  ok: boolean;
-  mensaje?: string;
-  coverageId?: string;
-  invoiceId?: string;
-  totalARS?: number;
-  sesiones?: number;
-}
-
-/** Asigna una membresía/paquete al paciente (crea Coverage + cobro inicial + WhatsApp). */
-export async function asignarPlan(input: AsignarPlanInput): Promise<ResultadoAsignarPlan> {
-  const id = await botIdPorNombre('som-asignar-plan');
-  return (await medplum.executeBot(id, input)) as ResultadoAsignarPlan;
 }
 
 export interface AltaPacienteInput {

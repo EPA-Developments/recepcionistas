@@ -1,59 +1,34 @@
 /**
- * Seed de prueba para `som-recordatorios`.
+ * Seed de prueba para `bw-recordatorios`.
  *
  *   npm run seed:prueba-recordatorios -- --dry-run   → muestra qué crearía (sin red)
  *   npm run seed:prueba-recordatorios                → upsert en Medplum (.env)
  *
- * Crea/actualiza (idempotente) un paciente de prueba con:
- *   - un TURNO confirmado a ~20h (dispara el recordatorio de 24h), y
- *   - una MEMBRESÍA activa con saldo libre (dispara "saldo en riesgo" cerca del
- *     cierre de mes).
- * Además limpia las Communication previas de ese paciente, para que cada corrida
- * deje el recordatorio listo para volver a dispararse.
+ * Crea/actualiza (idempotente) un paciente de prueba con un TURNO confirmado a
+ * ~20h (dispara el recordatorio de 48h). Además limpia las Communication
+ * previas de ese paciente, para que cada corrida deje el recordatorio listo
+ * para volver a dispararse.
  *
  * Luego, para probar el bot:
- *   npx medplum bot execute som-recordatorios '{}'
- *   # si hoy faltan >7 días para fin de mes, forzá la ventana de saldo:
- *   npx medplum bot execute som-recordatorios '{"ventanaSaldoDias":15}'
+ *   npx medplum bot execute bw-recordatorios '{}'
  */
 import 'dotenv/config';
 import { MedplumClient } from '@medplum/core';
-import type { Appointment, Coverage, Patient } from '@medplum/fhirtypes';
+import type { Appointment, Patient } from '@medplum/fhirtypes';
 import { EXT } from '../fhir/identifiers.js';
-import { cicloMes } from '../lib/planes.js';
 
 /** Id del paciente de prueba (fijo por defecto; configurable para apuntar a uno real). */
 const PATIENT_ID = process.env.PRUEBA_PATIENT_ID ?? '9647fb20-c13a-49c0-b32c-50549bb2c1d9';
 /** Sistema de identifier para los recursos de prueba (upsert idempotente). */
 const PRUEBA = 'https://segundaopinionmedica.org/fhir/Identifier/prueba';
-/** Membresía de prueba: 8 sesiones/mes (solo para probar el recordatorio de saldo). */
-const PLAN = 'PLAN_PRUEBA';
-const SESIONES_MES = 8;
-const SESIONES_USADAS = 5; // → 3 libres "por agendar"
 
 /** Contacto del paciente (reemplazá por los tuyos para un envío real). */
 const TELEFONO = process.env.PRUEBA_TELEFONO ?? '+5491100000000';
 const EMAIL = process.env.PRUEBA_EMAIL ?? 'prueba@segundaopinionmedica.org';
 
 function construir(ahora: Date) {
-  const inicio = new Date(ahora.getTime() + 20 * 60 * 60_000); // +20h → ventana de 24h
-  const fin = new Date(inicio.getTime() + 90 * 60_000);
-  const ciclo = cicloMes(ahora);
-
-  const coverage: Coverage = {
-    resourceType: 'Coverage',
-    status: 'active',
-    identifier: [{ system: PRUEBA, value: 'recordatorio-membresia' }],
-    beneficiary: { reference: `Patient/${PATIENT_ID}` },
-    payor: [{ display: 'Segunda Opinión Médica' }],
-    extension: [
-      { url: EXT.tipoCobertura, valueCode: 'membresia' },
-      { url: EXT.planCodigo, valueString: PLAN },
-      { url: EXT.sesionesMes, valueInteger: SESIONES_MES },
-      { url: EXT.sesionesUsadas, valueInteger: SESIONES_USADAS },
-      { url: EXT.cicloMes, valueString: ciclo },
-    ],
-  };
+  const inicio = new Date(ahora.getTime() + 20 * 60 * 60_000); // +20h → dentro de la ventana de 48h
+  const fin = new Date(inicio.getTime() + 45 * 60_000);
 
   const appointment: Appointment = {
     resourceType: 'Appointment',
@@ -69,7 +44,7 @@ function construir(ahora: Date) {
     ],
   };
 
-  return { coverage, appointment, inicio, ciclo };
+  return { appointment, inicio };
 }
 
 /** Upsert por identifier: actualiza si ya existe (PUT con su id) o crea si no (POST). */
@@ -78,7 +53,7 @@ async function upsertPorIdentifier<
 >(medplum: MedplumClient, recurso: T): Promise<T> {
   const id = recurso.identifier?.[0];
   const existente = id
-    ? await medplum.searchOne(recurso.resourceType as 'Coverage', `identifier=${id.system}|${id.value}`)
+    ? await medplum.searchOne(recurso.resourceType as 'Appointment', `identifier=${id.system}|${id.value}`)
     : undefined;
   if (existente?.id) {
     return (await medplum.updateResource({ ...recurso, id: existente.id } as never)) as T;
@@ -122,12 +97,11 @@ async function obtenerPaciente(medplum: MedplumClient): Promise<Patient> {
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const ahora = new Date();
-  const { coverage, appointment, inicio, ciclo } = construir(ahora);
+  const { appointment, inicio } = construir(ahora);
 
-  console.log('=== Seed de prueba · som-recordatorios ===');
+  console.log('=== Seed de prueba · bw-recordatorios ===');
   console.log(`  • Patient ${PATIENT_ID} (tel/email de respaldo: ${TELEFONO} / ${EMAIL})`);
-  console.log(`  • Membresía ${PLAN}: ${SESIONES_MES - SESIONES_USADAS} de ${SESIONES_MES} libres · ciclo ${ciclo}`);
-  console.log(`  • Turno de consulta 'booked' a las ${inicio.toLocaleString('es-AR')} (~20h → ventana 24h)`);
+  console.log(`  • Turno 'booked' a las ${inicio.toLocaleString('es-AR')} (~20h → ventana 48h)`);
 
   if (dryRun) {
     console.log('\n[dry-run] No se conecta a Medplum. Recursos construidos OK.');
@@ -144,10 +118,6 @@ async function main(): Promise<void> {
     p.telecom?.find((t) => t.system === 'email')?.value,
   ].filter(Boolean);
   console.log(`  ✓ Patient ${p.id} → ${destinatario.join(' / ') || '(sin teléfono/email!)'}`);
-  const cov = await upsertPorIdentifier(medplum, coverage);
-  console.log(`  ✓ Coverage ${cov.id}`);
-  // Vincular el turno a la membresía (consumo de cobertura), para realismo.
-  appointment.extension = [...(appointment.extension ?? []), { url: EXT.coberturaUsada, valueString: `Coverage/${cov.id}` }];
   const appt = await upsertPorIdentifier(medplum, appointment);
   console.log(`  ✓ Appointment ${appt.id} (${appt.start})`);
 
@@ -161,8 +131,7 @@ async function main(): Promise<void> {
   console.log(`  ✓ Communication previas borradas (${previas.length})`);
 
   console.log('\nListo. Probá el bot:');
-  console.log("  npx medplum bot execute som-recordatorios '{}'");
-  console.log("  npx medplum bot execute som-recordatorios '{\"ventanaSaldoDias\":15}'   # si faltan >7 días para fin de mes");
+  console.log("  npx medplum bot execute bw-recordatorios '{}'");
 }
 
 function requireEnv(nombre: string): string {

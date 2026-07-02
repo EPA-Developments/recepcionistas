@@ -5,7 +5,7 @@ import { fileURLToPath, URL } from 'node:url';
 // Hosts permitidos al servir el front detrás de un dominio (dev y preview).
 // El punto inicial habilita el dominio y todos sus subdominios:
 // ".medplum.com.ar" cubre "recepcion.medplum.com.ar".
-const ALLOWED_HOSTS = ['.medplum.com.ar', 'localhost', '127.0.0.1'];
+const ALLOWED_HOSTS = ['.segundaopinionmedica.org', '.medplum.com.ar', 'localhost', '127.0.0.1'];
 
 export default defineConfig({
   plugins: [react()],

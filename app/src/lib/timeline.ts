@@ -20,7 +20,6 @@ export interface TurnoTimeline {
 export interface SalaFila {
   codigo: string;
   nombre: string;
-  comparteEquipo: boolean;
 }
 
 export interface TimelineData {
@@ -56,7 +55,6 @@ export async function cargarTimeline(fecha: Date = new Date()): Promise<Timeline
   const salas: SalaFila[] = RECURSOS.map((r) => ({
     codigo: r.codigo,
     nombre: r.nombre,
-    comparteEquipo: Boolean(r.comparteCon?.length),
   }));
 
   const horarioDia = HORARIO_SEMANAL.find((h) => h.dia === fecha.getDay());

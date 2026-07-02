@@ -16,16 +16,17 @@ ve **solo lo suyo** vía la AccessPolicy **"Paciente — Portal"**
 
 ## Hecho (cableado actual)
 
-- **Sesiones/Pagos** en `/membership` del portal: leen `Coverage`/`Invoice` del
-  paciente y arman el saldo (módulo `portal/src/fhir/membership.ts`), espejando
-  `src/fhir/coverage.ts` + `src/lib/planes.ts`. El portal no recalcula reglas.
+- **Pagos** en el portal: lee los `Invoice` del paciente. (La vista de
+  "Sesiones"/saldo de membresías era del modelo BioWellness: los planes se
+  retiraron del dominio y `Coverage` ya no se otorga en la policy; actualizar el
+  portal en consecuencia.)
 - **AccessPolicy "Paciente — Portal" reconciliada.** Se sumó `Invoice` (faltaba en
   el espejo del portal) y se unificó esta definición (la del seed) con la del
   portal. Es la **fuente de verdad**: `npm run seed` la aplica por `name`, así que
   el espejo `portal/docs/medplum/access-policy-paciente-portal.json` debe quedar
-  idéntico. `Coverage`/`Invoice`/`Appointment` son de **solo lectura** para el
-  paciente; escribe solo su autogestión (perfil, vitales, cuestionarios,
-  consentimientos, mensajes).
+  idéntico. `Invoice`/`Appointment` son de **solo lectura** para el paciente;
+  escribe solo su autogestión (perfil, vitales, cuestionarios, consentimientos,
+  mensajes).
 - **Reserva por *solicitud* (implementada).** El paciente pide desde el portal y se
   crea un `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`**
   (lógica pura en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp
@@ -114,7 +115,7 @@ El link de invitación apunta al portal vía el secret **`PORTAL_BASE_URL`**
 
 4. **Recursos que lee/escribe el portal — ✅ reconciliado.** "Paciente — Portal"
    ahora cubre lo que el portal usa de verdad: su compartimento clínico/financiero
-   de **solo lectura** (Appointment/Coverage/**Invoice**/DiagnosticReport/CarePlan/
+   de **solo lectura** (Appointment/**Invoice**/DiagnosticReport/CarePlan/
    MedicationRequest/Immunization) + **escritura** de autogestión (Patient/
    Observation/QuestionnaireResponse/DocumentReference/Communication) + catálogo y
    agenda de lectura (Schedule/Slot/HealthcareService/Practitioner/…). La definición
@@ -125,9 +126,9 @@ El link de invitación apunta al portal vía el secret **`PORTAL_BASE_URL`**
    `Appointment` ni ejecuta bots de reserva. La policy le suma `Task` de solo lectura
    (`Task?patient=%patient`) y `Bot` acotado a `som-solicitar-turno`
    (`Bot?name=som-solicitar-turno`) — el único bot que puede ejecutar. Si más adelante
-   se opta por reserva inmediata por bots (`som-reservar-turno`/`som-reservar-combo`),
-   antes endurecerlos para derivar el paciente del login (no del input) y habilitar la
-   ejecución solo de esos bots.
+   se opta por reserva inmediata por bots (`som-reservar-turno`), antes endurecerlo
+   para derivar el paciente del login (no del input) y habilitar la ejecución solo
+   de ese bot.
 
 5. **Branding/seguridad** ya consistente (theme Segunda Opinión Médica en `bio.medplum.com.ar`).
    Verificar `recaptchaSiteKey`/`googleClientId` si el registro los usa.

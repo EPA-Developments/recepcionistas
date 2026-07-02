@@ -7,8 +7,11 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 
 1. **La recepción no calcula ni decide nada que el sistema pueda calcular o
    decidir.** Toda la lógica vive en el backend (`src/lib`, `src/bots`).
-2. **Fuente de verdad del catálogo/precios: Manual de Protocolos v9.** Si un
-   precio o regla difiere entre el código y el Manual, gana el Manual.
+2. **Fuente de verdad del catálogo/precios: la lista oficial de Segunda Opinión
+   Médica.** El catálogo hoy son las consultas de segunda opinión (cardiología +
+   subespecialidades) con **precio pendiente**: no se inventan precios ni reglas;
+   se cargan cuando estén definidos. (El Manual de Protocolos v9 era de
+   BioWellness y ya no aplica.)
 3. **Privacidad por diseño.** La recepción nunca ve la historia clínica completa;
    solo la señal binaria del banner de seguridad.
 4. **Gobernanza.** Todo cambio de fondo en la arquitectura o en una regla de
@@ -17,8 +20,8 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 ## Arquitectura
 
 - `src/domain` — tipos de dominio, agnósticos de FHIR.
-- `src/config` — datos del Manual v9 (catálogo, combos, membresías, paquetes,
-  recursos, horario, contraindicaciones, TC, constantes de reglas).
+- `src/config` — catálogo (consultas de segunda opinión), médicos, recursos
+  (consultorios/salas), horario, TC, constantes de reglas.
 - `src/lib` — **lógica pura** (sin FHIR ni red): `money`, `pricing`,
   `reglas-turno`. Es lo que se testea exhaustivamente.
 - `src/fhir` — identificadores/URLs, extensiones (`StructureDefinition`),
@@ -67,13 +70,15 @@ tarjeta.
 
 ## Pendientes
 
-Ver [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md). Horario y
-salas ya están definidos (agenda operativa) y el **bloque de gestión de sesiones
-está cerrado**: dashboard de saldo, pre-agenda de membresías y recordatorios
-(turnos + saldo en riesgo) implementados, testeados y deployados
-(ver [`docs/app-recepcion.md`](docs/app-recepcion.md) y [`docs/bots.md`](docs/bots.md)).
+Ver [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md).
 
-Lo que queda hoy **no frena el desarrollo**: cargar los Project Secrets de
-Twilio/SES en Medplum (para que confirmaciones y recordatorios **envíen** de
-verdad; sin ellos las `Communication` quedan en `preparation`) y validar los
-pendientes clínicos/catálogo (contraindicaciones, precio del Dr. Conrado).
+El catálogo de wellness spa de BioWellness (servicios, combos, membresías,
+paquetes, contraindicaciones) **se retiró del dominio** — Segunda Opinión Médica
+no vende esos servicios. El catálogo vigente son las consultas de segunda
+opinión de cardiología + subespecialidades, con **precios y reglas PENDIENTES**
+de la lista oficial (bloqueante para cobrar de verdad; no frena la agenda).
+
+Lo demás **no frena el desarrollo**: cargar los Project Secrets de Twilio/SES en
+Medplum (para que confirmaciones y recordatorios **envíen** de verdad; sin ellos
+las `Communication` quedan en `preparation`) y confirmar duración de consultas y
+lista real de consultorios/salas.

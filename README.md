@@ -14,23 +14,20 @@ base sobre la que se apoya la pantalla de la recepción. Backend **Medplum (FHIR
 | Andamiaje TypeScript + tooling | ✅ |
 | Catálogo (consultas de cardiología + subespecialidades; precio PENDIENTE) | ✅ |
 | Motor de precios (USD→ARS, split SOM_100) | ✅ con tests |
-| Motor de reglas de agenda (R-02..R-14) | ✅ con tests |
+| Motor de reglas de agenda (R-07, R-13, R-14) | ✅ con tests |
 | Extensiones FHIR + AccessPolicies (recepción) | ✅ |
 | Bots: calcular-cobro · validar-turno · enviar-whatsapp | ✅ + deploy (`npm run deploy:bots`) |
 | Seed del catálogo (idempotente) | ✅ (`--dry-run` sin servidor) |
 | Motor de agenda: Slots + semáforo de salas | ✅ con tests (config provisoria) |
 | Front de recepción (React + Vite) | ✅ login, agenda + semáforo, atención, reserva de turnos |
 | Reserva de turnos (valida + crea Appointment/Slot) | ✅ bot `som-reservar-turno` |
-| Reserva de combos en secuencia (auto-sala; sin combos definidos aún) | ✅ bot `som-reservar-combo` |
 | Check-in / check-out + estados en el timeline | ✅ bot `som-estado-turno` |
 | Reserva con seña 50% (confirma turno) + WhatsApp | ✅ bots `som-pagar-sena` / `som-link-mercadopago` |
 | Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `som-webhook-mercadopago` |
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
-| Consultas médicas (3 médicos, 1 consultorio, precio ARS) | ✅ catálogo + `Practitioner` |
-| Harness de tests (casos AC del Anexo A) | ✅ 70 tests |
+| Harness de tests | ✅ |
 | CI (GitHub Actions) | ✅ |
-| Horario + lista definitiva de salas | ✅ confirmado (L-V 08-22, Sáb 08-20; 13 salas) |
-| Contraindicaciones | ⚠️ borrador, pendiente validación médica |
+| Horario (L-V 08-22, Sáb 08-20) + consultorios/salas | ⚠️ provisional, confirmar con la operación |
 
 Ver [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) para lo que falta definir.
 
@@ -70,8 +67,8 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 ```
 src/
   domain/      Tipos de dominio (agnósticos de FHIR)
-  config/      Datos del catálogo (consultas de cardiología + subespecialidades),
-               recursos, horario, contraindicaciones, TC, constantes de reglas
+  config/      Catálogo (consultas de cardiología + subespecialidades), médicos,
+               recursos (consultorios/salas), horario, TC, constantes de reglas
   lib/         Lógica pura: money, pricing, reglas-turno (testeable sin servidor)
   fhir/        Identificadores, extensiones (StructureDefinition), AccessPolicies
   bots/        Medplum Bots: calcular-cobro, validar-turno, enviar-whatsapp
@@ -112,8 +109,8 @@ Pantallas del esqueleto:
 
 - [`docs/bloque-0.md`](docs/bloque-0.md) — alcance técnico y Definition of Done
 - [`docs/bots.md`](docs/bots.md) — los Bots, deploy, secretos y recordatorios
-- [`docs/app-recepcion.md`](docs/app-recepcion.md) — la app de recepción: vistas y features (dashboard, pre-agenda, modo oscuro)
-- [`docs/reglas-negocio.md`](docs/reglas-negocio.md) — reglas R-01..R-18
+- [`docs/app-recepcion.md`](docs/app-recepcion.md) — la app de recepción: vistas y features (modo oscuro)
+- [`docs/reglas-negocio.md`](docs/reglas-negocio.md) — reglas de agenda y pricing vigentes
 - [`docs/modelo-datos-fhir.md`](docs/modelo-datos-fhir.md) — recursos y extensiones FHIR
 - [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) — decisiones abiertas
 - [`CLAUDE.md`](CLAUDE.md) — convenciones y guía para el desarrollo

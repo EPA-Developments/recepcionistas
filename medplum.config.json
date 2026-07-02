@@ -19,12 +19,6 @@
       "dist": "dist/bots/reservar-turno.js"
     },
     {
-      "name": "som-reservar-combo",
-      "id": "fe25ce30-a20f-4c13-898e-99c1829b2833",
-      "source": "src/bots/reservar-combo.ts",
-      "dist": "dist/bots/reservar-combo.js"
-    },
-    {
       "name": "som-estado-turno",
       "id": "591bd7d7-5393-4bb5-9107-914b0b2ac70a",
       "source": "src/bots/estado-turno.ts",
@@ -47,18 +41,6 @@
       "id": "3e20bb14-eed3-4f1c-ae5a-246d5dac5ab0",
       "source": "src/bots/webhook-mercadopago.ts",
       "dist": "dist/bots/webhook-mercadopago.js"
-    },
-    {
-      "name": "som-asignar-plan",
-      "id": "6c2d6f5c-e143-4364-b0ce-558ec413c0f2",
-      "source": "src/bots/asignar-plan.ts",
-      "dist": "dist/bots/asignar-plan.js"
-    },
-    {
-      "name": "som-cobro-membresias",
-      "id": "3acef4fb-b093-41ae-ba90-f67b5cdf9664",
-      "source": "src/bots/cobro-membresias.ts",
-      "dist": "dist/bots/cobro-membresias.js"
     },
     {
       "name": "som-enviar-whatsapp",

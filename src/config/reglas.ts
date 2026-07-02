@@ -1,25 +1,12 @@
 /**
- * Constantes de reglas de negocio (motor de reglas, Documento de Requerimientos §7).
+ * Constantes de reglas de negocio (motor de reglas).
  * Centralizadas para que el pricing engine, la validación de turnos y los tests
  * compartan exactamente los mismos valores. Cada constante referencia su regla R-xx.
  */
 
-/** Founding Members (R-09). */
-export const FM = {
-  cupos: 50,
-  alertaEnCupo: 40,
-  /** 20% OFF lifetime en sueltas y paquetes (NO en combos, membresías ni TB). */
-  descuento: 0.2,
-  /** Ventana de reserva: 7 días (sobrescribe la del tier). */
-  ventanaDias: 7,
-} as const;
-
 /** Ventanas máximas de anticipación para reservar, en horas (R-13). */
 export const VENTANA_RESERVA_HORAS = {
   PUBLICO: 48,
-  STANDARD: 72,
-  INTENSIVO: 96,
-  FM: 7 * 24,
 } as const;
 
 export type PerfilReserva = keyof typeof VENTANA_RESERVA_HORAS;
@@ -36,39 +23,3 @@ export const CANCELACION = {
  * antelación (el motor elige el más urgente que aún no se envió).
  */
 export const RECORDATORIO_HORAS = [48, 2] as const;
-
-/** Membresías (R-09..R-12). */
-export const MEMBRESIA = {
-  sesionesStandard: 8,
-  sesionesIntensivo: 12,
-  descuentoALaCarteStandard: 0.1,
-  descuentoALaCarteIntensivo: 0.15,
-  compromisoMinMeses: 3,
-  bajaAvisoDias: 15,
-  pausaDiasPorAnio: 30,
-  /** Cobro adelantado: primeros días del mes (MercadoPago). */
-  cobroDiaDesde: 1,
-  cobroDiaHasta: 5,
-} as const;
-
-/** Cascada de pricing para IV Therapy + Terapias Biológicas (R-08). */
-export const CASCADA_TB = {
-  /** Costo fiscal: 25% del precio. */
-  costoFiscal: 0.25,
-  /** Costo fijo de enfermería (USD), sin IVA. */
-  enfermeriaUSD: 15,
-  /** Factor que queda para SOM tras el 15% de honorarios médicos. */
-  factorSom: 0.85,
-  /** Honorario de médicos prescriptores. */
-  honorarioMedicos: 0.15,
-  /** Piso de margen neto de SOM. */
-  margenNetoMin: 0.25,
-} as const;
-
-/** Descuentos estructurales del catálogo. */
-export const DESCUENTOS = {
-  combo: 0.2, // R-15
-  paqueteX5: 0.05, // R-16
-  paqueteX10: 0.1,
-  paqueteX20: 0.15,
-} as const;

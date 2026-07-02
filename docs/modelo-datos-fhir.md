@@ -1,7 +1,7 @@
 # Modelo de datos FHIR R4
 
-Recursos FHIR estándar con extensiones custom donde el estándar no cubre el caso
-(Documento de Requerimientos v4, §4). Las extensiones viven bajo el namespace
+Recursos FHIR estándar con extensiones custom donde el estándar no cubre el caso.
+Las extensiones viven bajo el namespace
 `https://segundaopinionmedica.org/fhir/StructureDefinition/...` (ver `src/fhir/identifiers.ts`).
 Naming: **kebab-case**.
 
@@ -9,38 +9,32 @@ Naming: **kebab-case**.
 
 | Recurso FHIR | Uso | Extensiones custom |
 |---|---|---|
-| **Patient** | Ficha del paciente | `tipo-cliente`, `tag-fm`, `tc-bloqueo-fm`, `perfil-clinico`, `origen-lead` |
-| **Practitioner** | Médicos, terapeutas, enfermeras | `split-porcentaje`, `tipo-contrato` |
-| **Schedule / Slot** | Disponibilidad de recursos físicos | `recurso-fisico`, `comparte-tumbona` |
-| **Appointment** | Turno reservado | `orden-protocolo`, `requiere-hbot-previo`, `ocupantes` |
-| **Encounter** | Visita ejecutada (check-in/out) | `recursos-usados`, `duracion-real` *(slices posteriores)* |
-| **CarePlan** | Protocolo de tratamiento | `ciclo-semanas`, `perfil-clinico` |
-| **ActivityDefinition** | Catálogo de servicios | `precio-usd`, `regla-pricing-recurso`, `split-bw`, `requiere-prescripcion` |
-| **PlanDefinition** | Combos / membresías / paquetes | `secuencia-ordenada`, `descuento-combo`, `tier`, `sesiones-mes`, `precio-usd` |
-| **Coverage / Contract** | Membresía activa (por paciente) | `tier`, `version`, `sesiones-mes`, `sesiones-usadas`, `precio-bloqueado-fm` |
-| **Invoice / ChargeItem** | Cobros y splits | `monto-split-bw`, `monto-split-profesional`, `tc-aplicado` |
+| **Patient** | Ficha del paciente | `tipo-cliente`, `perfil-clinico`, `origen-lead` |
+| **Practitioner** | Médicos | `split-porcentaje`, `tipo-contrato` |
+| **Schedule / Slot** | Disponibilidad de consultorios/salas | `recurso-fisico` |
+| **Appointment** | Turno reservado | `ocupantes`, `item-tipo`, `item-codigo` |
+| **Encounter** | Visita ejecutada (check-in/out) | — |
+| **ActivityDefinition** | Catálogo (consultas de segunda opinión) | `precio-usd`, `precio-ars`, `regla-pricing-recurso`, `split-som` |
+| **Invoice / ChargeItem** | Cobros y splits | `monto-split-som`, `tc-aplicado`, `es-sena`, `medio-pago` |
 | **Communication** | WhatsApp y emails | `canal`, `template-usado` |
-| **Location** | Recurso físico (sala/equipo) | (identificado por `SYSTEM.recursoCodigo`) |
-| **CodeSystem** | Tabla de contraindicaciones | propiedades `severidad`, `aplicaA`, `borrador` |
+| **Location** | Recurso físico (consultorio/sala) | (identificado por `SYSTEM.recursoCodigo`) |
 | **Basic** | Configuración (TC vigente) | `tc-aplicado` |
+| **ServiceRequest / RiskAssessment / DiagnosticReport** | Contrato SOM con el portal (solicitud + informe) | `som-origin`, `som-sections` |
 | **AuditEvent** | Log regulatorio (nativo Medplum) | — |
 
-## Decisiones de modelado del Bloque 0
+## Decisiones de modelado
 
-- **Catálogo:** los servicios se modelan como `ActivityDefinition` (con el precio en
-  la extensión `precio-usd`); combos, membresías y paquetes como `PlanDefinition`
-  diferenciados por `type.text` (`combo` / `membership` / `package`).
-- **Recursos físicos:** `Location` + `Schedule` (uno por recurso). La extensión
-  `comparte-tumbona` marca los gabinetes Recovery Pro que comparten las 2 tumbonas
-  Red Light (cuello de botella de agenda, R-07).
+- **Catálogo:** los servicios se modelan como `ActivityDefinition` (precio en
+  `precio-usd`/`precio-ars`). Hoy: las 6 consultas de segunda opinión
+  (cardiología + subespecialidades), con precio **pendiente** de la lista oficial.
+- **Recursos físicos:** `Location` + `Schedule` (uno por recurso). Hoy: 2
+  consultorios de cardiología, 1 de telemedicina y la sala de rehabilitación
+  (lista provisional).
 - **Tipo de cambio:** recurso `Basic` con identifier `config-tipo-cambio` y la
   extensión `tc-aplicado`; el bot de cobro lo lee como TC vigente (configurable
   por el admin).
-- **Contraindicaciones:** `CodeSystem` en estado `draft` (borrador pendiente de
-  validación médica). El banner que ve la recepción es una señal binaria
-  verde/rojo; el detalle clínico nunca se expone a recepción.
-- **Leads / prospectos:** a definir en el Bloque 0 (modelar como `Task` + perfil
-  liviano que se promueve a `Patient` al convertir). Aún no implementado.
+- **Banner de seguridad:** señal binaria verde/rojo basada en `Flag` activos del
+  paciente; el detalle clínico nunca se expone a recepción.
 
 ## Privacidad por diseño
 
@@ -49,3 +43,13 @@ La `AccessPolicy` de recepción (*Operativo*) **solo lista recursos operativos**
 (`Observation`, `Condition`, `DiagnosticReport`, `DocumentReference`, `CarePlan`,
 `MedicationRequest`) **no se listan**, por lo que quedan denegados por defecto. La
 historia clínica completa queda reservada al equipo médico (Ley 26.529 / 25.326).
+
+## Retirado (catálogo BioWellness)
+
+`PlanDefinition` (combos/membresías/paquetes), `Coverage`/`Contract` (planes de
+membresía) y el `CodeSystem` de contraindicaciones HBOT/IHHT eran del catálogo
+de wellness spa y se retiraron del dominio junto con
+`src/config/{combos,membresias,paquetes,contraindicaciones}.ts`. Si el modelo
+de segunda opinión necesita paquetes/seguimiento o contraindicaciones clínicas,
+se remodelan con las definiciones oficiales — ver
+[`decisiones-pendientes.md`](decisiones-pendientes.md).

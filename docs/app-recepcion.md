@@ -18,58 +18,33 @@ Config por env (prefijos expuestos al browser: `MEDPLUM_`, `GOOGLE_`,
 así que el login sobrevive al refresh. **Sin login** se muestra el formulario de
 ingreso; el resto del UI requiere sesión.
 
+Al servir detrás de un dominio, `server.allowedHosts` ya permite
+`.segundaopinionmedica.org` (p. ej. `recepcion.segundaopinionmedica.org`) y
+`.medplum.com.ar`.
+
 ## Estructura
 
-- `app/src/pages/` — una por vista (Agenda, Planes y sesiones, Atender, Reportes).
+- `app/src/pages/` — una por vista (Agenda, Solicitudes, Atender, Reportes).
 - `app/src/components/` — `Shell` (layout + nav + tema), `Timeline`,
-  `ProximosTurnos`, `ReservaModal`, `PreAgendaModal`, etc.
+  `ProximosTurnos`, `ReservaModal`, etc.
 - `app/src/lib/` — orquestación: `bots.ts` (llamadas a los Bots por nombre),
-  `planes.ts`, `panelPlanes.ts`, `timeline.ts`, `estados.ts`.
-- `app/src/theme.ts` — tema Mantine (primario `teal`, tipografía grande).
+  `timeline.ts`, `estados.ts`.
+- `app/src/theme.ts` — tema Mantine (primario `somAzul`, tono 6 = `#007ce8`;
+  tipografía grande).
 
 ## Vistas (pestañas del header)
 
 | Vista | Componente | Qué hace |
 |---|---|---|
-| **Agenda** | `AgendaDelDia` | Línea de tiempo del día por sala (7/14 franjas), franjas libres clickeables para reservar y próximos turnos. |
-| **Planes y sesiones** | `PlanesSesiones` | Dashboard de saldo de planes (ver abajo). |
-| **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, planes (asignar / **pre-agendar**), reserva de turno/combo y cobro. |
+| **Agenda** | `AgendaDelDia` | Línea de tiempo del día por consultorio/sala, franjas libres clickeables para reservar y próximos turnos. |
+| **Solicitudes** | `Solicitudes` | Cola de solicitudes de turno del portal del paciente, para confirmar. |
+| **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (consulta de segunda opinión) y cobro. |
 | **Reportes** | `Reportes` | Indicadores de gestión. |
 
-El botón **"Atender"** del dashboard abre `Atender` con ese paciente ya cargado
+El botón **"Atender"** de Solicitudes abre `Atender` con ese paciente ya cargado
 (`pacienteInicialId`).
 
-## Features
-
-### Dashboard "Planes y sesiones"
-
-Lista a **todos los clientes con plan activo** y reparte sus sesiones en tres
-baldes sobre el total — **realizadas · agendadas a futuro · libres** — para
-gestionar de forma proactiva lo que está por perderse (las sesiones no usadas se
-pierden: membresía al cerrar el mes, paquete al vencer).
-
-- **Urgencia**: membresía → días hasta el cierre de mes; paquete → días hasta
-  vencer. Ordena por lo más en riesgo y permite filtrar **Todos / En riesgo**.
-- **Acciones**: barra de baldes, badge de urgencia y botón **Atender** por fila.
-- Lógica de agregación: `app/src/lib/panelPlanes.ts` (lee los `Coverage` activos,
-  cuenta turnos futuros por cobertura vía la extensión `cobertura-usada` y reusa
-  `saldoPlan` de `src/lib/planes.ts`).
-
-### Pre-agenda de membresías
-
-En `Atender → Planes`, cada membresía con saldo muestra **"Pre-agendar mes"**:
-propone y reserva de una vez las sesiones del mes según la frecuencia (2x/3x por
-semana).
-
-- Elegís días de la semana (sugeridos según la frecuencia), hora y fecha de inicio;
-  previsualiza la serie antes de reservar.
-- Reserva una por una con el bot de combo (asigna sala, valida R-01/R-02/R-07 y
-  consume sesión de la membresía), mostrando ✓/✗ por turno; manda **un** WhatsApp
-  de resumen (no uno por sesión).
-- Cálculo de fechas puro y testeado: `src/lib/serie-turnos.ts`
-  (`generarSerieFechas`, `diasSugeridos`). UI: `app/src/components/PreAgendaModal.tsx`.
-
-### Modo oscuro / claro
+## Modo oscuro / claro
 
 Toggle **sol/luna** en el header (arriba a la derecha, junto a "Salir"). Se apoya
 en el dark mode nativo de Mantine v7.
@@ -81,7 +56,7 @@ en el dark mode nativo de Mantine v7.
 - Los colores de "chrome" (bordes, grilla del timeline, hover de filas/slots,
   input de fecha nativo) usan variables semánticas que se adaptan al tema
   (`--mantine-color-default-border`, `--mantine-color-default-hover`,
-  `--mantine-color-teal-light`).
+  `--mantine-color-somAzul-light`).
 
 Para ver el tema **sin loguearte**, en la consola del navegador:
 
@@ -91,3 +66,10 @@ localStorage.setItem('mantine-color-scheme-value', 'dark'); location.reload();
 
 > Nota: el render claro/oscuro aún no se validó con captura en CI (el sandbox no
 > tiene navegador). Se verifica a ojo corriendo `npm run dev`.
+
+## Retirado
+
+El dashboard "Planes y sesiones" (saldo de membresías/paquetes) y la pre-agenda
+de series de sesiones existieron para el catálogo BioWellness (wellness spa) y
+se retiraron junto con ese catálogo. Ver
+[`decisiones-pendientes.md`](decisiones-pendientes.md).

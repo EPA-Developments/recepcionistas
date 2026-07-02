@@ -26,9 +26,6 @@ export const POLICY_RECEPCIONISTA: AccessPolicy = {
     { resourceType: 'ChargeItem' },
     { resourceType: 'PaymentReconciliation' },
     { resourceType: 'Account' },
-    // Membresía / sesiones del mes (sólo lectura)
-    { resourceType: 'Coverage', readonly: true },
-    { resourceType: 'Contract', readonly: true },
     // Comunicación (WhatsApp / email)
     { resourceType: 'Communication' },
     // CRM / leads
@@ -129,7 +126,6 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Communication', criteria: 'Communication?subject=%patient' },
     // Compartimento propio — sólo lectura (lo gestiona Recepción / el equipo médico).
     { resourceType: 'Appointment', readonly: true, criteria: 'Appointment?actor=%patient' },
-    { resourceType: 'Coverage', readonly: true, criteria: 'Coverage?beneficiary=%patient' },
     { resourceType: 'Invoice', readonly: true, criteria: 'Invoice?subject=%patient' },
     { resourceType: 'DiagnosticReport', readonly: true, criteria: 'DiagnosticReport?subject=%patient' },
     { resourceType: 'CarePlan', readonly: true, criteria: 'CarePlan?subject=%patient' },

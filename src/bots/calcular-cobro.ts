@@ -42,10 +42,6 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaCob
   }));
 
   const totalSomUSD = cobro.lineas.reduce((acc, l) => acc + (l.split.somUSD ?? 0), 0);
-  const totalProfUSD = cobro.lineas.reduce(
-    (acc, l) => acc + (l.split.prescriptoresUSD ?? l.split.terapeutaUSD ?? l.split.proveedorUSD ?? 0),
-    0,
-  );
 
   const invoice: Invoice = {
     resourceType: 'Invoice',
@@ -57,7 +53,6 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaCob
     extension: [
       { url: EXT.tcAplicado, valueDecimal: cobro.tcAplicado },
       { url: EXT.montoSplitSom, valueMoney: { value: round2(totalSomUSD), currency: 'USD' } },
-      { url: EXT.montoSplitProfesional, valueMoney: { value: round2(totalProfUSD), currency: 'USD' } },
     ],
     ...(entrada.medioPago ? { paymentTerms: `Medio de pago: ${entrada.medioPago}` } : {}),
   };

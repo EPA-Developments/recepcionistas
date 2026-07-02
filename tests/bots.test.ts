@@ -4,25 +4,41 @@ import { validarEntrada } from '../src/bots/validar-turno.js';
 import { handler as cobroHandler, type EntradaCobro } from '../src/bots/calcular-cobro.js';
 
 describe('Bot validar-turno (lógica pura)', () => {
-  it('Consulta de cardiología sin objeciones => OK', () => {
-    const r = validarEntrada({ servicioCodigo: 'CARDIOLOGIA', prescripcionActiva: false });
+  it('Sin reservas ni ventana => ok', () => {
+    const r = validarEntrada({});
     expect(r.ok).toBe(true);
   });
 
-  it('Saldo de membresía agotado => bloqueo (R-10)', () => {
-    const r = validarEntrada({ sesionesUsadas: 8, sesionesMes: 8 });
+  it('Capacidad excedida en el consultorio => bloqueo (R-07)', () => {
+    const r = validarEntrada({
+      reservas: [
+        { recursoCodigo: 'R_CONSULTORIO_1', inicio: '2026-06-22T09:00:00-03:00', fin: '2026-06-22T10:00:00-03:00' },
+        { recursoCodigo: 'R_CONSULTORIO_1', inicio: '2026-06-22T09:30:00-03:00', fin: '2026-06-22T10:30:00-03:00' },
+      ],
+    });
     expect(r.ok).toBe(false);
-    expect(r.bloqueos.some((b) => b.regla === 'R-10')).toBe(true);
+    expect(r.bloqueos.some((b) => b.regla === 'R-07')).toBe(true);
+  });
+
+  it('Fuera de la ventana de reserva => bloqueo (R-13)', () => {
+    const r = validarEntrada({
+      perfil: 'PUBLICO',
+      ahora: '2026-06-22T09:00:00-03:00',
+      inicioTurno: '2026-06-25T09:00:00-03:00', // > 48 h
+    });
+    expect(r.ok).toBe(false);
+    expect(r.bloqueos.some((b) => b.regla === 'R-13')).toBe(true);
   });
 
   it('Combina varias reglas y acumula bloqueos', () => {
     const r = validarEntrada({
       reservas: [
         { recursoCodigo: 'R_CONSULTORIO_1', inicio: '2026-06-22T09:00:00-03:00', fin: '2026-06-22T10:00:00-03:00' },
-        { recursoCodigo: 'R_CONSULTORIO_1', inicio: '2026-06-22T09:30:00-03:00', fin: '2026-06-22T10:30:00-03:00' }, // R-07
+        { recursoCodigo: 'R_CONSULTORIO_1', inicio: '2026-06-22T09:30:00-03:00', fin: '2026-06-22T10:30:00-03:00' },
       ],
-      sesionesUsadas: 8,
-      sesionesMes: 8, // R-10
+      perfil: 'PUBLICO',
+      ahora: '2026-06-22T09:00:00-03:00',
+      inicioTurno: '2026-06-25T09:00:00-03:00',
     });
     expect(r.ok).toBe(false);
     expect(r.bloqueos.length).toBeGreaterThanOrEqual(2);
@@ -32,7 +48,7 @@ describe('Bot validar-turno (lógica pura)', () => {
 describe('Bot calcular-cobro', () => {
   const medplumStub = {} as unknown as MedplumClient;
 
-  it('Calcula Invoice en ARS con TC aplicado (precio PENDIENTE => 0, sin persistir)', async () => {
+  it('Calcula Invoice en ARS (consulta, precio fijo pendiente = 0) con TC aplicado', async () => {
     const event = {
       input: {
         items: [{ tipo: 'servicio', codigo: 'CARDIOLOGIA' }],
@@ -43,7 +59,8 @@ describe('Bot calcular-cobro', () => {
 
     const invoice = await cobroHandler(medplumStub, event);
     expect(invoice.resourceType).toBe('Invoice');
-    expect(invoice.totalGross?.value).toBe(0); // precio PENDIENTE del catálogo
+    // Precio PENDIENTE: hoy la consulta está en ARS 0 hasta cargar la lista oficial.
+    expect(invoice.totalGross?.value).toBe(0);
     expect(invoice.totalGross?.currency).toBe('ARS');
     const tcExt = invoice.extension?.find((e) => e.url.endsWith('tc-aplicado'));
     expect(tcExt?.valueDecimal).toBe(1450);

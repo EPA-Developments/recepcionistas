@@ -10,22 +10,18 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | Bot | Qué hace | Cómo se invoca |
 |---|---|---|
 | `som-calcular-cobro` | Calcula el cobro (USD→ARS al TC, splits) y emite `Invoice`. | `executeBot` desde el front (pantalla Atender). |
-| `som-validar-turno` | Valida un turno (orden HBOT, contraindicaciones, prescripción, capacidad/desfasaje, ventana, saldo). | `executeBot` al reservar/confirmar. |
+| `som-validar-turno` | Valida un turno (capacidad de recursos, ventana de reserva). | `executeBot` al reservar/confirmar. |
 | `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). | `executeBot` desde el front (Reservar turno). |
-| `som-reservar-combo` | Agenda un **combo** en secuencia (HBOT primero), auto-asignando sala por componente. | `executeBot` desde el front (Reservar combo). |
 | `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` y libera la sala al completar/cancelar. | `executeBot` desde el front (clic en el turno). |
 | `som-pagar-sena` | Registra la seña (50%), confirma el turno (pending→booked) y envía WhatsApp de confirmación. | `executeBot` (clic en turno tentativo). |
 | `som-link-mercadopago` | Genera un link de MercadoPago por el monto de la seña (si está configurado el token). | `executeBot` (botón en turno tentativo). |
 | `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública que llama MercadoPago. |
-| `som-asignar-plan` | Asigna una membresía/paquete: crea el `Coverage`, emite el cobro inicial y envía WhatsApp de bienvenida. | `executeBot` desde el front (Atender → Planes). |
-| `som-cobro-membresias` | **Cron días 1-5:** renueva cada membresía activa (reset de sesiones + cobro mensual + WhatsApp). | `cronTimer` del Bot (a diario). |
 | `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp. | `cronTimer` del Bot (cada ~30 min). |
 | `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono). | `executeBot` (Atender → Nuevo paciente). |
 | `som-invitar-paciente` | Invita al paciente al **portal** (invite de Medplum) y entrega el link por WhatsApp/email/QR. **Requiere admin.** | `executeBot` (Atender → Invitar al portal). |
 | `som-limpiar-demo` | **Cron:** borra los datos demo (tag `demo`) con más de 48 h. | `cronTimer` del Bot (cada ~1 h). |
 | `som-enviar-whatsapp` | Envía WhatsApp (Twilio) y registra `Communication`. | `executeBot` por evento o manual. |
 | `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
-| `som-recordatorios` | **Cron horario:** recordatorios de turno (24h/1h) y de saldo en riesgo, por WhatsApp **y** email. | `cronTimer` del Bot (cada hora). |
 
 ## Deploy
 
@@ -72,8 +68,8 @@ spamear a nadie. Estados resultantes:
 - `RECEPCION_WHATSAPP_TO` (número de Recepción, para el aviso de **solicitudes** del portal)
 
 El destinatario sale de `Patient.telecom` (teléfono/SMS). El WhatsApp se dispara
-automático **al reservar** (turno tentativo), **al pagar la seña** (confirmado),
-**al renovar la membresía** y en los **recordatorios** (ver abajo).
+automático **al reservar** (turno tentativo), **al pagar la seña** (confirmado)
+y en los **recordatorios** (ver abajo).
 
 > **Diagnóstico de WhatsApp:** `npm run whatsapp:test -- +5491122334455` ejecuta el
 > bot `som-enviar-whatsapp` en el server (lee los Project Secrets reales) y reporta
@@ -127,33 +123,11 @@ El bot toma el id del pago, hace `GET /v1/payments/{id}` con el token, y si est�
 `approved` confirma el turno por su `external_reference` (= appointmentId). Es
 idempotente (los reintentos de MP no duplican la seña).
 
-## Membresías y paquetes (planes)
-
-Un plan del paciente se modela como un **`Coverage`** (`status: active`,
-`beneficiary` = el paciente) con extensiones: `tipo-cobertura`
-(`membresia`/`paquete`), `plan-codigo`, `sesiones-mes` (membresía) o
-`sesiones-total` (paquete), `sesiones-usadas` y, en membresías, `ciclo-mes`
-(`YYYY-MM` ya facturado). Los paquetes llevan `period.end` (vencimiento por
-vigencia en días); las membresías no vencen (se renuevan por ciclo).
-
-- **Asignar** (`som-asignar-plan`): crea el `Coverage`, emite el `Invoice` inicial
-  (membresía: mes en curso; paquete: total, con FM si aplica) y avisa por WhatsApp.
-- **Consumir** (al reservar): si se pasa `coverageId`, `som-reservar-turno` /
-  `som-reservar-combo` validan el saldo (**R-10**) y que la base del plan coincida
-  con lo reservado (paquete↔servicio, membresía↔combo). Si todo OK, incrementan
-  `sesiones-usadas` y el turno queda **confirmado sin seña** (`booked`).
-- **Bloqueo al agotarse** (**R-10**): sin saldo / vencido / inactivo, la reserva
-  con plan se rechaza (la lógica pura está en `src/lib/planes.ts`, testeada).
-- **Cobro recurrente** (`som-cobro-membresias`): pensado como **cron diario**. En
-  los días 1-5 (R-11) resetea las sesiones del mes y emite el cobro mensual
-  (idempotente por ciclo: no duplica si corre varias veces).
-
-### Cron de `som-cobro-membresias`
-
-El reset/cobro mensual lo dispara el `cronTimer` del Bot en Medplum. Configurarlo
-**una vez** (Bot → propiedad `cronTimer`, p. ej. `0 9 * * *` = 09:00 a diario).
-El propio bot decide si actúa (días 1-5 y ciclo no facturado), así que correrlo
-todos los días es seguro e idempotente.
+> **Retirado:** los bots `som-reservar-combo` (combos), `som-asignar-plan`
+> (membresías/paquetes) y `som-cobro-membresias` (cobro recurrente) eran del
+> catálogo BioWellness y se retiraron junto con
+> `src/config/{combos,membresias,paquetes}.ts`. Ver
+> [`decisiones-pendientes.md`](decisiones-pendientes.md).
 
 ## Recordatorios automáticos (48 h / 2 h)
 
@@ -164,10 +138,8 @@ toca" es pura (`src/lib/recordatorios.ts`, testeada): usa ventanas hacia abajo
 una corrida del cron se saltea, el siguiente tick lo manda igual.
 
 - **Idempotente:** cada recordatorio queda como `Communication` con identifier
-  `recordatorio-{tipo}-{grupo}`. Antes de enviar, el bot busca ese identifier; si
+  `recordatorio-{tipo}-{turno}`. Antes de enviar, el bot busca ese identifier; si
   existe, no reenvía. Por eso es seguro correrlo cada pocos minutos.
-- **Combos:** se manda **un** recordatorio por combo (el componente que arranca
-  primero), no uno por sesión (se agrupan por el identifier de combo).
 
 ### Cron de `som-recordatorios`
 
@@ -221,8 +193,8 @@ después):
 
 ## Datos de demostración (autodestrucción a las 48 h)
 
-Para ver la app con datos (pacientes, turnos en varios estados, planes, un Flag de
-contraindicación, cobros y comunicaciones):
+Para ver la app con datos (pacientes, turnos de consulta en varios estados, un
+Flag de banner de seguridad, cobros y comunicaciones):
 
 ```bash
 npm run datos-demo                       # limpia demo previa y genera datos nuevos

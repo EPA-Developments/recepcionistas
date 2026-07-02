@@ -17,7 +17,6 @@ import type { Resource } from '@medplum/fhirtypes';
 import { buildSeed, buildSlot } from './builders.js';
 import { HORARIO_ES_PLACEHOLDER, HORARIO_SEMANAL } from '../config/horario.js';
 import { RECURSOS } from '../config/recursos.js';
-import { CONTRAINDICACIONES } from '../config/contraindicaciones.js';
 import { generarSlots } from '../lib/slots.js';
 import { SYSTEM } from '../fhir/identifiers.js';
 
@@ -32,10 +31,6 @@ async function main(): Promise<void> {
     ['AccessPolicy (roles)', seed.accessPolicies],
     ['Basic (config TC)', [seed.tcConfig]],
     ['ActivityDefinition (servicios)', seed.activityDefinitions],
-    ['PlanDefinition (combos)', seed.combos],
-    ['PlanDefinition (membresías)', seed.membresias],
-    ['PlanDefinition (paquetes)', seed.paquetes],
-    ['CodeSystem (contraindicaciones)', [seed.contraindicaciones]],
     ['Location (recursos)', seed.locations],
     ['Schedule (agendas)', seed.schedules],
     ['Practitioner (médicos)', seed.practitioners],
@@ -187,9 +182,6 @@ function imprimirAdvertencias(): void {
   }
   if (RECURSOS.some((r) => r.provisional)) {
     avisos.push('La lista de recursos físicos (consultorios/salas) es PROVISIONAL. Confirmar con la operación.');
-  }
-  if (CONTRAINDICACIONES.some((c) => c.borradorPendienteRevision)) {
-    avisos.push('Tabla de contraindicaciones es BORRADOR. Requiere validación del Director Médico.');
   }
   if (avisos.length) {
     console.log('\n⚠️  Pendientes (ver docs/decisiones-pendientes.md):');

@@ -21,8 +21,6 @@ const SOM_BASE = 'https://segundaopinionmedica.org/fhir';
 export const EXT = {
   // Patient
   tipoCliente: `${BASE}/StructureDefinition/tipo-cliente`,
-  tagFm: `${BASE}/StructureDefinition/tag-fm`,
-  tcBloqueoFm: `${BASE}/StructureDefinition/tc-bloqueo-fm`,
   perfilClinico: `${BASE}/StructureDefinition/perfil-clinico`,
   origenLead: `${BASE}/StructureDefinition/origen-lead`,
   // Practitioner
@@ -30,43 +28,19 @@ export const EXT = {
   tipoContrato: `${BASE}/StructureDefinition/tipo-contrato`,
   // Schedule / Slot
   recursoFisico: `${BASE}/StructureDefinition/recurso-fisico`,
-  comparteTumbona: `${BASE}/StructureDefinition/comparte-tumbona`,
   // Appointment
-  ordenProtocolo: `${BASE}/StructureDefinition/orden-protocolo`,
-  requiereHbotPrevio: `${BASE}/StructureDefinition/requiere-hbot-previo`,
   ocupantes: `${BASE}/StructureDefinition/ocupantes`,
-  /** Tipo de ítem del turno (servicio/combo/paquete/membresia), para calcular la seña. */
+  /** Tipo de ítem del turno (hoy solo "servicio"), para calcular la seña. */
   itemTipo: `${BASE}/StructureDefinition/item-tipo`,
   /** Código de catálogo del ítem del turno. */
   itemCodigo: `${BASE}/StructureDefinition/item-codigo`,
-  /** Coverage (plan) que cubre el turno: si está, no requiere seña. */
-  coberturaUsada: `${BASE}/StructureDefinition/cobertura-usada`,
   // ActivityDefinition (catálogo)
   precioUsd: `${BASE}/StructureDefinition/precio-usd`,
   precioArs: `${BASE}/StructureDefinition/precio-ars`,
   reglaPricingRecurso: `${BASE}/StructureDefinition/regla-pricing-recurso`,
   splitSom: `${BASE}/StructureDefinition/split-som`,
-  requierePrescripcion: `${BASE}/StructureDefinition/requiere-prescripcion`,
-  // PlanDefinition (combos)
-  secuenciaOrdenada: `${BASE}/StructureDefinition/secuencia-ordenada`,
-  descuentoCombo: `${BASE}/StructureDefinition/descuento-combo`,
-  // Coverage / Contract (membresía)
-  tier: `${BASE}/StructureDefinition/tier`,
-  version: `${BASE}/StructureDefinition/version`,
-  sesionesMes: `${BASE}/StructureDefinition/sesiones-mes`,
-  sesionesUsadas: `${BASE}/StructureDefinition/sesiones-usadas`,
-  precioBloqueadoFm: `${BASE}/StructureDefinition/precio-bloqueado-fm`,
-  /** Tipo de cobertura: 'membresia' | 'paquete'. */
-  tipoCobertura: `${BASE}/StructureDefinition/tipo-cobertura`,
-  /** Código del plan (membresía o paquete) del catálogo. */
-  planCodigo: `${BASE}/StructureDefinition/plan-codigo`,
-  /** Sesiones totales del paquete. */
-  sesionesTotal: `${BASE}/StructureDefinition/sesiones-total`,
-  /** Ciclo facturado (YYYY-MM) de la membresía. */
-  cicloMes: `${BASE}/StructureDefinition/ciclo-mes`,
   // Invoice / ChargeItem
   montoSplitSom: `${BASE}/StructureDefinition/monto-split-som`,
-  montoSplitProfesional: `${BASE}/StructureDefinition/monto-split-profesional`,
   tcAplicado: `${BASE}/StructureDefinition/tc-aplicado`,
   /** Marca de que el Invoice es una seña (depósito). */
   esSena: `${BASE}/StructureDefinition/es-sena`,
@@ -88,11 +62,7 @@ export const EXT = {
 /** Sistemas de codificación / identificadores de negocio. */
 export const SYSTEM = {
   servicioCodigo: `${BASE}/CodeSystem/servicio`,
-  comboCodigo: `${BASE}/CodeSystem/combo`,
-  membresiaCodigo: `${BASE}/CodeSystem/membresia`,
-  paqueteCodigo: `${BASE}/CodeSystem/paquete`,
   recursoCodigo: `${BASE}/CodeSystem/recurso-fisico`,
-  contraindicacion: `${BASE}/CodeSystem/contraindicacion`,
   medico: `${BASE}/CodeSystem/medico`,
   /** Identifier de Invoice (para deduplicar señas: manual o por pago MP). */
   invoice: `${BASE}/Identifier/invoice`,

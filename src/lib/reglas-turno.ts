@@ -1,16 +1,14 @@
 /**
- * Motor de reglas de agenda / validación de turnos (Documento de Requerimientos §7).
+ * Motor de reglas de agenda / validación de turnos.
  * Funciones puras: reciben datos planos y devuelven un resultado de validación.
  *
  * Reglas cubiertas:
- *  R-02 Contraindicaciones              R-10 Saldo de membresía
- *  R-03 Prescripción médica             R-13 Ventana de reserva
- *  R-07 Desfasaje de recursos           R-14 Cancelación / reagenda
+ *  R-07 Capacidad de recursos
+ *  R-13 Ventana de reserva
+ *  R-14 Cancelación / reagenda
  */
-import type { CategoriaServicio, Servicio } from '../domain/types.js';
-import { CONTRAINDICACIONES_POR_CODIGO } from '../config/contraindicaciones.js';
-import { RECURSOS_POR_CODIGO, compartenEquipo } from '../config/recursos.js';
 import { CANCELACION, VENTANA_RESERVA_HORAS, type PerfilReserva } from '../config/reglas.js';
+import { RECURSOS_POR_CODIGO } from '../config/recursos.js';
 
 export type NivelValidacion = 'ok' | 'advertencia' | 'bloqueo';
 
@@ -35,76 +33,7 @@ function resultado(issues: Issue[]): ResultadoValidacion {
 const HORA_MS = 60 * 60 * 1000;
 
 // --------------------------------------------------------------------------
-// R-02 · Contraindicaciones y banner de seguridad
-// --------------------------------------------------------------------------
-
-export type ColorBanner = 'verde' | 'rojo';
-
-/**
- * Banner de seguridad que ve la recepción: rojo si el paciente tiene alguna
- * contraindicación activa (de cualquier severidad), verde si no tiene ninguna.
- * La recepción NO ve el detalle clínico, solo el color.
- */
-export function bannerSeguridad(contraindicacionesActivas: string[]): ColorBanner {
-  return contraindicacionesActivas.length > 0 ? 'rojo' : 'verde';
-}
-
-/**
- * R-02: un turno con contraindicación ABSOLUTA activa para su categoría no se
- * confirma sin autorización médica explícita registrada. Las relativas advierten.
- */
-export function validarContraindicaciones(
-  categorias: CategoriaServicio[],
-  contraindicacionesActivas: string[],
-  opts: { autorizacionMedica?: boolean } = {},
-): ResultadoValidacion {
-  const issues: Issue[] = [];
-  for (const codigo of contraindicacionesActivas) {
-    const c = CONTRAINDICACIONES_POR_CODIGO.get(codigo);
-    if (!c) {
-      continue;
-    }
-    const afecta = c.aplicaA.some((cat) => categorias.includes(cat));
-    if (!afecta) {
-      continue;
-    }
-    if (c.severidad === 'absoluta' && !opts.autorizacionMedica) {
-      issues.push({
-        regla: 'R-02',
-        nivel: 'bloqueo',
-        mensaje: `Contraindicación absoluta activa (${c.codigo}). Requiere autorización médica explícita.`,
-      });
-    } else if (c.severidad === 'relativa') {
-      issues.push({
-        regla: 'R-02',
-        nivel: 'advertencia',
-        mensaje: `Contraindicación relativa activa (${c.codigo}). Revisar con el equipo médico.`,
-      });
-    }
-  }
-  return resultado(issues);
-}
-
-// --------------------------------------------------------------------------
-// R-03 · Prescripción médica (IV / Terapias Biológicas)
-// --------------------------------------------------------------------------
-
-/** IV Therapy y Terapias Biológicas no se ejecutan sin prescripción activa. */
-export function validarPrescripcion(servicio: Servicio, prescripcionActiva: boolean): ResultadoValidacion {
-  if (servicio.requierePrescripcion && !prescripcionActiva) {
-    return resultado([
-      {
-        regla: 'R-03',
-        nivel: 'bloqueo',
-        mensaje: `"${servicio.nombre}" requiere prescripción médica activa (Dalessandro / Dos Santos).`,
-      },
-    ]);
-  }
-  return resultado([]);
-}
-
-// --------------------------------------------------------------------------
-// R-07 · Capacidad por recurso y desfasaje de equipos compartidos
+// R-07 · Capacidad por recurso
 // --------------------------------------------------------------------------
 
 export interface ReservaRecurso {
@@ -134,10 +63,7 @@ function maxConcurrentes(reservas: ReservaRecurso[]): number {
   return max;
 }
 
-/**
- * No se puede exceder la capacidad de un mismo recurso físico en una franja.
- * (HBOT multiplaza cap 6, biplaza 2, el resto 1.)
- */
+/** No se puede exceder la capacidad de un mismo recurso físico en una franja. */
 export function validarCapacidadRecurso(reservas: ReservaRecurso[]): ResultadoValidacion {
   const issues: Issue[] = [];
   const porRecurso = new Map<string, ReservaRecurso[]>();
@@ -159,43 +85,9 @@ export function validarCapacidadRecurso(reservas: ReservaRecurso[]): ResultadoVa
   return resultado(issues);
 }
 
-/** Offset mínimo de inicio entre gabinetes que comparten tumbonas (Recovery Pro). */
-export const DESFASAJE_RECOVERY_MIN = 30;
-
-/**
- * R-07 (AC-05): dos reservas en recursos que comparten equipo (los gabinetes
- * Recovery Pro comparten las 2 tumbonas Red Light) NO pueden arrancar a la misma
- * hora; deben desfasarse al menos `DESFASAJE_RECOVERY_MIN` minutos. No alcanza con
- * no solaparse: el cuello de botella es la sub-fase de Red Light.
- * Ej.: G1 09:00 y G2 09:00 => bloqueo; G1 09:00 y G2 09:30 => OK.
- */
-export function validarDesfasajeRecovery(reservas: ReservaRecurso[]): ResultadoValidacion {
-  const issues: Issue[] = [];
-  const offsetMs = DESFASAJE_RECOVERY_MIN * 60 * 1000;
-  for (let i = 0; i < reservas.length; i++) {
-    for (let j = i + 1; j < reservas.length; j++) {
-      const a = reservas[i]!;
-      const b = reservas[j]!;
-      // Mismo recurso => lo cubre validarCapacidadRecurso. Acá: distintos recursos que comparten equipo.
-      if (a.recursoCodigo === b.recursoCodigo || !compartenEquipo(a.recursoCodigo, b.recursoCodigo)) {
-        continue;
-      }
-      const diff = Math.abs(a.inicio.getTime() - b.inicio.getTime());
-      if (diff < offsetMs) {
-        issues.push({
-          regla: 'R-07',
-          nivel: 'bloqueo',
-          mensaje: `${a.recursoCodigo} y ${b.recursoCodigo} comparten equipo: deben desfasarse al menos ${DESFASAJE_RECOVERY_MIN} min.`,
-        });
-      }
-    }
-  }
-  return resultado(issues);
-}
-
-/** Valida capacidad + desfasaje de equipos compartidos en un solo paso. */
+/** Valida capacidad de recursos. */
 export function validarRecursos(reservas: ReservaRecurso[]): ResultadoValidacion {
-  return combinar(validarCapacidadRecurso(reservas), validarDesfasajeRecovery(reservas));
+  return validarCapacidadRecurso(reservas);
 }
 
 // --------------------------------------------------------------------------
@@ -254,23 +146,6 @@ export function evaluarCancelacion(
     consumeSesion,
     devuelveSaldo: !consumeSesion,
   };
-}
-
-// --------------------------------------------------------------------------
-// R-10 · Saldo de membresía
-// --------------------------------------------------------------------------
-
-export function validarSaldoMembresia(sesionesUsadas: number, sesionesMes: number): ResultadoValidacion {
-  if (sesionesUsadas >= sesionesMes) {
-    return resultado([
-      {
-        regla: 'R-10',
-        nivel: 'bloqueo',
-        mensaje: `Saldo de membresía agotado (${sesionesUsadas}/${sesionesMes} sesiones del mes).`,
-      },
-    ]);
-  }
-  return resultado([]);
 }
 
 /** Combina varios resultados en uno solo. */

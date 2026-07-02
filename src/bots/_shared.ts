@@ -2,14 +2,10 @@
  * Helpers compartidos por los bots de agenda (acceden a FHIR; no son "lib pura").
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type { Appointment, Communication, Coverage, Flag, Invoice } from '@medplum/fhirtypes';
+import type { Appointment, Communication, Flag, Invoice } from '@medplum/fhirtypes';
 import { CONFIG_TC_ID, EXT, SYSTEM } from '../fhir/identifiers.js';
-import { estadoDeCoverage, planCodigoDeCoverage } from '../fhir/coverage.js';
 import { resolverTC } from '../config/tipo-cambio.js';
-import { getMembresia } from '../config/membresias.js';
-import { getPaquete } from '../config/paquetes.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
-import { motivoNoDisponible, saldoPlan } from '../lib/planes.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
 
 type Secrets = BotEvent['secrets'];
@@ -261,9 +257,9 @@ export interface ResultadoConfirmacion {
 
 /**
  * Confirma una reserva al cobrarse la seña (50%): emite el Invoice de la seña,
- * pasa el/los turno(s) a 'booked' (combos: todos los componentes) y dispara el
- * WhatsApp de confirmación. Idempotente: si ya existe el Invoice de esa seña
- * (misma clave), no duplica ni reenvía. La usan el cobro manual y el webhook de MP.
+ * pasa el turno a 'booked' y dispara el WhatsApp de confirmación. Idempotente:
+ * si ya existe el Invoice de esa seña (misma clave), no duplica ni reenvía.
+ * La usan el cobro manual y el webhook de MP.
  */
 export async function confirmarReserva(
   medplum: MedplumClient,
@@ -287,17 +283,10 @@ export async function confirmarReserva(
     return { totalARS, senaARS, invoiceId: existente.id, confirmados: 0, yaConfirmado: true };
   }
 
-  // Confirmar el/los turno(s) (todos los componentes del combo si aplica).
-  const comboId = appt.identifier?.find((i) => i.system === SYSTEM.comboCodigo)?.value;
-  const turnos: Appointment[] = comboId
-    ? await medplum.searchResources('Appointment', `identifier=${SYSTEM.comboCodigo}|${comboId}`)
-    : [appt];
   let confirmados = 0;
-  for (const t of turnos) {
-    if (t.status === 'pending' || t.status === 'proposed') {
-      await medplum.updateResource({ ...t, status: 'booked' });
-      confirmados++;
-    }
+  if (appt.status === 'pending' || appt.status === 'proposed') {
+    await medplum.updateResource({ ...appt, status: 'booked' });
+    confirmados++;
   }
 
   const pacienteRef = appt.participant?.find((p) => p.actor?.reference?.startsWith('Patient/'))?.actor?.reference;
@@ -328,121 +317,4 @@ export async function confirmarReserva(
   });
 
   return { totalARS, senaARS, invoiceId: invoice.id, confirmados, yaConfirmado: false };
-}
-
-export interface CobroPlan {
-  invoiceId?: string;
-  yaExistia: boolean;
-}
-
-/**
- * Emite el Invoice de un plan (membresía mensual o paquete inicial). Idempotente
- * por la clave `plan-{coverageId}[-{ciclo}]`: si ya existe, no duplica. La usan el
- * alta del plan (asignar-plan) y el cron de cobro mensual (cobro-membresias).
- */
-export async function emitirInvoicePlan(
-  medplum: MedplumClient,
-  opts: {
-    coverageId: string;
-    pacienteRef?: string;
-    descripcion: string;
-    totalARS: number;
-    tc: number;
-    ciclo?: string;
-    medioPago?: string;
-  },
-): Promise<CobroPlan> {
-  const key = opts.ciclo ? `plan-${opts.coverageId}-${opts.ciclo}` : `plan-${opts.coverageId}`;
-  const existente = await medplum.searchOne('Invoice', `identifier=${SYSTEM.invoice}|${key}`);
-  if (existente) {
-    return { invoiceId: existente.id, yaExistia: true };
-  }
-  const invoice = await medplum.createResource<Invoice>({
-    resourceType: 'Invoice',
-    status: 'balanced',
-    date: new Date().toISOString(),
-    identifier: [{ system: SYSTEM.invoice, value: key }],
-    ...(opts.pacienteRef ? { subject: { reference: opts.pacienteRef } } : {}),
-    lineItem: [
-      {
-        chargeItemCodeableConcept: { text: opts.descripcion },
-        priceComponent: [{ type: 'base', amount: { value: opts.totalARS, currency: 'ARS' } }],
-      },
-    ],
-    totalGross: { value: opts.totalARS, currency: 'ARS' },
-    extension: [
-      { url: EXT.tcAplicado, valueDecimal: opts.tc },
-      ...(opts.ciclo ? [{ url: EXT.cicloMes, valueString: opts.ciclo }] : []),
-      ...(opts.medioPago ? [{ url: EXT.medioPago, valueCode: opts.medioPago }] : []),
-    ],
-  });
-  return { invoiceId: invoice.id, yaExistia: false };
-}
-
-export interface ConsumoPlan {
-  coverage: Coverage;
-  restantes: number;
-  planCodigo: string;
-}
-
-/**
- * Consume una sesión de un plan (membresía o paquete) al reservar un turno.
- *
- * Valida (R-10) que el plan esté disponible (activo, no vencido, con saldo) y que
- * la base del plan coincida con lo que se reserva:
- *  - membresía → su `comboBaseCodigo` debe ser el combo del turno;
- *  - paquete   → su `servicioBaseCodigo` debe ser el servicio del turno.
- * Si todo OK, incrementa `sesiones-usadas` en el Coverage. Lanza si no procede.
- *
- * No es idempotente por sí sola: el bot que reserva decide cuándo llamarla (una
- * vez por turno creado con plan).
- */
-export async function consumirSesionDePlan(
-  medplum: MedplumClient,
-  coverageId: string,
-  reservado: { tipo: 'servicio' | 'combo'; codigo: string },
-  ahora: Date = new Date(),
-): Promise<ConsumoPlan> {
-  const coverage = await medplum.readResource('Coverage', coverageId);
-  const estado = estadoDeCoverage(coverage);
-  const saldo = saldoPlan(estado, ahora);
-  const motivo = motivoNoDisponible(saldo, estado.activo);
-  if (motivo) {
-    throw new Error(motivo);
-  }
-
-  const planCodigo = planCodigoDeCoverage(coverage);
-  if (!planCodigo) {
-    throw new Error('El plan no tiene código asociado.');
-  }
-
-  // La base del plan debe coincidir con lo reservado.
-  if (estado.tipo === 'membresia') {
-    const base = getMembresia(planCodigo).comboBaseCodigo;
-    if (reservado.tipo !== 'combo' || reservado.codigo !== base) {
-      throw new Error(`Este turno no corresponde a la membresía (base ${base}).`);
-    }
-  } else {
-    const base = getPaquete(planCodigo).servicioBaseCodigo;
-    if (reservado.tipo !== 'servicio' || reservado.codigo !== base) {
-      throw new Error(`Este turno no corresponde al paquete (base ${base}).`);
-    }
-  }
-
-  // Incrementar sesiones-usadas (crea la extensión si no existía).
-  const extension = [...(coverage.extension ?? [])];
-  const idx = extension.findIndex((x) => x.url === EXT.sesionesUsadas);
-  const nuevasUsadas = estado.usadas + 1;
-  if (idx >= 0) {
-    extension[idx] = { url: EXT.sesionesUsadas, valueInteger: nuevasUsadas };
-  } else {
-    extension.push({ url: EXT.sesionesUsadas, valueInteger: nuevasUsadas });
-  }
-  const actualizado = await medplum.updateResource<Coverage>({ ...coverage, extension });
-
-  return {
-    coverage: actualizado,
-    restantes: Math.max(estado.total - nuevasUsadas, 0),
-    planCodigo,
-  };
 }
