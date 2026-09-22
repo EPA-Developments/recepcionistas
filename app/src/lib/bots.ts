@@ -126,6 +126,8 @@ export interface AltaPacienteInput {
   email?: string;
   telefono?: string;
   tipoCliente?: string;
+  /** Origen del lead para el CRM (red social / utm_source). */
+  origenLead?: string;
 }
 
 export interface ResultadoAltaPaciente {

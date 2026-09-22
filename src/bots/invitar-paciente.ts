@@ -12,6 +12,7 @@
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Bundle, Patient, ProjectMembership, UserSecurityRequest } from '@medplum/fhirtypes';
+import { PORTAL_BASE_URL_DEFAULT, urlBase } from '../config/urls.js';
 import { EXT } from '../fhir/identifiers.js';
 import { NOMBRE_POLICY_PACIENTE } from '../fhir/access-policies.js';
 import {
@@ -52,16 +53,9 @@ export async function handler(
       return { ok: false, mensaje: 'Canal de invitación inválido (whatsapp / email / qr).' };
     }
 
-    // El link va al PORTAL del paciente SOM, no a la app de recepción. Sin
-    // PORTAL_BASE_URL no se invita (antes de escribir nada): un default podría
-    // mandar al paciente a un portal ajeno.
-    const portalUrl = event.secrets['PORTAL_BASE_URL']?.valueString?.trim();
-    if (!portalUrl) {
-      return {
-        ok: false,
-        mensaje: 'Falta el Project Secret PORTAL_BASE_URL (URL del portal del paciente). Cargalo en Medplum → Project → Secrets.',
-      };
-    }
+    // El link va al PORTAL del paciente SOM, no a la app de recepción
+    // (Project Secret PORTAL_BASE_URL; default: el portal de producción).
+    const portalUrl = urlBase(event.secrets['PORTAL_BASE_URL']?.valueString, PORTAL_BASE_URL_DEFAULT);
 
     const patient = await medplum.readResource('Patient', e.pacienteRef.split('/')[1]!);
     const email = (e.email ?? patient.telecom?.find((t) => t.system === 'email')?.value)?.trim();
@@ -145,7 +139,7 @@ export async function handler(
       const m = mensajeInvitacion(display, link, portalUrl);
       // Remitente con marca (la dirección sigue siendo la identidad SES verificada).
       // Configurable con el secret EMAIL_FROM.
-      const from = event.secrets['EMAIL_FROM']?.valueString ?? 'Segunda Opinión Médica San Isidro <hola@medplum.com.ar>';
+      const from = event.secrets['EMAIL_FROM']?.valueString ?? 'Segunda Opinión Médica <hola@medplum.com.ar>';
       const comm = await enviarEmail(medplum, {
         to: email,
         asunto: m.asunto,

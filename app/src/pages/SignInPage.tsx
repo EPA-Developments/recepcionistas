@@ -29,7 +29,7 @@ export function SignInPage(): JSX.Element {
               Segunda Opinión Médica
             </Title>
             <Text c="dimmed" size="sm">
-              Recepción · San Isidro
+              Recepción · CABA
             </Text>
           </Stack>
           <SignInForm onSuccess={() => undefined} googleClientId={googleClientId}>

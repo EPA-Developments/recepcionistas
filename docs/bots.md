@@ -22,6 +22,8 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-limpiar-demo` | **Cron:** borra los datos demo (tag `demo`) con más de 48 h. | `cronTimer` del Bot (cada ~1 h). |
 | `som-enviar-whatsapp` | Envía WhatsApp (Twilio) y registra `Communication`. | `executeBot` por evento o manual. |
 | `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
+| `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
+| `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
 
 ## Deploy
 
@@ -62,8 +64,8 @@ MercadoPago usan las credenciales propias de SOM.
 | `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas) | opcional |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago` | para cobrar por MP |
 | `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`) | opcional |
-| `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | **sí**, para invitar |
-| `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional |
+| `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
+| `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
 | `EMAIL_FROM` | `som-invitar-paciente` (remitente con marca) | opcional |
 | `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe) | opcional (sin él, informe mínimo) |
 
@@ -192,9 +194,9 @@ después):
    - **qr** → devuelve el link y el front lo dibuja como **QR** (client-side, el
      link nunca sale a un tercero).
 
-   El link apunta al **portal del paciente SOM**, no a la app de recepción. Sale
-   del Project Secret **`PORTAL_BASE_URL`**, que es **obligatorio**: sin él el bot
-   no invita (no hay default, para no mandar al paciente a un portal ajeno).
+   El link apunta al **portal del paciente SOM**
+   (`https://app.segundaopinionmedica.org`), no a la app de recepción. El Project
+   Secret **`PORTAL_BASE_URL`** lo pisa por entorno (p. ej. staging).
 
 ### Requisitos para invitar
 
@@ -207,7 +209,6 @@ después):
   Medplum (igual que se crean los bots). Sin admin, devuelve un aviso claro.
 - Que el proyecto tenga la **feature `email`** habilitada (super admin).
 - Que exista la AccessPolicy **"Paciente SOM — Portal"** (corré `npm run seed`).
-- Que esté cargado el Project Secret `PORTAL_BASE_URL`.
 - Para alinear con el **auto-registro** del portal ("Crear cuenta"), conviene que
   el **default patient access policy** del proyecto Medplum sea también
   "Paciente SOM — Portal" (así el paciente que se registra solo y el invitado

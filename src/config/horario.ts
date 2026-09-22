@@ -1,8 +1,9 @@
 /**
  * Horario de atención del centro (genera las franjas reservables de cada sala).
  *
- * Confirmado por Andrés (2026-06-20): Lunes a Viernes 08:00–22:00, Sábados
- * 08:00–20:00, Domingo cerrado. Franja de 30 minutos.
+ * ⚠️ PROVISIONAL (heredado, sin confirmar para SOM): Lunes a Viernes 08:00–22:00,
+ * Sábados 08:00–20:00, Domingo cerrado. Franja de 30 minutos. Se reemplaza con el
+ * horario real de Segunda Opinión Médica (CABA) al armar el catálogo nuevo.
  *
  * `dia`: 0=domingo ... 6=sábado (Date.getDay()).
  */
@@ -25,7 +26,7 @@ export const SLOT_GRANULARIDAD_MIN = 30;
 /** Zona horaria del centro. */
 export const TZ = 'America/Argentina/Buenos_Aires';
 
-/** Horario real confirmado. */
+/** Horario provisional (ver arriba). */
 export const HORARIO_SEMANAL: HorarioDia[] = [
   { dia: 0, abierto: false, franjas: [] }, // Domingo: cerrado
   { dia: 1, abierto: true, franjas: [{ desde: '08:00', hasta: '22:00' }] }, // Lunes
@@ -37,4 +38,4 @@ export const HORARIO_SEMANAL: HorarioDia[] = [
 ];
 
 /** Marca para que el seed advierta si el horario sigue siendo el placeholder. */
-export const HORARIO_ES_PLACEHOLDER = false;
+export const HORARIO_ES_PLACEHOLDER = true;

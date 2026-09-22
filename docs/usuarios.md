@@ -34,26 +34,24 @@ La recepción sí ve: agenda (`Appointment`/`Slot`/`Schedule`), pagos
    - **Access Policy:** `Recepción — Operativo`.
    - **Admin: NO.**
 3. La persona recibe un email, setea su contraseña e ingresa en
-   `recepcion.medplum.com.ar`.
+   `recepcion.segundaopinionmedica.org`.
 
 ## Otros roles (definidos en el seed)
 
 | AccessPolicy | Para quién | Alcance |
 |---|---|---|
 | Recepción — Operativo | Recepcionistas | Operativo, sin historia clínica |
-| Director Médico — Clínico completo | Dr. Conrado López Alonso | Todo |
-| Médico Prescriptor — Clínico + prescripción | Dalessandro / Dos Santos | Clínico + autoriza IV/TB |
-| Enfermería — Clínico limitado | Enfermería | Órdenes del día + ejecución |
-| Terapeuta — Propio | Terapeutas | Sus turnos + registrar sesión |
+| Director Médico — Clínico completo | Dirección médica | Todo |
 | **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; lectura de turnos, pagos, solicitudes e informes |
 
-Los médicos/clínicos se invitan igual que la recepcionista, pero con su
-AccessPolicy correspondiente.
+Los roles clínicos del equipo médico de SOM están **por definir** (los del
+catálogo anterior se retiraron). Los médicos se invitan igual que la
+recepcionista, con la AccessPolicy que corresponda.
 
 ## Pacientes y el portal
 
 El **portal del paciente** es una app aparte (repo `drdalessandro/app`, ver
-[`som.md`](som.md)), publicada en la URL del Project Secret `PORTAL_BASE_URL`.
+[`som.md`](som.md)), publicada en `https://app.segundaopinionmedica.org`.
 Ahí el paciente puede **auto-registrarse** ("Crear cuenta") e iniciar sesión. La
 AccessPolicy **"Paciente SOM — Portal"** (`src/fhir/access-policies.ts`) es la que
 limita a cada paciente a ver **solo lo suyo** (`%patient`); nunca datos de otros
@@ -69,8 +67,8 @@ Hay dos caminos para que un paciente tenga acceso, y conviene que ambos usen la
   invita al portal (`som-invitar-paciente`) por WhatsApp / email / QR. El bot ya
   asigna explícitamente "Paciente SOM — Portal". Ver `docs/bots.md` (onboarding).
 
-> El link de invitación apunta al **portal** (Project Secret `PORTAL_BASE_URL`,
-> obligatorio, sin default), no a la app de recepción.
+> El link de invitación apunta al **portal** (`https://app.segundaopinionmedica.org`;
+> el Project Secret `PORTAL_BASE_URL` lo pisa por entorno), no a la app de recepción.
 
 > Contrato de integración recepción ↔ portal (checklist a verificar en el repo
 > del portal): ver [`docs/portal-integracion.md`](portal-integracion.md).

@@ -1,7 +1,8 @@
-# Recepcionistas — Segunda Opinión Médica San Isidro
+# Recepcionistas — Segunda Opinión Médica
 
-Herramienta de Recepción de Segunda Opinión Médica San Isidro. **Bloque 0 (Cimientos)**: la
-base sobre la que se apoya la pantalla de la recepción. Backend **Medplum (FHIR R4)**.
+Herramienta de Recepción de Segunda Opinión Médica (Ciudad Autónoma de Buenos Aires,
+CABA). **Bloque 0 (Cimientos)**: la base sobre la que se apoya la pantalla de la
+recepción. Backend **Medplum (FHIR R4)**.
 
 > Principio rector: *"Las Recepcionistas nunca calculan ni deciden nada que el
 > sistema pueda calcular o decidir por ellas."* Toda la inteligencia vive en el
@@ -12,7 +13,7 @@ base sobre la que se apoya la pantalla de la recepción. Backend **Medplum (FHIR
 | Pieza | Estado |
 |---|---|
 | Andamiaje TypeScript + tooling | ✅ |
-| Catálogo (consultas de cardiología + subespecialidades; precio PENDIENTE) | ✅ |
+| Catálogo | ⚠️ se arma de cero con los profesionales de SOM (hoy: consultas de ejemplo sin precio y sin profesionales) |
 | Motor de precios (USD→ARS, split SOM_100) | ✅ con tests |
 | Motor de reglas de agenda (R-07, R-13, R-14) | ✅ con tests |
 | Extensiones FHIR + AccessPolicies (recepción) | ✅ |
@@ -25,6 +26,7 @@ base sobre la que se apoya la pantalla de la recepción. Backend **Medplum (FHIR
 | Reserva con seña 50% (confirma turno) + WhatsApp | ✅ bots `som-pagar-sena` / `som-link-mercadopago` |
 | Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `som-webhook-mercadopago` |
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
+| CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
 | Harness de tests | ✅ |
 | CI (GitHub Actions) | ✅ |
 | Horario (L-V 08-22, Sáb 08-20) + consultorios/salas | ⚠️ provisional, confirmar con la operación |
@@ -120,6 +122,7 @@ Pantallas del esqueleto:
 - [`docs/modelo-datos-fhir.md`](docs/modelo-datos-fhir.md) — recursos y extensiones FHIR
 - [`docs/usuarios.md`](docs/usuarios.md) — usuarios, roles y AccessPolicies
 - [`docs/portal-integracion.md`](docs/portal-integracion.md) — integración con el portal del paciente
+- [`docs/crm.md`](docs/crm.md) — CRM: embudo de redes sociales, segmentos y campañas
 - [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) — decisiones abiertas
 - [`CLAUDE.md`](CLAUDE.md) — convenciones y guía para el desarrollo
 

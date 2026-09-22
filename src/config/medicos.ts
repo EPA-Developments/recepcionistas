@@ -1,10 +1,9 @@
 /**
- * Médicos que atienden en el consultorio.
+ * Profesionales de Segunda Opinión Médica.
  *
- * Hay UN solo consultorio (recurso R_CONSULTORIO, capacidad 1): tres médicos
- * distintos atienden ahí, nunca superpuestos (la regla R-07 de capacidad lo
- * garantiza). El precio de la consulta es por médico y está en ARS (pesos),
- * no en USD.
+ * ⚠️ PENDIENTE: el catálogo se arma de cero con los profesionales de SOM. La lista
+ * queda vacía hasta cargarlos (no se inventan profesionales ni honorarios). Cada
+ * profesional se siembra como `Practitioner` (identifier `SYSTEM.medico`).
  */
 export interface Medico {
   codigo: string;
@@ -17,22 +16,11 @@ export interface Medico {
   precioProvisorio?: boolean;
 }
 
-export const MEDICOS: Medico[] = [
-  { codigo: 'MED_DALESSANDRO', nombre: 'Dr. Alejandro Dalessandro', esDirector: false, precioConsultaARS: 120_000 },
-  { codigo: 'MED_DOS_SANTOS', nombre: 'Dra. Stephanie Dos Santos', esDirector: false, precioConsultaARS: 120_000 },
-  {
-    codigo: 'MED_CONRADO',
-    nombre: 'Dr. Conrado López Alonso',
-    esDirector: true,
-    // PROVISORIO: el Director Médico cobra más; confirmar monto con Andrés.
-    precioConsultaARS: 150_000,
-    precioProvisorio: true,
-  },
-];
+export const MEDICOS: Medico[] = [];
 
 export const MEDICOS_POR_CODIGO: ReadonlyMap<string, Medico> = new Map(MEDICOS.map((m) => [m.codigo, m]));
 
-/** Código de servicio de consulta para un médico (p. ej. CONSULTA_MED_DALESSANDRO). */
+/** Código de servicio de consulta para un médico (p. ej. CONSULTA_MED_PEREZ). */
 export function codigoConsulta(medicoCodigo: string): string {
   return `CONSULTA_${medicoCodigo}`;
 }

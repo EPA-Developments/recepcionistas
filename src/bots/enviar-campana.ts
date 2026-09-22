@@ -1,111 +1,151 @@
-import { BotEvent, MedplumClient, getReferenceString } from '@medplum/core';
-import type { Group, Patient, Communication } from '@medplum/fhirtypes';
-import { SYSTEM } from '../fhir/identifiers.js';
-
 /**
- * Bot: enviar-campana — envía una campaña a un segmento (Group) del CRM.
+ * Bot · som-enviar-campana — CRM: envía una campaña a un segmento.
  *
- * Recorre los miembros del Group, personaliza el mensaje, lo envía por el canal
- * elegido y deja un Communication por destinatario etiquetado con el id de la
- * campaña (para trackear enviados / aperturas / respuestas después).
+ * Recorre los miembros del segmento (Group con identifier `SYSTEM.segmento`),
+ * personaliza el mensaje (`{nombre}`) y lo envía por el canal elegido, dejando una
+ * Communication por destinatario con el identifier de la campaña (tracking de
+ * enviados / respuestas). Idempotente por destinatario: si ese paciente ya tiene
+ * la campaña enviada o encolada, no se repite (reintentar es seguro).
  *
- * Input (no es un recurso FHIR):
- *   { groupId, canal: 'email'|'whatsapp', asunto?, cuerpo, campaniaId, from? }
- * El cuerpo admite el placeholder {nombre}.
+ * - email → SES (`medplum.sendEmail`; el bot necesita membership admin).
+ * - whatsapp → queda en `preparation`: con la WABA, los mensajes de marketing
+ *   salen solo como plantilla aprobada por Meta (envío por plantilla pendiente).
  *
- * Email: se envía por SES (medplum.sendEmail). WhatsApp: se deja el Communication
- * en 'preparation' para que lo despache el bot enviar-whatsapp / proveedor.
+ * Input (no es un recurso FHIR): ver `EntradaCampania` en `src/lib/crm.ts`.
  */
-const SID_CAMPANIA = SYSTEM.campania;
-const CAT_SYS = SYSTEM.categoriaComunicacion;
+import type { BotEvent, MedplumClient } from '@medplum/core';
+import type { Communication } from '@medplum/fhirtypes';
+import { EXT, SYSTEM } from '../fhir/identifiers.js';
+import {
+  contactoCampania,
+  esSegmento,
+  personalizar,
+  validarCampania,
+  type EntradaCampania,
+} from '../lib/crm.js';
 
-interface CampanaInput {
-  groupId: string;
-  canal: 'email' | 'whatsapp';
-  asunto?: string;
-  cuerpo: string;
-  campaniaId: string;
-  from?: string;
-}
-
-interface CampanaResult {
+export interface ResultadoCampania {
   ok: boolean;
   campania: string;
   total: number;
+  /** Emails enviados de verdad. */
   enviados: number;
+  /** WhatsApp encolados (`preparation`) hasta tener plantilla aprobada. */
+  pendientes: number;
+  /** Pacientes que ya tenían esta campaña enviada o encolada (no se repite). */
+  yaEnviados: number;
   sinContacto: number;
   fallidos: number;
   mensaje: string;
 }
 
-function contacto(p: Patient, canal: 'email' | 'whatsapp'): string | undefined {
-  const sys = canal === 'email' ? 'email' : 'phone';
-  return p.telecom?.find((t) => t.system === sys)?.value;
-}
-
-export async function handler(medplum: MedplumClient, event: BotEvent<CampanaInput>): Promise<CampanaResult> {
+export async function handler(
+  medplum: MedplumClient,
+  event: BotEvent<EntradaCampania>,
+): Promise<ResultadoCampania> {
   const input = event.input;
-  if (!input?.groupId || !input.cuerpo || !input.campaniaId) {
-    return { ok: false, campania: input?.campaniaId ?? '', total: 0, enviados: 0, sinContacto: 0, fallidos: 0,
-      mensaje: 'Faltan groupId, cuerpo o campaniaId.' };
+  const r: ResultadoCampania = {
+    ok: false,
+    campania: input?.campaniaId ?? '',
+    total: 0,
+    enviados: 0,
+    pendientes: 0,
+    yaEnviados: 0,
+    sinContacto: 0,
+    fallidos: 0,
+    mensaje: '',
+  };
+  const v = validarCampania(input);
+  if (!v.ok) {
+    return { ...r, mensaje: v.error ?? 'Entrada inválida.' };
   }
   const canal = input.canal ?? 'email';
   const group = await medplum.readResource('Group', input.groupId);
+  if (!esSegmento(group)) {
+    return { ...r, mensaje: `El Group "${group.name ?? group.id}" no es un segmento del CRM.` };
+  }
   const miembros = group.member ?? [];
-
-  let enviados = 0, sinContacto = 0, fallidos = 0;
+  r.total = miembros.length;
 
   for (const m of miembros) {
     const ref = m.entity?.reference;
-    if (!ref?.startsWith('Patient/')) continue;
+    if (!ref?.startsWith('Patient/')) {
+      continue;
+    }
     const p = await medplum.readResource('Patient', ref.split('/')[1]!).catch(() => undefined);
-    if (!p) { fallidos++; continue; }
+    if (!p) {
+      r.fallidos++;
+      continue;
+    }
+    const pacienteRef = `Patient/${p.id}`;
 
-    const dest = contacto(p, canal);
-    const nombre = p.name?.[0]?.given?.[0] ?? p.name?.[0]?.family ?? '';
-    const cuerpo = input.cuerpo.replace(/\{nombre\}/g, nombre);
+    // Idempotencia: ya enviada (completed) o encolada (preparation) → no se repite.
+    const previa = await medplum.searchOne(
+      'Communication',
+      `identifier=${SYSTEM.campania}|${input.campaniaId}&recipient=${pacienteRef}&status=completed,preparation`,
+    );
+    if (previa) {
+      r.yaEnviados++;
+      continue;
+    }
+
+    const destino = contactoCampania(p, canal);
+    if (!destino) {
+      r.sinContacto++;
+      continue;
+    }
+    const cuerpo = personalizar(input.cuerpo, p);
 
     let status: Communication['status'] = 'preparation';
-    if (!dest) {
-      sinContacto++;
-    } else if (canal === 'email') {
+    if (canal === 'email') {
       try {
         await medplum.sendEmail({
-          to: dest, subject: input.asunto ?? 'Segunda Opinión Médica', text: cuerpo,
+          to: destino,
+          subject: input.asunto ?? 'Segunda Opinión Médica',
+          text: cuerpo,
           ...(input.from ? { from: input.from } : {}),
         });
         status = 'completed';
-        enviados++;
+        r.enviados++;
       } catch (err) {
-        console.error('enviar-campana: SES falló:', err instanceof Error ? err.message : err);
+        console.error('som-enviar-campana: SES falló:', err instanceof Error ? err.message : err);
         status = 'entered-in-error';
-        fallidos++;
+        r.fallidos++;
       }
     } else {
-      // WhatsApp: queda encolado para el proveedor / bot enviar-whatsapp
-      status = 'preparation';
-      enviados++;
+      r.pendientes++;
     }
 
     await medplum.createResource<Communication>({
       resourceType: 'Communication',
       status,
-      identifier: [{ system: SID_CAMPANIA, value: input.campaniaId }],
-      category: [{ coding: [{ system: CAT_SYS, code: 'campania', display: 'Campaña' }] }],
-      medium: [{ coding: [{ system: 'http://terminology.hl7.org/CodeSystem/v3-ParticipationMode',
-                            code: canal === 'email' ? 'EMAILWRIT' : 'WRITTEN', display: canal }] }],
-      subject: { reference: getReferenceString(p) },
-      recipient: [{ reference: getReferenceString(p) }],
+      identifier: [{ system: SYSTEM.campania, value: input.campaniaId }],
+      category: [{ coding: [{ system: SYSTEM.categoriaComunicacion, code: 'campania', display: 'Campaña' }] }],
+      medium: [
+        {
+          coding: [
+            {
+              system: 'http://terminology.hl7.org/CodeSystem/v3-ParticipationMode',
+              code: canal === 'email' ? 'EMAILWRIT' : 'WRITTEN',
+              display: canal,
+            },
+          ],
+        },
+      ],
+      subject: { reference: pacienteRef },
+      recipient: [{ reference: pacienteRef }],
       sent: new Date().toISOString(),
       payload: [{ contentString: cuerpo }],
+      extension: [{ url: EXT.canal, valueCode: canal }],
     });
   }
 
   return {
+    ...r,
     ok: true,
-    campania: input.campaniaId,
-    total: miembros.length,
-    enviados, sinContacto, fallidos,
-    mensaje: `Campaña "${input.campaniaId}" a "${group.name}": ${enviados} enviados, ${sinContacto} sin contacto, ${fallidos} fallidos.`,
+    mensaje:
+      `Campaña "${input.campaniaId}" a "${group.name ?? group.id}": ${r.enviados} enviados, ` +
+      `${r.pendientes} WhatsApp pendientes de plantilla, ${r.yaEnviados} ya la tenían, ` +
+      `${r.sinContacto} sin contacto, ${r.fallidos} fallidos.`,
   };
 }

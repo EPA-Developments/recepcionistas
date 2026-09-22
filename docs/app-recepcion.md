@@ -18,6 +18,7 @@ Config por env (prefijos expuestos al browser: `MEDPLUM_`, `GOOGLE_`,
 así que el login sobrevive al refresh. **Sin login** se muestra el formulario de
 ingreso; el resto del UI requiere sesión.
 
+La app de recepción se publica en `https://recepcion.segundaopinionmedica.org`.
 Al servir detrás de un dominio, `server.allowedHosts` ya permite
 `.segundaopinionmedica.org` (p. ej. `recepcion.segundaopinionmedica.org`) y
 `.medplum.com.ar`.

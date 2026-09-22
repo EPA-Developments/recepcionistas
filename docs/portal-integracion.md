@@ -2,7 +2,8 @@
 
 Contrato de integración entre **esta app (recepción)** y el **portal del paciente
 de Segunda Opinión Médica** (repo `drdalessandro/app`, ver [`som.md`](som.md)),
-publicado en la URL que se carga en el Project Secret **`PORTAL_BASE_URL`**.
+publicado en **`https://app.segundaopinionmedica.org`** (Project Secret
+`PORTAL_BASE_URL` para otros entornos).
 
 Las dos apps comparten el **mismo servidor y proyecto Medplum**
 (`https://api.medplum.com.ar/`, proyecto `7ce5e559-f315-4538-abf2-61fa4922f996`).
@@ -33,14 +34,13 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
 - **Invitación al portal** (`som-invitar-paciente`, requiere admin): hace el
   *invite* de Medplum (`sendEmail:false`, `upsert:true` → reusa el `Patient`, no
   duplica) con la AccessPolicy "Paciente SOM — Portal", y entrega el link mágico
-  `<PORTAL_BASE_URL>/setpassword/{id}/{secret}` por **WhatsApp / email / QR**.
-  `PORTAL_BASE_URL` es obligatorio: sin él el bot no invita (no hay default).
+  `https://app.segundaopinionmedica.org/setpassword/{id}/{secret}` por
+  **WhatsApp / email / QR**.
 - **Auto-registro** (portal, "Crear cuenta"): el paciente se crea solo. Medplum le
   asigna el **default patient access policy** del proyecto.
 
 Para activarlo en el proyecto: `npm run seed` + `npm run deploy:bots` + Project
-Secrets (`PORTAL_BASE_URL`, `RECEPCION_WHATSAPP_TO` y los de Twilio; ver
-[`bots.md`](bots.md)).
+Secrets (`RECEPCION_WHATSAPP_TO` y los de Twilio; ver [`bots.md`](bots.md)).
 
 ## Checklist a verificar en el repo del portal
 
@@ -102,8 +102,8 @@ Secrets (`PORTAL_BASE_URL`, `RECEPCION_WHATSAPP_TO` y los de Twilio; ver
    necesita algo que la policy no concede, se agrega en
    `src/fhir/access-policies.ts` (fuente de verdad) y se actualiza el espejo.
 
-5. **`PORTAL_BASE_URL`** (Project Secret) = URL pública del portal SOM, sin barra
-   final.
+5. **URL del portal** = `https://app.segundaopinionmedica.org` (si otro entorno
+   usa otra URL, cargarla en el Project Secret `PORTAL_BASE_URL`).
 
 6. **Branding/seguridad.** Tema SOM; verificar `recaptchaSiteKey`/`googleClientId`
    si el registro los usa.

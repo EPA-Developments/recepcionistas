@@ -22,7 +22,9 @@ const SPECS: SpecExtension[] = [
   // Patient
   { url: EXT.tipoCliente, nombre: 'tipo-cliente', contexto: ['Patient'], tipoValor: 'code', descripcion: 'Tipo de cliente (público, etc.).' },
   { url: EXT.perfilClinico, nombre: 'perfil-clinico', contexto: ['Patient', 'CarePlan'], tipoValor: 'code', descripcion: 'Perfil clínico.' },
-  { url: EXT.origenLead, nombre: 'origen-lead', contexto: ['Patient'], tipoValor: 'string', descripcion: 'Origen del lead (UTM / fuente).' },
+  { url: EXT.origenLead, nombre: 'origen-lead', contexto: ['Patient'], tipoValor: 'string', descripcion: 'Origen del lead para el CRM (red social / utm_source: instagram, facebook, …).' },
+  { url: EXT.perfilInteres, nombre: 'perfil-interes', contexto: ['Patient'], tipoValor: 'code', descripcion: 'Perfil de interés comercial (segmentación del CRM).' },
+  { url: EXT.cicloVidaCliente, nombre: 'ciclo-vida-cliente', contexto: ['Patient'], tipoValor: 'code', descripcion: 'Etapa del embudo del CRM (lead, contactado, paciente, …).' },
   // Practitioner
   { url: EXT.splitPorcentaje, nombre: 'split-porcentaje', contexto: ['Practitioner'], tipoValor: 'decimal', descripcion: 'Porcentaje de split del profesional.' },
   { url: EXT.tipoContrato, nombre: 'tipo-contrato', contexto: ['Practitioner'], tipoValor: 'code', descripcion: 'Tipo de contrato del profesional.' },
