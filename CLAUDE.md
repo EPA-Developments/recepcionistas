@@ -42,12 +42,20 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 - **Reglas:** cada regla referencia su código `R-xx` y, si tiene, su caso `AC-xx`.
 - **Dinero:** precios de lista en USD; conversión a ARS solo al cobrar
   (`usdAArs`), nunca hardcodear el TC (usar `resolverTC` / config FHIR).
+- **Naming SOM (obligatorio):** ningún prefijo `bw-`/`bw_`/`BW_` (pasan a
+  `som-`/`som_`/`SOM_`) y ninguna referencia a BioWellness fuera de este archivo.
+  Verificación (debe dar vacío; también corre en CI):
+  `git grep -niE '\bbw[-_]|biowellness|bio\.medplum' -- . ':!CLAUDE.md'`
+- **Medplum:** `https://api.medplum.com.ar/`, proyecto SOM
+  `7ce5e559-f315-4538-abf2-61fa4922f996` (`MEDPLUM_PROJECT_ID`: seed, deploy y
+  diagnósticos abortan si las credenciales son de otro proyecto).
 
 ## Flujo de trabajo
 
 - Ramas: `main` y `staging` con deploy automático (CI: `.github/workflows/ci.yml`).
-- Gate de CI (y antes de pushear): `npm run verify` (typecheck + tests) y
-  `npm run seed -- --dry-run`.
+- Gate de CI (y antes de pushear): `npm run verify` (typecheck + tests),
+  `npm run seed -- --dry-run`, `npm run bots:bundle`, `npm run build:app` y el
+  grep de naming SOM.
 - Construcción por **slices verticales**: cada pieza se entrega "verde" (sus casos
   AC pasan) antes de seguir.
 
@@ -55,15 +63,20 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 
 ```bash
 npm run verify             # typecheck + tests (gate)
-npm run seed -- --dry-run  # construye el catálogo sin servidor
+npm run seed -- --dry-run  # construye el catálogo sin servidor (gate)
+npm run bots:bundle        # bundlea los bots sin servidor (gate)
+npm run build:app          # build del front (gate)
 npm run seed               # carga el catálogo en Medplum (credenciales en .env)
 npm run deploy:bots        # deploy de bots (medplum CLI)
 ```
 
 ## Secretos
 
-Nunca commitear `.env` ni credenciales. Las integraciones (Twilio, AWS SES,
-MercadoPago, Medplum) se configuran por variables de entorno (`.env.example`).
+Nunca commitear `.env` ni credenciales. El `.env` (ver `.env.example`) es solo
+para los scripts locales (credenciales de la ClientApplication de Medplum). Los
+bots leen sus credenciales de **Project Secrets** de Medplum: Twilio (WhatsApp por
+la WABA de EPA Bienestar IA) y MercadoPago con credenciales propias de SOM, nada
+hardcodeado (ver `docs/bots.md`).
 El email se envía con `medplum.sendEmail()` (proveedor AWS SES configurado en el
 servidor Medplum). MercadoPago tokeniza tarjetas: **nunca** almacenar números de
 tarjeta.

@@ -1,5 +1,6 @@
 import { BotEvent, MedplumClient, getReferenceString } from '@medplum/core';
 import type { Group, Patient, Observation, DetectedIssue } from '@medplum/fhirtypes';
+import { EXT, SYSTEM } from '../fhir/identifiers.js';
 
 /**
  * Bot: recomputar-segmentos — materializa la membresía de los Group del CRM.
@@ -16,14 +17,13 @@ import type { Group, Patient, Observation, DetectedIssue } from '@medplum/fhirty
  * Escala de clínica: evalúa por paciente; para volúmenes grandes conviene
  * pre-filtrar con SearchParameters propios sobre las extensiones.
  */
-const BIO = 'https://bio.medplum.com.ar/fhir';
-const RASGO = `${BIO}/CodeSystem/rasgo-segmento`;
-const CICLO = `${BIO}/CodeSystem/ciclo-vida-cliente`;
-const GATE = `${BIO}/CodeSystem/gate-terapia`;
+const RASGO = SYSTEM.rasgoSegmento;
+const CICLO = SYSTEM.cicloVidaCliente;
+const GATE = SYSTEM.gateTerapia;
 const LOINC = 'http://loinc.org';
-const EXT_PERFIL = `${BIO}/StructureDefinition/perfil-interes`;
-const EXT_CICLO = `${BIO}/StructureDefinition/ciclo-vida-cliente`;
-const SID_SEGMENTO = `${BIO}/sid/segmento`;
+const EXT_PERFIL = EXT.perfilInteres;
+const EXT_CICLO = EXT.cicloVidaCliente;
+const SID_SEGMENTO = SYSTEM.segmento;
 
 type Comp = '>' | '<' | '>=' | '<=';
 interface Crit {

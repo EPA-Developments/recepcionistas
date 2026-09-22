@@ -44,11 +44,11 @@ La `AccessPolicy` de recepción (*Operativo*) **solo lista recursos operativos**
 `MedicationRequest`) **no se listan**, por lo que quedan denegados por defecto. La
 historia clínica completa queda reservada al equipo médico (Ley 26.529 / 25.326).
 
-## Retirado (catálogo BioWellness)
+## Retirado (catálogo anterior)
 
 `PlanDefinition` (combos/membresías/paquetes), `Coverage`/`Contract` (planes de
-membresía) y el `CodeSystem` de contraindicaciones HBOT/IHHT eran del catálogo
-de wellness spa y se retiraron del dominio junto con
+membresía) y el `CodeSystem` de contraindicaciones eran de un catálogo anterior,
+ajeno a SOM, y se retiraron del dominio junto con
 `src/config/{combos,membresias,paquetes,contraindicaciones}.ts`. Si el modelo
 de segunda opinión necesita paquetes/seguimiento o contraindicaciones clínicas,
 se remodelan con las definiciones oficiales — ver

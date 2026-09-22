@@ -2,57 +2,93 @@
   "bots": [
     {
       "name": "som-calcular-cobro",
-      "id": "7194a2a5-d3cf-4eaf-a8a2-7139715dd0be",
+      "id": "",
       "source": "src/bots/calcular-cobro.ts",
       "dist": "dist/bots/calcular-cobro.js"
     },
     {
       "name": "som-validar-turno",
-      "id": "8fdb31bd-70b1-49f3-822b-6efe9d5fdef6",
+      "id": "",
       "source": "src/bots/validar-turno.ts",
       "dist": "dist/bots/validar-turno.js"
     },
     {
       "name": "som-reservar-turno",
-      "id": "af6b1441-47f9-44f7-a58e-891c64d44d2f",
+      "id": "",
       "source": "src/bots/reservar-turno.ts",
       "dist": "dist/bots/reservar-turno.js"
     },
     {
       "name": "som-estado-turno",
-      "id": "591bd7d7-5393-4bb5-9107-914b0b2ac70a",
+      "id": "",
       "source": "src/bots/estado-turno.ts",
       "dist": "dist/bots/estado-turno.js"
     },
     {
       "name": "som-pagar-sena",
-      "id": "da232e5c-140a-44de-a584-8d5dd0fe24f5",
+      "id": "",
       "source": "src/bots/pagar-sena.ts",
       "dist": "dist/bots/pagar-sena.js"
     },
     {
       "name": "som-link-mercadopago",
-      "id": "7cbabc5b-f121-4201-8e39-7b60bac39d5d",
+      "id": "",
       "source": "src/bots/link-mercadopago.ts",
       "dist": "dist/bots/link-mercadopago.js"
     },
     {
       "name": "som-webhook-mercadopago",
-      "id": "3e20bb14-eed3-4f1c-ae5a-246d5dac5ab0",
+      "id": "",
       "source": "src/bots/webhook-mercadopago.ts",
       "dist": "dist/bots/webhook-mercadopago.js"
     },
     {
+      "name": "som-recordatorios",
+      "id": "",
+      "source": "src/bots/recordatorios.ts",
+      "dist": "dist/bots/recordatorios.js"
+    },
+    {
+      "name": "som-alta-paciente",
+      "id": "",
+      "source": "src/bots/alta-paciente.ts",
+      "dist": "dist/bots/alta-paciente.js"
+    },
+    {
+      "name": "som-invitar-paciente",
+      "id": "",
+      "source": "src/bots/invitar-paciente.ts",
+      "dist": "dist/bots/invitar-paciente.js"
+    },
+    {
+      "name": "som-limpiar-demo",
+      "id": "",
+      "source": "src/bots/limpiar-demo.ts",
+      "dist": "dist/bots/limpiar-demo.js"
+    },
+    {
       "name": "som-enviar-whatsapp",
-      "id": "d2b6ddf8-3c01-4bf6-94d7-44e7854107b5",
+      "id": "",
       "source": "src/bots/enviar-whatsapp.ts",
       "dist": "dist/bots/enviar-whatsapp.js"
     },
     {
-      "name": "som-recordatorios",
-      "id": "9a77e666-17ed-4d05-b3ff-93866428622e",
-      "source": "src/bots/recordatorios.ts",
-      "dist": "dist/bots/recordatorios.js"
+      "name": "som-solicitar-turno",
+      "id": "",
+      "source": "src/bots/solicitar-turno.ts",
+      "dist": "dist/bots/solicitar-turno.js"
+    },
+    {
+      "name": "som-solicitar",
+      "id": "",
+      "source": "src/bots/som-solicitar.ts",
+      "dist": "dist/bots/som-solicitar.js"
+    },
+    {
+      "name": "bot-som-report",
+      "id": "",
+      "source": "src/bots/som-report.ts",
+      "dist": "dist/bots/som-report.js"
     }
   ]
 }

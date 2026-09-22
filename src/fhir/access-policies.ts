@@ -92,11 +92,11 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
 
 /**
  * Paciente SOM — Portal: el paciente accede **sólo a lo suyo** desde el portal
- * (bio.medplum.com.ar). Ve su agenda, plan, pagos y mensajes, y —ejerciendo su
- * derecho de acceso a sus propios datos— su historia (laboratorio, biomarcadores,
- * vacunas, medicación, plan de cuidado, consentimientos). Lo no listado queda
- * denegado; nunca ve datos de otros pacientes. `%patient` se liga al perfil del
- * usuario logueado (su propio Patient).
+ * (URL en el Project Secret PORTAL_BASE_URL). Ve su agenda, plan, pagos y
+ * mensajes, y —ejerciendo su derecho de acceso a sus propios datos— su historia
+ * (laboratorio, biomarcadores, vacunas, medicación, plan de cuidado,
+ * consentimientos). Lo no listado queda denegado; nunca ve datos de otros
+ * pacientes. `%patient` se liga al perfil del usuario logueado (su propio Patient).
  *
  * Alcance dentro de su compartimento:
  *  - **Escribe** (autogestión): su perfil, las observaciones/vitales que él carga,

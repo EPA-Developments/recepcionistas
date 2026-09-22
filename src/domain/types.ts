@@ -2,9 +2,9 @@
  * Tipos de dominio de Segunda Opinión Médica Recepción (Bloque 0).
  *
  * Describen el catálogo (consultas de segunda opinión de cardiología y
- * subespecialidades) y los recursos físicos donde se agendan. El catálogo de
- * wellness spa de BioWellness (servicios/combos/membresías/paquetes/
- * contraindicaciones) se retiró del dominio — ver docs/decisiones-pendientes.md.
+ * subespecialidades) y los recursos físicos donde se agendan. El catálogo anterior
+ * (servicios/combos/membresías/paquetes/contraindicaciones, ajeno a SOM) se
+ * retiró del dominio — ver docs/decisiones-pendientes.md.
  * Son agnósticos de FHIR: el seed los traduce a recursos FHIR.
  */
 

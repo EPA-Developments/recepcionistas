@@ -52,6 +52,17 @@ export async function handler(
       return { ok: false, mensaje: 'Canal de invitación inválido (whatsapp / email / qr).' };
     }
 
+    // El link va al PORTAL del paciente SOM, no a la app de recepción. Sin
+    // PORTAL_BASE_URL no se invita (antes de escribir nada): un default podría
+    // mandar al paciente a un portal ajeno.
+    const portalUrl = event.secrets['PORTAL_BASE_URL']?.valueString?.trim();
+    if (!portalUrl) {
+      return {
+        ok: false,
+        mensaje: 'Falta el Project Secret PORTAL_BASE_URL (URL del portal del paciente). Cargalo en Medplum → Project → Secrets.',
+      };
+    }
+
     const patient = await medplum.readResource('Patient', e.pacienteRef.split('/')[1]!);
     const email = (e.email ?? patient.telecom?.find((t) => t.system === 'email')?.value)?.trim();
     if (!validarEmail(email)) {
@@ -92,10 +103,7 @@ export async function handler(
     })) as ProjectMembership;
 
     // Recuperar el link mágico (UserSecurityRequest recién creado para ese usuario).
-    // El link va al PORTAL del paciente (FooMedical en bio.medplum.com.ar), no a la
-    // app de recepción. Configurable con el secret PORTAL_BASE_URL.
     const userId = membership.user?.reference?.split('/')[1];
-    const baseUrl = event.secrets['PORTAL_BASE_URL']?.valueString ?? 'https://bio.medplum.com.ar';
     let link: string | undefined;
     if (userId) {
       // UserSecurityRequest no está en el union tipado de búsqueda: vía REST directo.
@@ -104,7 +112,7 @@ export async function handler(
       )) as Bundle<UserSecurityRequest>;
       const usr = bundle.entry?.[0]?.resource;
       if (usr?.id && usr.secret) {
-        link = linkSetPassword(baseUrl, usr.id, usr.secret);
+        link = linkSetPassword(portalUrl, usr.id, usr.secret);
       }
     }
 
@@ -127,14 +135,14 @@ export async function handler(
       const comm = await enviarWhatsApp(medplum, event.secrets, {
         template: 'invitacion-portal',
         pacienteRef: e.pacienteRef,
-        body: mensajeInvitacion(display, link).texto,
+        body: mensajeInvitacion(display, link, portalUrl).texto,
       });
       enviado = comm.status === 'completed';
       if (!enviado) {
         avisoCanal = 'El acceso se creó y el link está listo, pero el WhatsApp no salió (revisá Twilio / teléfono). Podés compartir el link por otro canal.';
       }
     } else if (e.canal === 'email') {
-      const m = mensajeInvitacion(display, link);
+      const m = mensajeInvitacion(display, link, portalUrl);
       // Remitente con marca (la dirección sigue siendo la identidad SES verificada).
       // Configurable con el secret EMAIL_FROM.
       const from = event.secrets['EMAIL_FROM']?.valueString ?? 'Segunda Opinión Médica San Isidro <hola@medplum.com.ar>';

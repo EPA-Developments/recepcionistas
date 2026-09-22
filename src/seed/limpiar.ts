@@ -11,29 +11,20 @@
  * Solo toca Schedule + Slot (datos de agenda). No borra Location ni Patient.
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
 import type { Schedule } from '@medplum/fhirtypes';
 import { RECURSOS_POR_CODIGO } from '../config/recursos.js';
 import { EXT } from '../fhir/identifiers.js';
+import { conectarMedplum } from './conexion.js';
 
 function esCanonica(sch: Schedule): boolean {
   const code = sch.extension?.find((e) => e.url === EXT.recursoFisico)?.valueString;
   return Boolean(code && RECURSOS_POR_CODIGO.has(code));
 }
 
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
-}
-
 async function main(): Promise<void> {
   const apply = process.argv.includes('--apply');
 
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
+  const { medplum } = await conectarMedplum();
 
   const schedules = await medplum.searchResources('Schedule', { _count: 200 });
   const ajenas = schedules.filter((s) => !esCanonica(s));

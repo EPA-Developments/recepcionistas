@@ -333,10 +333,11 @@ async function notificar(
     'Segunda Opinión Médica: tu informe ya está disponible en el portal. ' +
     (resumen ? `\n\nResumen: ${resumen}` : '');
   try {
+    // Sin `to`: el aviso (con el resumen clínico) va al teléfono del paciente, nunca
+    // al de Recepción — la recepción no ve contenido clínico (privacidad por diseño).
     await enviarWhatsApp(medplum, secrets, {
       template: 'som-informe-listo',
       pacienteRef,
-      to: secrets['RECEPCION_WHATSAPP_TO']?.valueString,
       about: pacienteRef,
       body: cuerpo,
     });

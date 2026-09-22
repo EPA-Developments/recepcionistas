@@ -22,20 +22,13 @@
  * paciente indicado; no borra nada.
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
+import type { MedplumClient } from '@medplum/core';
 import type { AccessPolicy, Patient, Project, ProjectMembership, Reference } from '@medplum/fhirtypes';
 import { NOMBRE_POLICY_PACIENTE } from '../fhir/access-policies.js';
+import { conectarMedplum } from './conexion.js';
 
 /** Recursos readonly que el portal lee y que dan 403 si la policy no está efectiva. */
 const RECURSOS_CLAVE = ['ObservationDefinition', 'Questionnaire', 'Invoice'] as const;
-
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
-}
 
 /** --paciente=<x> → x (email | id | Patient/id). undefined si no se pasó. */
 function parsePaciente(): string | undefined {
@@ -71,14 +64,9 @@ async function main(): Promise<void> {
   const apply = process.argv.includes('--apply');
   const pacienteArg = parsePaciente();
 
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
-
-  // 1) Proyecto de las credenciales (el ClientApplication define el proyecto que se toca).
-  const projectId = medplum.getProfile()?.meta?.project;
-  if (!projectId) {
-    throw new Error('No pude determinar el projectId del perfil de las credenciales.');
-  }
+  // 1) Proyecto de las credenciales (el ClientApplication define el proyecto que se toca;
+  //    si no coincide con MEDPLUM_PROJECT_ID, conectarMedplum aborta).
+  const { medplum, projectId } = await conectarMedplum();
   const project = await medplum.readResource('Project', projectId);
 
   console.log('=== Diagnóstico de acceso del paciente al portal ===');

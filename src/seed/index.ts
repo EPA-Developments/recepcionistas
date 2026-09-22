@@ -12,9 +12,10 @@
  * Idempotente: cada recurso se busca por url/identifier; si existe, se actualiza.
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
+import type { MedplumClient } from '@medplum/core';
 import type { Resource } from '@medplum/fhirtypes';
 import { buildSeed, buildSlot } from './builders.js';
+import { conectarMedplum } from './conexion.js';
 import { HORARIO_ES_PLACEHOLDER, HORARIO_SEMANAL } from '../config/horario.js';
 import { RECURSOS } from '../config/recursos.js';
 import { generarSlots } from '../lib/slots.js';
@@ -59,13 +60,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const baseUrl = requireEnv('MEDPLUM_BASE_URL');
-  const clientId = requireEnv('MEDPLUM_CLIENT_ID');
-  const clientSecret = requireEnv('MEDPLUM_CLIENT_SECRET');
-
-  const medplum = new MedplumClient({ baseUrl, fetch });
-  await medplum.startClientLogin(clientId, clientSecret);
-  console.log(`\nConectado a Medplum: ${baseUrl}`);
+  const { medplum, projectId, baseUrl } = await conectarMedplum();
+  console.log(`\nConectado a Medplum: ${baseUrl} (project ${projectId})`);
 
   for (const [nombre, arr] of grupos) {
     for (const recurso of arr) {
@@ -196,14 +192,6 @@ function parseDias(): number {
   const arg = process.argv.find((a) => a.startsWith('--dias='));
   const n = arg ? Number(arg.split('=')[1]) : NaN;
   return Number.isFinite(n) && n > 0 ? n : 7;
-}
-
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
 }
 
 main().catch((err) => {

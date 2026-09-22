@@ -52,6 +52,9 @@ export const EXT = {
   // Onboarding / invitación al portal
   /** Canal elegido para invitar al paciente al portal (whatsapp / email / qr). */
   canalInvitacion: `${BASE}/StructureDefinition/canal-invitacion`,
+  // CRM (segmentos / campañas: bots recomputar-segmentos y enviar-campana)
+  perfilInteres: `${BASE}/StructureDefinition/perfil-interes`,
+  cicloVidaCliente: `${BASE}/StructureDefinition/ciclo-vida-cliente`,
   // SOM — Segunda Opinión Médica (contrato con el portal).
   /** Origen de la solicitud SOM (de dónde la disparó el paciente: web/app/etc.). */
   somOrigin: `${SOM_BASE}/StructureDefinition/som-origin`,
@@ -77,6 +80,15 @@ export const SYSTEM = {
   taskTipo: `${BASE}/CodeSystem/task-tipo`,
   /** CodeSystem de servicios de Segunda Opinión Médica (ServiceRequest.code). */
   somServices: `${SOM_BASE}/CodeSystem/som-services`,
+  // CRM (segmentos / campañas)
+  /** Identifier de campaña en cada Communication enviada (tracking). */
+  campania: `${BASE}/Identifier/campania`,
+  /** Identifier que marca un Group como segmento del CRM. */
+  segmento: `${BASE}/Identifier/segmento`,
+  categoriaComunicacion: `${BASE}/CodeSystem/categoria-comunicacion`,
+  rasgoSegmento: `${BASE}/CodeSystem/rasgo-segmento`,
+  cicloVidaCliente: `${BASE}/CodeSystem/ciclo-vida-cliente`,
+  gateTerapia: `${BASE}/CodeSystem/gate-terapia`,
 } as const;
 
 /** Códigos de negocio puntuales. */

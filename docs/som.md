@@ -2,9 +2,10 @@
 
 Segunda Opinión Médica (SOM, Dr. Barbagelata · segundaopinionmedica.org) es un
 proyecto de **salud cardiovascular convencional** que corre sobre el MISMO backend
-Medplum (FHIR R4) que la recepción de Segunda Opinión Médica. Esta primera entrega agrega el
-**contrato de backend** que el portal (`drdalessandro/app`, PR #2) ya espera, sin
-tocar las piezas existentes de Segunda Opinión Médica (se reusan los patrones, no se duplican).
+Medplum (FHIR R4) que esta recepción (`https://api.medplum.com.ar/`, proyecto
+`7ce5e559-f315-4538-abf2-61fa4922f996`). Esta primera entrega agrega el **contrato
+de backend** que el portal (`drdalessandro/app`, PR #2) ya espera, reusando los
+patrones de la recepción (no se duplican).
 
 ## Namespace
 
@@ -55,6 +56,7 @@ Bot ejecutable `Bot?name=som-solicitar`. Debe quedar idéntica al espejo del por
   oficiales (no se inventan). Combos, membresías y paquetes quedan vacíos hasta que
   se definan para el modelo cardiovascular. Confirmar también la **duración** de cada
   consulta y la **lista real de consultorios/salas** (hoy provisional).
-- **Proyecto Medplum canónico.** Definir el `MEDPLUM_PROJECT_ID`/credenciales del
-  proyecto SOM antes de `npm run seed` / `npm run deploy:bots`. Esta entrega es solo
-  código (no se seedeó ni deployó).
+- **Proyecto Medplum canónico: definido** (`MEDPLUM_PROJECT_ID=7ce5e559-f315-4538-abf2-61fa4922f996`
+  en `https://api.medplum.com.ar/`). Falta cargar las credenciales del proyecto en
+  el `.env` local y correr `npm run seed` / `npm run deploy:bots` (todavía no se
+  seedeó ni deployó).

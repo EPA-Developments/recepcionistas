@@ -45,32 +45,32 @@ La recepción sí ve: agenda (`Appointment`/`Slot`/`Schedule`), pagos
 | Médico Prescriptor — Clínico + prescripción | Dalessandro / Dos Santos | Clínico + autoriza IV/TB |
 | Enfermería — Clínico limitado | Enfermería | Órdenes del día + ejecución |
 | Terapeuta — Propio | Terapeutas | Sus turnos + registrar sesión |
-| **Paciente — Portal** | Pacientes (portal) | **Solo lo suyo:** su `Patient`, `Appointment`, `Invoice`, `Coverage`, `Communication` (lectura) |
+| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; lectura de turnos, pagos, solicitudes e informes |
 
 Los médicos/clínicos se invitan igual que la recepcionista, pero con su
 AccessPolicy correspondiente.
 
 ## Pacientes y el portal
 
-El **portal del paciente** es una app aparte (basada en FooMedical, repo
-`biowellness/portal`, en `bio.medplum.com.ar`). Ahí el paciente puede
-**auto-registrarse** ("Crear cuenta") e iniciar sesión. La AccessPolicy
-**"Paciente — Portal"** (`src/fhir/access-policies.ts`) es la que limita a cada
-paciente a ver **solo lo suyo** (`%patient`): sus turnos, pagos, plan y mensajes,
-todo de lectura; nada clínico ni de otros pacientes.
+El **portal del paciente** es una app aparte (repo `drdalessandro/app`, ver
+[`som.md`](som.md)), publicada en la URL del Project Secret `PORTAL_BASE_URL`.
+Ahí el paciente puede **auto-registrarse** ("Crear cuenta") e iniciar sesión. La
+AccessPolicy **"Paciente SOM — Portal"** (`src/fhir/access-policies.ts`) es la que
+limita a cada paciente a ver **solo lo suyo** (`%patient`); nunca datos de otros
+pacientes.
 
 Hay dos caminos para que un paciente tenga acceso, y conviene que ambos usen la
 **misma** policy:
 
 - **Auto-registro** (portal): el paciente se crea solo. Medplum le asigna el
   **default patient access policy** del proyecto → configurarlo como
-  "Paciente — Portal".
+  "Paciente SOM — Portal".
 - **Invitación desde recepción**: la recepción da de alta (`som-alta-paciente`) y/o
   invita al portal (`som-invitar-paciente`) por WhatsApp / email / QR. El bot ya
-  asigna explícitamente "Paciente — Portal". Ver `docs/bots.md` (onboarding).
+  asigna explícitamente "Paciente SOM — Portal". Ver `docs/bots.md` (onboarding).
 
-> El link de invitación apunta al **portal** (`PORTAL_BASE_URL`,
-> default `bio.medplum.com.ar`), no a la app de recepción.
+> El link de invitación apunta al **portal** (Project Secret `PORTAL_BASE_URL`,
+> obligatorio, sin default), no a la app de recepción.
 
-> Contrato de integración reception ↔ portal (checklist a verificar en el repo
-> `biowellness/portal`): ver [`docs/portal-integracion.md`](portal-integracion.md).
+> Contrato de integración recepción ↔ portal (checklist a verificar en el repo
+> del portal): ver [`docs/portal-integracion.md`](portal-integracion.md).

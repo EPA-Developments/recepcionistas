@@ -16,16 +16,8 @@
  * número del sandbox, y TWILIO_WHATSAPP_FROM debe ser el del sandbox.
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
 import type { Communication } from '@medplum/fhirtypes';
-
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
-}
+import { conectarMedplum } from './conexion.js';
 
 async function main(): Promise<void> {
   const to = process.argv[2] ?? process.env.DIAG_WHATSAPP_TO;
@@ -35,9 +27,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
-  console.log(`Conectado a ${process.env.MEDPLUM_BASE_URL}. Probando WhatsApp a: ${to}`);
+  const { medplum, baseUrl } = await conectarMedplum();
+  console.log(`Conectado a ${baseUrl}. Probando WhatsApp a: ${to}`);
 
   const bot = await medplum.searchOne('Bot', 'name=som-enviar-whatsapp');
   if (!bot?.id) {
@@ -46,7 +37,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const body = `Segunda Opinión Médica · prueba de WhatsApp (${new Date().toLocaleString('es-AR')}). Si lo recibiste, Twilio funciona. 💚`;
+  const body = `Segunda Opinión Médica · prueba de WhatsApp (${new Date().toLocaleString('es-AR')}). Si lo recibiste, Twilio funciona. 💙`;
   const comm = (await medplum.executeBot(bot.id, { to, template: 'diagnostico', body })) as Communication;
   const status = comm?.status;
   console.log(`\nCommunication creada: ${comm?.id ?? '(sin id)'} · status = ${status ?? '(desconocido)'}`);

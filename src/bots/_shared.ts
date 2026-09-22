@@ -313,7 +313,7 @@ export async function confirmarReserva(
   await enviarWhatsApp(medplum, secrets, {
     template: 'turno-confirmado',
     pacienteRef,
-    body: `Segunda Opinión Médica: ¡tu turno quedó confirmado! ${appt.description ?? ''}. Recibimos la seña de $${senaARS.toLocaleString('es-AR')}. ¡Te esperamos! 💚`,
+    body: `Segunda Opinión Médica: ¡tu turno quedó confirmado! ${appt.description ?? ''}. Recibimos la seña de $${senaARS.toLocaleString('es-AR')}. ¡Te esperamos! 💙`,
   });
 
   return { totalARS, senaARS, invoiceId: invoice.id, confirmados, yaConfirmado: false };
