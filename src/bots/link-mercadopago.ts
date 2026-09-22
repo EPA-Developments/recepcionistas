@@ -7,6 +7,7 @@
  * claro (el flujo manual de seña sigue funcionando).
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
+import { APP_BASE_URL_DEFAULT, urlBase } from '../config/urls.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import { EXT } from '../fhir/identifiers.js';
 import { leerTcVigente } from './_shared.js';
@@ -43,7 +44,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaLin
     };
   }
 
-  const appUrl = event.secrets['APP_BASE_URL']?.valueString ?? 'https://recepcion.medplum.com.ar';
+  const appUrl = urlBase(event.secrets['APP_BASE_URL']?.valueString, APP_BASE_URL_DEFAULT);
   const notifUrl = event.secrets['MP_WEBHOOK_URL']?.valueString;
 
   const resp = await fetch('https://api.mercadopago.com/checkout/preferences', {

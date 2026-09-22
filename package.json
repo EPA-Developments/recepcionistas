@@ -2,7 +2,7 @@
   "name": "@som/recepcionistas",
   "version": "0.1.0",
   "private": true,
-  "description": "Segunda Opinión Médica San Isidro — Herramienta de Recepción · Bloque 0 (Cimientos). Backend Medplum (FHIR R4).",
+  "description": "Segunda Opinión Médica (CABA) — Herramienta de Recepción · Bloque 0 (Cimientos). Backend Medplum (FHIR R4).",
   "type": "module",
   "engines": {
     "node": ">=20"

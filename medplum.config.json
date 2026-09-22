@@ -79,6 +79,18 @@
       "dist": "dist/bots/solicitar-turno.js"
     },
     {
+      "name": "som-recomputar-segmentos",
+      "id": "",
+      "source": "src/bots/recomputar-segmentos.ts",
+      "dist": "dist/bots/recomputar-segmentos.js"
+    },
+    {
+      "name": "som-enviar-campana",
+      "id": "",
+      "source": "src/bots/enviar-campana.ts",
+      "dist": "dist/bots/enviar-campana.js"
+    },
+    {
       "name": "som-solicitar",
       "id": "",
       "source": "src/bots/som-solicitar.ts",

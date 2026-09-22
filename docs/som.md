@@ -49,13 +49,10 @@ Bot ejecutable `Bot?name=som-solicitar`. Debe quedar idéntica al espejo del por
   referencia (ACC) antes de producción.
 - **Escala de `RiskAssessment.prediction.probabilityDecimal`.** Se emite en
   **porcentaje (0–100)**. Confirmar con el portal que es la escala esperada.
-- **Precios/reglas del catálogo cardiovascular.** El catálogo ya son las consultas
-  de segunda opinión de cardiología y sus subespecialidades (Hemodinamia,
-  Electrofisiología, Medicina Nuclear, Prevención CV, Rehabilitación CV), pero con
-  **precio PENDIENTE** (`precioARS: 0`): faltan la **lista de precios y las reglas**
-  oficiales (no se inventan). Combos, membresías y paquetes quedan vacíos hasta que
-  se definan para el modelo cardiovascular. Confirmar también la **duración** de cada
-  consulta y la **lista real de consultorios/salas** (hoy provisional).
+- **Catálogo nuevo.** Se arma de cero con los profesionales de SOM: profesionales,
+  consultas, precios, duraciones, consultorios/salas y horario (hoy hay 6 consultas
+  de ejemplo sin precio y ningún profesional cargado). No se inventan precios ni
+  reglas.
 - **Proyecto Medplum canónico: definido** (`MEDPLUM_PROJECT_ID=7ce5e559-f315-4538-abf2-61fa4922f996`
   en `https://api.medplum.com.ar/`). Falta cargar las credenciales del proyecto en
   el `.env` local y correr `npm run seed` / `npm run deploy:bots` (todavía no se

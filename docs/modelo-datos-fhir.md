@@ -9,14 +9,15 @@ Naming: **kebab-case**.
 
 | Recurso FHIR | Uso | Extensiones custom |
 |---|---|---|
-| **Patient** | Ficha del paciente | `tipo-cliente`, `perfil-clinico`, `origen-lead` |
+| **Patient** | Ficha del paciente / lead del CRM | `tipo-cliente`, `perfil-clinico`, `origen-lead`, `perfil-interes`, `ciclo-vida-cliente` |
 | **Practitioner** | Médicos | `split-porcentaje`, `tipo-contrato` |
 | **Schedule / Slot** | Disponibilidad de consultorios/salas | `recurso-fisico` |
 | **Appointment** | Turno reservado | `ocupantes`, `item-tipo`, `item-codigo` |
 | **Encounter** | Visita ejecutada (check-in/out) | — |
 | **ActivityDefinition** | Catálogo (consultas de segunda opinión) | `precio-usd`, `precio-ars`, `regla-pricing-recurso`, `split-som` |
 | **Invoice / ChargeItem** | Cobros y splits | `monto-split-som`, `tc-aplicado`, `es-sena`, `medio-pago` |
-| **Communication** | WhatsApp y emails | `canal`, `template-usado` |
+| **Communication** | WhatsApp, emails y campañas del CRM (identifier `campania`) | `canal`, `template-usado` |
+| **Group** | Segmentos del CRM (identifier `segmento`; criterios en `characteristic`) | — |
 | **Location** | Recurso físico (consultorio/sala) | (identificado por `SYSTEM.recursoCodigo`) |
 | **Basic** | Configuración (TC vigente) | `tc-aplicado` |
 | **ServiceRequest / RiskAssessment / DiagnosticReport** | Contrato SOM con el portal (solicitud + informe) | `som-origin`, `som-sections` |
@@ -25,8 +26,9 @@ Naming: **kebab-case**.
 ## Decisiones de modelado
 
 - **Catálogo:** los servicios se modelan como `ActivityDefinition` (precio en
-  `precio-usd`/`precio-ars`). Hoy: las 6 consultas de segunda opinión
-  (cardiología + subespecialidades), con precio **pendiente** de la lista oficial.
+  `precio-usd`/`precio-ars`) y los profesionales como `Practitioner`. El catálogo
+  se arma **de cero con los profesionales de SOM**; hoy quedan 6 consultas de
+  ejemplo (cardiología + subespecialidades) sin precio y sin profesionales.
 - **Recursos físicos:** `Location` + `Schedule` (uno por recurso). Hoy: 2
   consultorios de cardiología, 1 de telemedicina y la sala de rehabilitación
   (lista provisional).

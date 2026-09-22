@@ -8,14 +8,15 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 1. **La recepción no calcula ni decide nada que el sistema pueda calcular o
    decidir.** Toda la lógica vive en el backend (`src/lib`, `src/bots`).
 2. **Fuente de verdad del catálogo/precios: la lista oficial de Segunda Opinión
-   Médica.** El catálogo hoy son las consultas de segunda opinión (cardiología +
-   subespecialidades) con **precio pendiente**: no se inventan precios ni reglas;
-   se cargan cuando estén definidos. (El Manual de Protocolos v9 era de
-   BioWellness y ya no aplica.)
+   Médica.** El catálogo se arma **de cero con los profesionales de SOM**; hasta
+   entonces quedan consultas de ejemplo sin precio y sin profesionales. No se
+   inventan precios, profesionales ni reglas: se cargan cuando estén definidos.
+   (El Manual de Protocolos v9 era de BioWellness y ya no aplica.)
 3. **Privacidad por diseño.** La recepción nunca ve la historia clínica completa;
    solo la señal binaria del banner de seguridad.
 4. **Gobernanza.** Todo cambio de fondo en la arquitectura o en una regla de
-   negocio *core* se consulta con Andrés antes de implementarlo.
+   negocio *core* se consulta con el Dr. Alejandro Barbagelata y el Dr. Alejandro
+   Sergio D'Alessandro antes de implementarlo.
 
 ## Arquitectura
 
@@ -88,8 +89,9 @@ Ver [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md).
 El catálogo de wellness spa de BioWellness (servicios, combos, membresías,
 paquetes, contraindicaciones) **se retiró del dominio** — Segunda Opinión Médica
 no vende esos servicios. El catálogo vigente son las consultas de segunda
-opinión de cardiología + subespecialidades, con **precios y reglas PENDIENTES**
-de la lista oficial (bloqueante para cobrar de verdad; no frena la agenda).
+opinión que se arman de cero con los profesionales de SOM (profesionales,
+precios, duraciones, consultorios y horario **PENDIENTES**: bloqueante para cobrar
+de verdad y para la agenda real).
 
 Lo demás **no frena el desarrollo**: cargar los Project Secrets de Twilio/SES en
 Medplum (para que confirmaciones y recordatorios **envíen** de verdad; sin ellos

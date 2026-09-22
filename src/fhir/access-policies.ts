@@ -55,44 +55,12 @@ export const POLICY_DIRECTOR_MEDICO: AccessPolicy = {
   resource: [{ resourceType: '*' }],
 };
 
-/** Médico prescriptor — clínico completo + prescripción/autorización IV y TB. */
-export const POLICY_MEDICO_PRESCRIPTOR: AccessPolicy = {
-  resourceType: 'AccessPolicy',
-  name: 'Médico Prescriptor — Clínico + prescripción',
-  resource: [{ resourceType: '*' }],
-};
-
-/** Enfermera — clínico limitado: ve órdenes IV/TB del día y registra ejecución. */
-export const POLICY_ENFERMERA: AccessPolicy = {
-  resourceType: 'AccessPolicy',
-  name: 'Enfermería — Clínico limitado',
-  resource: [
-    { resourceType: 'Appointment', readonly: true },
-    { resourceType: 'Encounter' },
-    { resourceType: 'ServiceRequest' },
-    { resourceType: 'MedicationAdministration' },
-    { resourceType: 'Observation' },
-    { resourceType: 'Patient', readonly: true },
-  ],
-};
-
-/** Terapeuta — sólo sus turnos y registrar la sesión. */
-export const POLICY_TERAPEUTA: AccessPolicy = {
-  resourceType: 'AccessPolicy',
-  name: 'Terapeuta — Propio',
-  resource: [
-    { resourceType: 'Appointment', readonly: true },
-    { resourceType: 'Encounter' },
-    { resourceType: 'Patient', readonly: true },
-  ],
-};
-
 /** Nombre canónico de la policy del portal del paciente (lo usa el bot de invitación). */
 export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
 
 /**
  * Paciente SOM — Portal: el paciente accede **sólo a lo suyo** desde el portal
- * (URL en el Project Secret PORTAL_BASE_URL). Ve su agenda, plan, pagos y
+ * (https://app.segundaopinionmedica.org). Ve su agenda, plan, pagos y
  * mensajes, y —ejerciendo su derecho de acceso a sus propios datos— su historia
  * (laboratorio, biomarcadores, vacunas, medicación, plan de cuidado,
  * consentimientos). Lo no listado queda denegado; nunca ve datos de otros
@@ -155,11 +123,8 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
   ],
 };
 
-export const ACCESS_POLICIES: AccessPolicy[] = [
-  POLICY_RECEPCIONISTA,
-  POLICY_DIRECTOR_MEDICO,
-  POLICY_MEDICO_PRESCRIPTOR,
-  POLICY_ENFERMERA,
-  POLICY_TERAPEUTA,
-  POLICY_PACIENTE_PORTAL,
-];
+/**
+ * Roles del seed. Los roles clínicos propios de SOM (equipo médico) se definen
+ * aparte; los del catálogo anterior se retiraron.
+ */
+export const ACCESS_POLICIES: AccessPolicy[] = [POLICY_RECEPCIONISTA, POLICY_DIRECTOR_MEDICO, POLICY_PACIENTE_PORTAL];

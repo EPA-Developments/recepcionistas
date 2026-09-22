@@ -11,6 +11,7 @@
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { ContactPoint, Patient } from '@medplum/fhirtypes';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
+import { normalizarValor } from '../lib/crm.js';
 import { partirNombre, validarEmail } from '../lib/onboarding.js';
 
 export interface EntradaAltaPaciente {
@@ -21,8 +22,13 @@ export interface EntradaAltaPaciente {
   dni?: string;
   email?: string;
   telefono?: string;
-  /** Etiqueta comercial (p. ej. 'PUBLICO' | 'FM'). */
+  /** Etiqueta comercial (p. ej. 'PUBLICO'). */
   tipoCliente?: string;
+  /**
+   * Origen del lead para el embudo del CRM (red social / `utm_source`: instagram,
+   * facebook, tiktok, google, …). Se guarda el PRIMERO: no pisa uno existente.
+   */
+  origenLead?: string;
 }
 
 export interface ResultadoAltaPaciente {
@@ -97,6 +103,10 @@ export async function handler(
       if (e.tipoCliente) {
         extension.push({ url: EXT.tipoCliente, valueCode: e.tipoCliente });
       }
+      const origen = normalizarValor(e.origenLead);
+      if (origen && !extension.some((x) => x.url === EXT.origenLead)) {
+        extension.push({ url: EXT.origenLead, valueString: origen });
+      }
       const identifier = [...(existente.identifier ?? [])];
       if (e.dni && !identifier.some((i) => i.system === SYSTEM.dni)) {
         identifier.push({ system: SYSTEM.dni, value: e.dni.trim() });
@@ -114,13 +124,18 @@ export async function handler(
       return { ok: true, patientId: actualizado.id, creado: false };
     }
 
+    const origen = normalizarValor(e.origenLead);
+    const extension = [
+      ...(e.tipoCliente ? [{ url: EXT.tipoCliente, valueCode: e.tipoCliente }] : []),
+      ...(origen ? [{ url: EXT.origenLead, valueString: origen }] : []),
+    ];
     const creado = await medplum.createResource<Patient>({
       resourceType: 'Patient',
       active: true,
       name: [{ text: nombreText, given: [firstName], family: lastName }],
       identifier: e.dni ? [{ system: SYSTEM.dni, value: e.dni.trim() }] : undefined,
       telecom: telecom(e.telefono, e.email),
-      extension: e.tipoCliente ? [{ url: EXT.tipoCliente, valueCode: e.tipoCliente }] : undefined,
+      extension: extension.length ? extension : undefined,
     });
     return { ok: true, patientId: creado.id, creado: true };
   } catch (err) {

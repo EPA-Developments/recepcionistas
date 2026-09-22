@@ -43,6 +43,9 @@ const BOTS: DefBot[] = [
   { name: 'som-limpiar-demo', source: 'src/bots/limpiar-demo.ts', dist: 'dist/bots/limpiar-demo.js', description: 'Cron: borra los datos demo (tag demo) con más de 48 h.' },
   { name: 'som-enviar-whatsapp', source: 'src/bots/enviar-whatsapp.ts', dist: 'dist/bots/enviar-whatsapp.js', description: 'Envía WhatsApp (Twilio) y registra Communication.' },
   { name: 'som-solicitar-turno', source: 'src/bots/solicitar-turno.ts', dist: 'dist/bots/solicitar-turno.js', description: 'Crea una solicitud de turno (Task) desde el portal del paciente y avisa a Recepción por WhatsApp.' },
+  // CRM — embudo de captación (redes sociales) → segmentos → campañas (docs/crm.md).
+  { name: 'som-recomputar-segmentos', source: 'src/bots/recomputar-segmentos.ts', dist: 'dist/bots/recomputar-segmentos.js', description: 'CRM: recalcula los miembros de los segmentos (origen del lead/red social, perfil, ciclo de vida, biomarcadores).' },
+  { name: 'som-enviar-campana', source: 'src/bots/enviar-campana.ts', dist: 'dist/bots/enviar-campana.js', description: 'CRM: envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla aprobada) y registra una Communication por destinatario.' },
   // SOM — Segunda Opinión Médica.
   { name: 'som-solicitar', source: 'src/bots/som-solicitar.ts', dist: 'dist/bots/som-solicitar.js', description: 'SOM: crea una ServiceRequest de segunda opinión cardiológica desde el portal del paciente.' },
   { name: 'bot-som-report', source: 'src/bots/som-report.ts', dist: 'dist/bots/som-report.js', description: 'SOM: genera el informe (PREVENT + Claude + PDF) ante una ServiceRequest activa. Lo dispara una Subscription.' },
