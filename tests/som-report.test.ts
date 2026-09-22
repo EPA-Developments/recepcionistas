@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { BotEvent, MedplumClient } from '@medplum/core';
+import type { ServiceRequest } from '@medplum/fhirtypes';
 import {
   construirExtensionSecciones,
   construirRiskAssessment,
@@ -7,7 +9,8 @@ import {
   parsearSecciones,
   resumenRiesgo,
 } from '../src/lib/som-report.js';
-import { EXT, SOM_SECCIONES } from '../src/fhir/identifiers.js';
+import { COD, EXT, SOM_SECCIONES, SYSTEM } from '../src/fhir/identifiers.js';
+import { handler as somReportHandler } from '../src/bots/som-report.js';
 import type { ResultadoPrevent } from '../src/lib/prevent.js';
 
 const prevent: ResultadoPrevent = {
@@ -88,5 +91,52 @@ describe('Informe SOM — resumen de riesgo', () => {
   });
   it('avisa cuando no hay predicciones', () => {
     expect(resumenRiesgo({ predicciones: [], pendienteValidacion: true, faltantes: [] })).toMatch(/Sin estimación/);
+  });
+});
+
+describe('Bot bot-som-report — aviso de informe listo', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('El WhatsApp va al paciente aunque esté RECEPCION_WHATSAPP_TO (Recepción no ve lo clínico)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi.fn(async (..._a: unknown[]) => ({ ok: true }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    const medplum = {
+      searchOne: async () => undefined,
+      searchResources: async () => [],
+      readResource: async (tipo: string, id: string) => ({
+        resourceType: tipo,
+        id,
+        telecom: [{ system: 'phone', value: '+5491111111111' }],
+      }),
+      createResource: async (r: Record<string, unknown>) => ({ ...r, id: 'nuevo' }),
+      createBinary: async () => ({ id: 'bin1' }),
+      updateResource: async (r: unknown) => r,
+    } as unknown as MedplumClient;
+    const sr: ServiceRequest = {
+      resourceType: 'ServiceRequest',
+      id: 'sr1',
+      status: 'active',
+      intent: 'order',
+      code: { coding: [{ system: SYSTEM.somServices, code: COD.somCardiology }] },
+      subject: { reference: 'Patient/p1' },
+    };
+    const secrets = {
+      TWILIO_ACCOUNT_SID: { name: 'TWILIO_ACCOUNT_SID', valueString: 'AC123' },
+      TWILIO_AUTH_TOKEN: { name: 'TWILIO_AUTH_TOKEN', valueString: 'tok' },
+      TWILIO_WHATSAPP_FROM: { name: 'TWILIO_WHATSAPP_FROM', valueString: 'whatsapp:+5491100000000' },
+      RECEPCION_WHATSAPP_TO: { name: 'RECEPCION_WHATSAPP_TO', valueString: '+5491199999999' },
+    };
+
+    const r = await somReportHandler(medplum, { input: sr, secrets } as unknown as BotEvent<ServiceRequest>);
+
+    expect(r.ok).toBe(true);
+    const twilio = fetchMock.mock.calls.filter((c) => String(c[0]).includes('api.twilio.com'));
+    expect(twilio).toHaveLength(1);
+    const body = new URLSearchParams(String((twilio[0]?.[1] as RequestInit).body));
+    expect(body.get('To')).toBe('whatsapp:+5491111111111');
   });
 });
