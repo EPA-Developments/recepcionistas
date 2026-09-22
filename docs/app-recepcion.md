@@ -84,6 +84,5 @@ localStorage.setItem('mantine-color-scheme-value', 'dark'); location.reload();
 ## Retirado
 
 El dashboard "Planes y sesiones" (saldo de membresías/paquetes) y la pre-agenda
-de series de sesiones existieron para el catálogo BioWellness (wellness spa) y
-se retiraron junto con ese catálogo. Ver
-[`decisiones-pendientes.md`](decisiones-pendientes.md).
+de series de sesiones eran de un catálogo anterior, ajeno a SOM, y se retiraron
+junto con ese catálogo. Ver [`decisiones-pendientes.md`](decisiones-pendientes.md).

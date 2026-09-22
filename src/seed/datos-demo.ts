@@ -6,27 +6,20 @@
  *   npm run datos-demo -- --limpiar-vencidos → borra solo los demo de > 48 h
  *
  * Todo lo creado lleva `meta.tag = demo`. La limpieza (manual o por el cron
- * `bw-limpiar-demo`) borra SOLO lo etiquetado demo: nunca toca datos reales.
+ * `som-limpiar-demo`) borra SOLO lo etiquetado demo: nunca toca datos reales.
  *
  * Genera pacientes, turnos de consulta (varios estados), un Flag de banner de
  * seguridad, cobros y comunicaciones, para ver la app con datos.
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
+import type { MedplumClient } from '@medplum/core';
 import type { Appointment, Patient, Slot } from '@medplum/fhirtypes';
 import { getServicio } from '../config/catalogo.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { META_DEMO, borrarRecursosDemo } from '../bots/_shared.js';
+import { conectarMedplum } from './conexion.js';
 
 const TZ = '-03:00';
-
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
-}
 
 /** 'YYYY-MM-DD' en zona Argentina, con offset de días. */
 function fechaAR(offsetDias: number): string {
@@ -212,8 +205,7 @@ async function generar(medplum: MedplumClient): Promise<void> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
+  const { medplum } = await conectarMedplum();
 
   if (args.includes('--limpiar')) {
     const r = await borrarRecursosDemo(medplum);
@@ -233,7 +225,7 @@ async function main(): Promise<void> {
   console.log(`  borrados: ${prev.borrados}`);
   console.log('Generando datos demo (se autodestruyen a las 48 h):');
   await generar(medplum);
-  console.log('\n✓ Datos demo cargados. Se borran solos a las 48 h (bot bw-limpiar-demo) o con: npm run datos-demo -- --limpiar');
+  console.log('\n✓ Datos demo cargados. Se borran solos a las 48 h (bot som-limpiar-demo) o con: npm run datos-demo -- --limpiar');
 }
 
 main().catch((err) => {

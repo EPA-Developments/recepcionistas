@@ -44,23 +44,21 @@ export interface MensajeInvitacion {
   texto: string;
 }
 
-/** URL del portal del paciente (se muestra para que lo guarde / lo agregue a inicio). */
-export const PORTAL_URL = 'https://bio.medplum.com.ar';
-
 /**
  * Cuerpo de la invitación al portal (mismo link mágico en todos los canales).
  * Personalizado para Segunda Opinión Médica San Isidro: asunto de bienvenida + sugerencia de
- * añadir el portal a la pantalla de inicio (PWA).
+ * añadir el portal a la pantalla de inicio (PWA). `portalUrl` es la URL del portal
+ * del paciente (Project Secret `PORTAL_BASE_URL`), la que el paciente guarda.
  */
-export function mensajeInvitacion(nombre: string, link: string): MensajeInvitacion {
+export function mensajeInvitacion(nombre: string, link: string, portalUrl: string): MensajeInvitacion {
   const saludo = nombre ? `¡Hola ${nombre}!` : '¡Hola!';
   return {
     asunto: 'Bienvenido a Segunda Opinión Médica | San Isidro',
     texto:
-      `${saludo} Te damos la bienvenida a Segunda Opinión Médica San Isidro 💚\n\n` +
+      `${saludo} Te damos la bienvenida a Segunda Opinión Médica San Isidro 💙\n\n` +
       `Activá tu acceso al portal para ver tus turnos, tu plan, tus pagos y tus estudios. ` +
       `Entrá a este link y elegí tu contraseña:\n\n${link}\n\n` +
-      `Después vas a poder ingresar siempre desde:\n${PORTAL_URL}\n\n` +
+      `Después vas a poder ingresar siempre desde:\n${portalUrl.replace(/\/+$/, '')}\n\n` +
       `📲 Te recomendamos "Añadir a pantalla de inicio" para abrirlo como una app:\n` +
       `• iPhone (Safari): tocá Compartir → "Añadir a pantalla de inicio".\n` +
       `• Android (Chrome): tocá el menú ⋮ → "Añadir a pantalla de inicio".\n\n` +

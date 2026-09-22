@@ -1,69 +1,58 @@
 # Integración Recepción ↔ Portal del paciente
 
-Contrato de integración entre **esta app (recepción)** y el **portal del paciente**
-(`biowellness/portal`, basado en FooMedical, publicado en `bio.medplum.com.ar`).
+Contrato de integración entre **esta app (recepción)** y el **portal del paciente
+de Segunda Opinión Médica** (repo `drdalessandro/app`, ver [`som.md`](som.md)),
+publicado en la URL que se carga en el Project Secret **`PORTAL_BASE_URL`**.
 
-Las dos apps comparten el **mismo servidor y proyecto Medplum**. La recepción es
-para el staff (con su AccessPolicy operativa); el portal es para el paciente, que
-ve **solo lo suyo** vía la AccessPolicy **"Paciente — Portal"**
+Las dos apps comparten el **mismo servidor y proyecto Medplum**
+(`https://api.medplum.com.ar/`, proyecto `7ce5e559-f315-4538-abf2-61fa4922f996`).
+La recepción es para el staff (con su AccessPolicy operativa); el portal es para
+el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Portal"**
 (`src/fhir/access-policies.ts`).
 
-> Estado: **integrado (eje Cliente, solo lectura).** El repo `biowellness/portal`
-> ya está en scope y cableado: el portal muestra **Sesiones** y **Pagos** reales y
-> la AccessPolicy quedó reconciliada (ver "Hecho" más abajo). Lo que sigue es la
-> **reserva online** por *modelo de solicitud* (el paciente pide, Recepción
-> confirma) — ver el handoff del portal `docs/cliente-negocio-handoff.md`.
+## Qué pone la recepción del lado del backend
 
-## Hecho (cableado actual)
-
-- **Pagos** en el portal: lee los `Invoice` del paciente. (La vista de
-  "Sesiones"/saldo de membresías era del modelo BioWellness: los planes se
-  retiraron del dominio y `Coverage` ya no se otorga en la policy; actualizar el
-  portal en consecuencia.)
-- **AccessPolicy "Paciente — Portal" reconciliada.** Se sumó `Invoice` (faltaba en
-  el espejo del portal) y se unificó esta definición (la del seed) con la del
-  portal. Es la **fuente de verdad**: `npm run seed` la aplica por `name`, así que
-  el espejo `portal/docs/medplum/access-policy-paciente-portal.json` debe quedar
-  idéntico. `Invoice`/`Appointment` son de **solo lectura** para el paciente;
-  escribe solo su autogestión (perfil, vitales, cuestionarios, consentimientos,
-  mensajes).
-- **Reserva por *solicitud* (implementada).** El paciente pide desde el portal y se
-  crea un `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`**
-  (lógica pura en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp
-  (secret `RECEPCION_WHATSAPP_TO`). La app de recepción tiene la vista **"Solicitudes"**
-  para atenderlas y confirmarlas con los bots de reserva. El paciente solo **lee** sus
-  `Task` y solo puede **ejecutar** ese bot (AccessPolicy acotada). No escribe agenda.
-  Para activarlo: `npm run deploy:bots` + `npm run seed` + secret `RECEPCION_WHATSAPP_TO`.
-
-## Cómo se conectan (hoy)
-
+- **AccessPolicy "Paciente SOM — Portal".** Es la **fuente de verdad**: `npm run
+  seed` la aplica por `name`, así que el espejo del portal
+  (`docs/medplum/access-policy-paciente-portal.json`) debe quedar idéntico.
+  El paciente **escribe** solo su autogestión (perfil, vitales, cuestionarios,
+  documentos, mensajes) y **lee** su compartimento clínico/financiero
+  (`Appointment`, `Invoice`, `DiagnosticReport`, `CarePlan`, `MedicationRequest`,
+  `Immunization`, `Task`, `ServiceRequest`, `RiskAssessment`) más catálogo y
+  agenda (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
+- **Reserva por *solicitud*.** El paciente pide desde el portal y se crea un
+  `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`** (lógica pura
+  en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
+  `RECEPCION_WHATSAPP_TO`). La app de recepción tiene la vista **"Solicitudes"**
+  para confirmarlas con los bots de reserva. El paciente solo **lee** sus `Task` y
+  solo puede **ejecutar** ese bot y `som-solicitar`: no escribe agenda.
+- **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`) y bot interno
+  `bot-som-report` (informe), ver [`som.md`](som.md).
 - **Alta de paciente** (`som-alta-paciente`): la recepción crea el `Patient`
   (dedupe por DNI/email/teléfono). No da login.
 - **Invitación al portal** (`som-invitar-paciente`, requiere admin): hace el
-  *invite* de Medplum (`sendEmail:false`, `upsert:true` → reusa el `Patient`,
-  no duplica) con la AccessPolicy "Paciente — Portal", y entrega el link mágico
-  `/<portal>/setpassword/{id}/{secret}` por **WhatsApp / email / QR**.
+  *invite* de Medplum (`sendEmail:false`, `upsert:true` → reusa el `Patient`, no
+  duplica) con la AccessPolicy "Paciente SOM — Portal", y entrega el link mágico
+  `<PORTAL_BASE_URL>/setpassword/{id}/{secret}` por **WhatsApp / email / QR**.
+  `PORTAL_BASE_URL` es obligatorio: sin él el bot no invita (no hay default).
 - **Auto-registro** (portal, "Crear cuenta"): el paciente se crea solo. Medplum le
   asigna el **default patient access policy** del proyecto.
 
-El link de invitación apunta al portal vía el secret **`PORTAL_BASE_URL`**
-(default `https://bio.medplum.com.ar`).
+Para activarlo en el proyecto: `npm run seed` + `npm run deploy:bots` + Project
+Secrets (`PORTAL_BASE_URL`, `RECEPCION_WHATSAPP_TO` y los de Twilio; ver
+[`bots.md`](bots.md)).
 
-## Checklist de revisión del repo del portal
+## Checklist a verificar en el repo del portal
 
-1. **Mismo proyecto Medplum.** El portal debe registrar/loguear contra el mismo
-   project que recepción (`7f068d7d-4633-46e9-9eff-d52bc03625b9`) en el mismo
-   `MEDPLUM_BASE_URL` (`https://api.medplum.com.ar/`). Si fuera otro proyecto, los
-   `Patient` no se comparten y la integración no funciona.
+1. **Mismo proyecto Medplum.** El portal debe registrar/loguear contra el proyecto
+   `7ce5e559-f315-4538-abf2-61fa4922f996` en `https://api.medplum.com.ar/`. Si
+   fuera otro proyecto, los `Patient` no se comparten y la integración no funciona.
    → revisar config del `MedplumClient` / `projectId` / variables de entorno.
 
-2. **Ruta `/setpassword/:id/:secret` — ✅ YA EXISTE en el portal.**
-   El portal tiene `SetPasswordPage` (`portal/src/pages/SetPasswordPage.tsx`) como
-   ruta **pública** que hace `POST auth/setpassword` y redirige a `/signin`. El link
-   de invitación a `bio.medplum.com.ar/setpassword/...` ya funciona end-to-end; no
-   hace falta el stopgap de apuntar a `app.medplum.com.ar`.
+2. **Ruta pública `/setpassword/:id/:secret`.** El link de invitación cae ahí: la
+   página hace `POST auth/setpassword` y redirige a `/signin`.
 
-   <details><summary>Referencia (la página ya implementada en el portal)</summary>
+   <details><summary>Referencia de implementación</summary>
 
    ```tsx
    // SetPasswordPage.tsx (portal)
@@ -105,39 +94,24 @@ El link de invitación apunta al portal vía el secret **`PORTAL_BASE_URL`**
    Referencia canónica: `medplum/packages/app/src/SetPasswordPage.tsx` (open source).
    </details>
 
-   `PORTAL_BASE_URL` debe quedar en `https://bio.medplum.com.ar` (default). Ya no se
-   necesita el stopgap a `app.medplum.com.ar`.
+3. **Default patient access policy = "Paciente SOM — Portal".** Para que el
+   auto-registrado y el invitado queden con el **mismo** alcance. `npm run
+   diagnostico-acceso -- --apply` lo configura en el proyecto.
 
-3. **Default patient access policy = "Paciente — Portal".** Para que el
-   auto-registrado y el invitado queden con el **mismo** alcance, configurar en el
-   proyecto Medplum el *default patient access policy* apuntando a la policy del
-   seed. (Sin esto, el auto-registro podría quedar sin policy o con otra.)
+4. **Recursos que lee/escribe el portal = los de la policy.** Si el portal
+   necesita algo que la policy no concede, se agrega en
+   `src/fhir/access-policies.ts` (fuente de verdad) y se actualiza el espejo.
 
-4. **Recursos que lee/escribe el portal — ✅ reconciliado.** "Paciente — Portal"
-   ahora cubre lo que el portal usa de verdad: su compartimento clínico/financiero
-   de **solo lectura** (Appointment/**Invoice**/DiagnosticReport/CarePlan/
-   MedicationRequest/Immunization) + **escritura** de autogestión (Patient/
-   Observation/QuestionnaireResponse/DocumentReference/Communication) + catálogo y
-   agenda de lectura (Schedule/Slot/HealthcareService/Practitioner/…). La definición
-   vive en `src/fhir/access-policies.ts` (fuente de verdad del seed) y su espejo en
-   `portal/docs/medplum/access-policy-paciente-portal.json`.
+5. **`PORTAL_BASE_URL`** (Project Secret) = URL pública del portal SOM, sin barra
+   final.
 
-   **Reserva = modelo de solicitud** (implementado): el paciente **no** crea
-   `Appointment` ni ejecuta bots de reserva. La policy le suma `Task` de solo lectura
-   (`Task?patient=%patient`) y `Bot` acotado a `som-solicitar-turno`
-   (`Bot?name=som-solicitar-turno`) — el único bot que puede ejecutar. Si más adelante
-   se opta por reserva inmediata por bots (`som-reservar-turno`), antes endurecerlo
-   para derivar el paciente del login (no del input) y habilitar la ejecución solo
-   de ese bot.
+6. **Branding/seguridad.** Tema SOM; verificar `recaptchaSiteKey`/`googleClientId`
+   si el registro los usa.
 
-5. **Branding/seguridad** ya consistente (theme Segunda Opinión Médica en `bio.medplum.com.ar`).
-   Verificar `recaptchaSiteKey`/`googleClientId` si el registro los usa.
+## Acceso al repo del portal desde Claude Code
 
-## Cómo dar acceso al repo del portal
-
-Desde **Claude Code web → entorno de esta sesión → Repositories/Sources**, agregar
-`biowellness/portal` a los repos permitidos y reabrir la sesión. Doc:
+Una sesión de Claude Code on the web solo puede sumar repos **del mismo owner**
+que los de la sesión: el portal (`drdalessandro/app`) no se puede agregar a una
+sesión de `EPA-Developments/recepcionistas`. Para revisar ambos, abrir una sesión
+con el repo del portal como fuente (o mover el portal a `EPA-Developments`). Doc:
 https://code.claude.com/docs/en/claude-code-on-the-web
-
-Mientras no esté en el scope, recepción **no** puede leer ese repo (proxy de git y
-GitHub MCP están acotados a `biowellness/recepcionistas`).

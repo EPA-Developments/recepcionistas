@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { getServicio, SERVICIOS } from '../src/config/catalogo.js';
 import { precioSueltoUSD, calcularSplit, calcularCobro, calcularSenaARS } from '../src/lib/pricing.js';
 import { usdAArs } from '../src/lib/money.js';
+import { resolverTC, TC_DEFAULT } from '../src/config/tipo-cambio.js';
 
 describe('Pricing — Splits', () => {
   it('Consulta => 100% SOM', () => {
@@ -23,6 +24,24 @@ describe('Consultas (precio en ARS, PENDIENTE de lista oficial)', () => {
 describe('Conversión a ARS (R-17)', () => {
   it('USD 165 a TC 1450 = ARS 239.250', () => {
     expect(usdAArs(165, 1450)).toBe(239250);
+  });
+
+  describe('TC por defecto (SOM_TC_DEFAULT)', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('Sin TC explícito toma SOM_TC_DEFAULT', () => {
+      vi.stubEnv('SOM_TC_DEFAULT', '1500');
+      expect(resolverTC()).toBe(1500);
+    });
+
+    it('El TC explícito gana sobre la env; env inválida => default', () => {
+      vi.stubEnv('SOM_TC_DEFAULT', '1500');
+      expect(resolverTC(1600)).toBe(1600);
+      vi.stubEnv('SOM_TC_DEFAULT', 'no-numero');
+      expect(resolverTC()).toBe(TC_DEFAULT);
+    });
   });
 
   it('precioSueltoUSD multiplica por ocupantes (servicios en USD)', () => {

@@ -1,8 +1,8 @@
 # Reglas de negocio (motor de reglas)
 
-Reglas R-xx vigentes tras el retiro del catálogo de wellness spa (BioWellness):
-hoy Segunda Opinión Médica agenda **consultas de segunda opinión de cardiología
-y subespecialidades**. Cada regla indica dónde está implementada.
+Reglas R-xx vigentes: Segunda Opinión Médica agenda **consultas de segunda
+opinión de cardiología y subespecialidades**. Cada regla indica dónde está
+implementada.
 
 ## Agenda / turnos
 
@@ -22,16 +22,14 @@ Split de ingresos: hoy todo servicio es `SOM_100` (100% a Segunda Opinión
 Médica) — `calcularSplit`. El esquema de honorarios profesionales queda
 pendiente de definir.
 
-## Reglas retiradas (catálogo BioWellness)
+## Reglas retiradas
 
-Las reglas R-01, R-02, R-03, R-04..R-06, R-08 (splits IV/TB y masajes), R-09,
-R-10, R-11, R-12, R-15, R-16 existían para el catálogo de terapias de wellness
-spa (HBOT, IHHT, Recovery Pro, IV Therapy, Terapias Biológicas, Masajes,
-combos, membresías, paquetes, Founding Members). Ese catálogo era de
-BioWellness y se retiró del dominio. Si el modelo de segunda opinión llega a
-necesitar reglas equivalentes (p. ej. contraindicaciones clínicas o paquetes de
-seguimiento), se definen con la lista oficial de precios/reglas — ver
-[`decisiones-pendientes.md`](decisiones-pendientes.md).
+Las reglas R-01..R-06, R-08..R-12, R-15 y R-16 eran de un catálogo anterior,
+ajeno a SOM (terapias, combos, membresías y paquetes), y se retiraron del
+dominio; la numeración se conserva para trazabilidad. Si el modelo de segunda
+opinión llega a necesitar reglas equivalentes (p. ej. contraindicaciones
+clínicas o paquetes de seguimiento), se definen con la lista oficial de
+precios/reglas — ver [`decisiones-pendientes.md`](decisiones-pendientes.md).
 
 ## Reglas fuera del alcance del Bloque 0 (referencia)
 

@@ -8,7 +8,7 @@ on:
 
 jobs:
   verify:
-    name: Typecheck · Tests · Seed (dry-run)
+    name: Typecheck · Tests · Seed · Bots · Front · Naming
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,3 +30,22 @@ jobs:
 
       - name: Seed (dry-run)
         run: npm run seed -- --dry-run
+
+      - name: Bots (bundle, dry-run)
+        run: npm run bots:bundle
+
+      - name: Build del front
+        run: npm run build:app
+
+      # Regla de naming SOM (ver CLAUDE.md): este grep debe dar vacío.
+      # (El patrón usa [w] para que el propio workflow no coincida.)
+      - name: Naming SOM (sin marca ni prefijos anteriores)
+        run: |
+          rc=0
+          git grep -niE '\bbw[-_]|bio[w]ellness|bio\.medplum' -- . ':!CLAUDE.md' || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::Quedan referencias a la marca o prefijos anteriores (ver arriba)."
+            exit 1
+          elif [ "$rc" -ne 1 ]; then
+            exit "$rc"
+          fi

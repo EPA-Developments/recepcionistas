@@ -16,15 +16,7 @@
  * identidad SES verificada). Este script no lo setea (igual que el bot).
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
-
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
-}
+import { conectarMedplum } from './conexion.js';
 
 async function main(): Promise<void> {
   const to = process.argv[2] ?? process.env.DIAG_EMAIL_TO;
@@ -34,14 +26,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
-  console.log(`Conectado a ${process.env.MEDPLUM_BASE_URL}. Enviando email de prueba a: ${to}`);
+  const { medplum, baseUrl } = await conectarMedplum();
+  console.log(`Conectado a ${baseUrl}. Enviando email de prueba a: ${to}`);
 
   const asunto = `Segunda Opinión Médica · prueba de email (${new Date().toLocaleString('es-AR')})`;
   const cuerpo =
     'Este es un email de prueba del diagnóstico de recepción Segunda Opinión Médica.\n\n' +
-    'Si lo recibiste, la cadena Medplum → SES funciona. 💚';
+    'Si lo recibiste, la cadena Medplum → SES funciona. 💙';
 
   // `from` opcional: por defecto lo decide el server (su supportEmail, p. ej.
   // hola@medplum.com.ar). Con SES_FROM_EMAIL probás un remitente explícito (útil

@@ -34,7 +34,10 @@ Ver [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) para lo que
 ## Requisitos
 
 - Node.js ≥ 20 (probado en 22)
-- Una cuenta de Medplum (arrancamos en **Medplum Cloud**; portable a self-hosted)
+- Credenciales (ClientApplication) del proyecto SOM en el servidor Medplum
+  `https://api.medplum.com.ar/` — proyecto `7ce5e559-f315-4538-abf2-61fa4922f996`
+- Project Secrets cargados en Medplum (Twilio/WABA, MercadoPago, portal): ver
+  [`docs/bots.md`](docs/bots.md). Nunca credenciales en el repo.
 
 ## Puesta en marcha
 
@@ -43,6 +46,8 @@ npm install
 cp .env.example .env       # completar credenciales
 npm run verify             # typecheck + tests
 npm run seed -- --dry-run  # construye el catálogo sin conectarse a Medplum
+npm run bots:bundle        # bundlea los bots sin conectarse
+npm run build:app          # build del front
 npm run seed               # carga el catálogo en Medplum (requiere credenciales)
 ```
 
@@ -52,7 +57,7 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 |---|---|
 | `npm run typecheck` | Chequeo de tipos (tsc) |
 | `npm run test` | Tests (vitest) |
-| `npm run verify` | typecheck + test (gate de CI) |
+| `npm run verify` | typecheck + test (gate de CI, junto con seed `--dry-run`, `bots:bundle` y `build:app`) |
 | `npm run seed` | Carga el catálogo en Medplum (idempotente) |
 | `npm run seed -- --dry-run` | Construye todos los recursos sin servidor |
 | `npm run seed -- --with-slots [--dias=N]` | (Opcional) materializa `Slot` libres en Medplum. El front NO lo necesita. |
@@ -85,7 +90,7 @@ inteligencia vive en los Bots y el backend; el front solo orquesta.
 
 ```bash
 npm install                       # instala backend + front (workspaces)
-cp app/.env.example app/.env      # VITE_MEDPLUM_BASE_URL=https://api.medplum.com.ar/
+cp app/.env.example app/.env      # MEDPLUM_BASE_URL=https://api.medplum.com.ar/
 npm run dev                       # abre http://localhost:5173
 ```
 
@@ -108,13 +113,16 @@ Pantallas del esqueleto:
 ## Documentación
 
 - [`docs/bloque-0.md`](docs/bloque-0.md) — alcance técnico y Definition of Done
+- [`docs/som.md`](docs/som.md) — contrato SOM con el portal (solicitud + informe)
 - [`docs/bots.md`](docs/bots.md) — los Bots, deploy, secretos y recordatorios
 - [`docs/app-recepcion.md`](docs/app-recepcion.md) — la app de recepción: vistas y features (modo oscuro)
 - [`docs/reglas-negocio.md`](docs/reglas-negocio.md) — reglas de agenda y pricing vigentes
 - [`docs/modelo-datos-fhir.md`](docs/modelo-datos-fhir.md) — recursos y extensiones FHIR
+- [`docs/usuarios.md`](docs/usuarios.md) — usuarios, roles y AccessPolicies
+- [`docs/portal-integracion.md`](docs/portal-integracion.md) — integración con el portal del paciente
 - [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) — decisiones abiertas
 - [`CLAUDE.md`](CLAUDE.md) — convenciones y guía para el desarrollo
 
 ---
 
-Confidencial · Shanti OM SRL · 2026
+Confidencial · EPA Bienestar IA SAS · 2026

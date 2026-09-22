@@ -1,5 +1,5 @@
 /**
- * Seed de prueba para `bw-recordatorios`.
+ * Seed de prueba para `som-recordatorios`.
  *
  *   npm run seed:prueba-recordatorios -- --dry-run   → muestra qué crearía (sin red)
  *   npm run seed:prueba-recordatorios                → upsert en Medplum (.env)
@@ -10,12 +10,13 @@
  * para volver a dispararse.
  *
  * Luego, para probar el bot:
- *   npx medplum bot execute bw-recordatorios '{}'
+ *   npx medplum bot execute som-recordatorios '{}'
  */
 import 'dotenv/config';
-import { MedplumClient } from '@medplum/core';
+import type { MedplumClient } from '@medplum/core';
 import type { Appointment, Patient } from '@medplum/fhirtypes';
 import { EXT } from '../fhir/identifiers.js';
+import { conectarMedplum } from './conexion.js';
 
 /** Id del paciente de prueba (fijo por defecto; configurable para apuntar a uno real). */
 const PATIENT_ID = process.env.PRUEBA_PATIENT_ID ?? '9647fb20-c13a-49c0-b32c-50549bb2c1d9';
@@ -99,7 +100,7 @@ async function main(): Promise<void> {
   const ahora = new Date();
   const { appointment, inicio } = construir(ahora);
 
-  console.log('=== Seed de prueba · bw-recordatorios ===');
+  console.log('=== Seed de prueba · som-recordatorios ===');
   console.log(`  • Patient ${PATIENT_ID} (tel/email de respaldo: ${TELEFONO} / ${EMAIL})`);
   console.log(`  • Turno 'booked' a las ${inicio.toLocaleString('es-AR')} (~20h → ventana 48h)`);
 
@@ -108,9 +109,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
-  console.log('\nConectado a Medplum.');
+  const { medplum, projectId } = await conectarMedplum();
+  console.log(`\nConectado a Medplum (project ${projectId}).`);
 
   const p = await obtenerPaciente(medplum);
   const destinatario = [
@@ -131,15 +131,7 @@ async function main(): Promise<void> {
   console.log(`  ✓ Communication previas borradas (${previas.length})`);
 
   console.log('\nListo. Probá el bot:');
-  console.log("  npx medplum bot execute bw-recordatorios '{}'");
-}
-
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
+  console.log("  npx medplum bot execute som-recordatorios '{}'");
 }
 
 main().catch((err) => {

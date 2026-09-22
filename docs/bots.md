@@ -26,8 +26,11 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 ## Deploy
 
 Requiere el `.env` de la raíz (mismas credenciales que el seed):
-`MEDPLUM_BASE_URL`, `MEDPLUM_CLIENT_ID`, `MEDPLUM_CLIENT_SECRET`. La
-`ClientApplication` debe ser **admin del proyecto** (para poder crear bots).
+`MEDPLUM_BASE_URL` (`https://api.medplum.com.ar/`), `MEDPLUM_CLIENT_ID`,
+`MEDPLUM_CLIENT_SECRET` y `MEDPLUM_PROJECT_ID` (proyecto SOM
+`7ce5e559-f315-4538-abf2-61fa4922f996`). La `ClientApplication` debe ser **admin
+del proyecto** (para poder crear bots). Si las credenciales son de otro proyecto
+que `MEDPLUM_PROJECT_ID`, el deploy (y el seed) abortan sin escribir nada.
 
 ```bash
 npm run bots:bundle   # opcional: bundlea y muestra tamaños, sin conectarse
@@ -40,14 +43,29 @@ npm run deploy:bots   # crea (si faltan) + bundlea + deploya + guarda ids
 3. lo deploya (`POST Bot/{id}/$deploy`);
 4. guarda los ids en `medplum.config.json`.
 
-Es idempotente: reejecutar redeploya el código sobre los bots existentes.
+Es idempotente: reejecutar redeploya el código sobre los bots existentes. Los ids
+de `medplum.config.json` son del proyecto SOM: arrancan vacíos y los completa el
+primer `npm run deploy:bots`.
 
 ## Comunicaciones: secretos y comportamiento
 
 En Medplum los bots leen secretos de `event.secrets`, **no** de `process.env`
 (el `.env` de la raíz es solo para el seed/deploy, que corren en tu máquina). Los
 secretos se cargan como **Project Secrets** en el panel de Medplum
-(Project → Secrets).
+(Project → Secrets). **Nada de credenciales en el código ni en el repo**: Twilio y
+MercadoPago usan las credenciales propias de SOM.
+
+| Project Secret | Lo usa | ¿Obligatorio? |
+|---|---|---|
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | todos los envíos de WhatsApp | para enviar WhatsApp |
+| `TWILIO_WHATSAPP_FROM` | ídem (número de la WABA de EPA Bienestar IA, `whatsapp:+54...`) | para enviar WhatsApp |
+| `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas) | opcional |
+| `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago` | para cobrar por MP |
+| `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`) | opcional |
+| `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | **sí**, para invitar |
+| `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional |
+| `EMAIL_FROM` | `som-invitar-paciente` (remitente con marca) | opcional |
+| `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe) | opcional (sin él, informe mínimo) |
 
 **Regla de oro:** los helpers (`enviarWhatsApp` / `enviarEmail` en
 `src/bots/_shared.ts`) **siempre** registran la `Communication`, pero **solo
@@ -60,12 +78,21 @@ spamear a nadie. Estados resultantes:
 | Falta secreto / falta teléfono o email del paciente | `preparation` | no |
 | El proveedor (Twilio/SES) devuelve error | `entered-in-error` | no |
 
-### WhatsApp (Twilio)
+### WhatsApp (Twilio + WABA de EPA Bienestar IA)
+
+El envío sale por la cuenta **Twilio de SOM**, con la **WABA (WhatsApp Business
+Account) de EPA Bienestar IA** conectada como *WhatsApp sender* en Twilio:
 
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
-- `TWILIO_WHATSAPP_FROM` (formato `whatsapp:+549...`)
+- `TWILIO_WHATSAPP_FROM` (número de la WABA, formato `whatsapp:+549...`)
 - `RECEPCION_WHATSAPP_TO` (número de Recepción, para el aviso de **solicitudes** del portal)
+
+> Con la WABA real, los mensajes que inicia el negocio (confirmación,
+> recordatorios, invitación) fuera de la ventana de 24 h de WhatsApp solo salen
+> como **plantillas aprobadas por Meta**. Hoy el bot envía texto libre (`Body`):
+> sirve en sandbox o dentro de la ventana de 24 h; el envío con plantillas
+> (Twilio Content, `ContentSid`) queda pendiente.
 
 El destinatario sale de `Patient.telecom` (teléfono/SMS). El WhatsApp se dispara
 automático **al reservar** (turno tentativo), **al pagar la seña** (confirmado)
@@ -123,11 +150,10 @@ El bot toma el id del pago, hace `GET /v1/payments/{id}` con el token, y si est�
 `approved` confirma el turno por su `external_reference` (= appointmentId). Es
 idempotente (los reintentos de MP no duplican la seña).
 
-> **Retirado:** los bots `som-reservar-combo` (combos), `som-asignar-plan`
-> (membresías/paquetes) y `som-cobro-membresias` (cobro recurrente) eran del
-> catálogo BioWellness y se retiraron junto con
-> `src/config/{combos,membresias,paquetes}.ts`. Ver
-> [`decisiones-pendientes.md`](decisiones-pendientes.md).
+> **Retirado:** los bots de combos, de asignación de planes
+> (membresías/paquetes) y de cobro recurrente eran de un catálogo anterior, ajeno
+> a SOM, y se retiraron junto con `src/config/{combos,membresias,paquetes}.ts`.
+> Ver [`decisiones-pendientes.md`](decisiones-pendientes.md).
 
 ## Recordatorios automáticos (48 h / 2 h)
 
@@ -159,16 +185,16 @@ después):
 2. **Invitación al portal** (`som-invitar-paciente`): le da acceso de login para ver
    **lo suyo** (turnos/plan/pagos). Usa el **invite de Medplum** con
    `sendEmail:false` + `upsert:true` (reusa el `Patient` existente por email, no
-   duplica) y la AccessPolicy **"Paciente — Portal"**. Recupera el link mágico
+   duplica) y la AccessPolicy **"Paciente SOM — Portal"**. Recupera el link mágico
    (`/setpassword/{id}/{secret}`) y lo entrega por el canal elegido:
    - **whatsapp** → Twilio;
    - **email** → mail Segunda Opinión Médica (SES, `medplum.sendEmail`);
    - **qr** → devuelve el link y el front lo dibuja como **QR** (client-side, el
      link nunca sale a un tercero).
 
-   El link apunta al **portal del paciente** (FooMedical, `bio.medplum.com.ar`),
-   no a la app de recepción. Se configura con el secret **`PORTAL_BASE_URL`**
-   (default `https://bio.medplum.com.ar`).
+   El link apunta al **portal del paciente SOM**, no a la app de recepción. Sale
+   del Project Secret **`PORTAL_BASE_URL`**, que es **obligatorio**: sin él el bot
+   no invita (no hay default, para no mandar al paciente a un portal ajeno).
 
 ### Requisitos para invitar
 
@@ -180,11 +206,12 @@ después):
   mismo bot admin cubre invite + email. Asignar admin a su `ProjectMembership` en
   Medplum (igual que se crean los bots). Sin admin, devuelve un aviso claro.
 - Que el proyecto tenga la **feature `email`** habilitada (super admin).
-- Que exista la AccessPolicy **"Paciente — Portal"** (corré `npm run seed`).
+- Que exista la AccessPolicy **"Paciente SOM — Portal"** (corré `npm run seed`).
+- Que esté cargado el Project Secret `PORTAL_BASE_URL`.
 - Para alinear con el **auto-registro** del portal ("Crear cuenta"), conviene que
   el **default patient access policy** del proyecto Medplum sea también
-  "Paciente — Portal" (así el paciente que se registra solo y el invitado quedan
-  con el mismo alcance).
+  "Paciente SOM — Portal" (así el paciente que se registra solo y el invitado
+  quedan con el mismo alcance; `npm run diagnostico-acceso -- --apply` lo setea).
 
 > **Diagnóstico de email:** `npm run email:test -- correo@dominio` prueba la cadena
 > Medplum→SES. Si da `Forbidden`, la membership usada **no es admin** (requisito de

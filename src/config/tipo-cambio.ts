@@ -14,7 +14,7 @@ export function resolverTC(explicito?: number): number {
   if (typeof explicito === 'number' && explicito > 0) {
     return explicito;
   }
-  const env = process.env.BW_TC_DEFAULT;
+  const env = process.env.SOM_TC_DEFAULT;
   if (env) {
     const n = Number(env);
     if (Number.isFinite(n) && n > 0) {

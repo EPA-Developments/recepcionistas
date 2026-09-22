@@ -1,5 +1,6 @@
 import { BotEvent, MedplumClient, getReferenceString } from '@medplum/core';
 import type { Group, Patient, Communication } from '@medplum/fhirtypes';
+import { SYSTEM } from '../fhir/identifiers.js';
 
 /**
  * Bot: enviar-campana — envía una campaña a un segmento (Group) del CRM.
@@ -15,9 +16,8 @@ import type { Group, Patient, Communication } from '@medplum/fhirtypes';
  * Email: se envía por SES (medplum.sendEmail). WhatsApp: se deja el Communication
  * en 'preparation' para que lo despache el bot enviar-whatsapp / proveedor.
  */
-const BIO = 'https://bio.medplum.com.ar/fhir';
-const SID_CAMPANIA = `${BIO}/sid/campania`;
-const CAT_SYS = `${BIO}/CodeSystem/categoria-comunicacion`;
+const SID_CAMPANIA = SYSTEM.campania;
+const CAT_SYS = SYSTEM.categoriaComunicacion;
 
 interface CampanaInput {
   groupId: string;

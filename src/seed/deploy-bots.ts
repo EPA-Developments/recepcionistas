@@ -14,11 +14,12 @@ import 'dotenv/config';
 import { writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { build, type Plugin } from 'esbuild';
-import { MedplumClient } from '@medplum/core';
+import type { MedplumClient } from '@medplum/core';
 import type { Bot, Subscription } from '@medplum/fhirtypes';
-import { BOT_SOM_REPORT, COD, CONFIG_TC_ID, SYSTEM } from '../fhir/identifiers.js';
+import { BOT_SOM_REPORT, COD, SYSTEM } from '../fhir/identifiers.js';
+import { conectarMedplum } from './conexion.js';
 
-/** Runtime de los bots. Medplum Segunda Opinión Médica usa AWS Lambda. Configurable por env. */
+/** Runtime de los bots. El servidor Medplum de SOM usa AWS Lambda. Configurable por env. */
 const RUNTIME_VERSION = process.env.BOT_RUNTIME_VERSION ?? 'awslambda';
 
 interface DefBot {
@@ -76,26 +77,6 @@ async function bundle(source: string): Promise<string> {
   return result.outputFiles[0]!.text;
 }
 
-function requireEnv(nombre: string): string {
-  const v = process.env[nombre];
-  if (!v) {
-    throw new Error(`Falta la variable de entorno ${nombre} (ver .env.example).`);
-  }
-  return v;
-}
-
-async function resolverProjectId(medplum: MedplumClient): Promise<string> {
-  const fromProfile = medplum.getProfile()?.meta?.project;
-  if (fromProfile) {
-    return fromProfile;
-  }
-  const basic = await medplum.searchOne('Basic', `identifier=${CONFIG_TC_ID}`);
-  if (basic?.meta?.project) {
-    return basic.meta.project;
-  }
-  throw new Error('No pude determinar el projectId del proyecto Medplum.');
-}
-
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
 
@@ -112,10 +93,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  // 2) Conectar a Medplum.
-  const medplum = new MedplumClient({ baseUrl: requireEnv('MEDPLUM_BASE_URL'), fetch });
-  await medplum.startClientLogin(requireEnv('MEDPLUM_CLIENT_ID'), requireEnv('MEDPLUM_CLIENT_SECRET'));
-  const projectId = await resolverProjectId(medplum);
+  // 2) Conectar a Medplum (aborta si las credenciales no son de MEDPLUM_PROJECT_ID).
+  const { medplum, projectId } = await conectarMedplum();
   console.log(`\nConectado a Medplum (project ${projectId}).`);
 
   // 3) Asegurar + deployar cada bot.
