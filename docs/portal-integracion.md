@@ -1,7 +1,7 @@
 # Integración Recepción ↔ Portal del paciente
 
 Contrato de integración entre **esta app (recepción)** y el **portal del paciente
-de Segunda Opinión Médica** (repo `drdalessandro/app`, ver [`som.md`](som.md)),
+de Segunda Opinión Médica** (repo `EPA-Developments/app`, ver [`som.md`](som.md)),
 publicado en **`https://app.segundaopinionmedica.org`** (Project Secret
 `PORTAL_BASE_URL` para otros entornos).
 
@@ -16,12 +16,16 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
 - **AccessPolicy "Paciente SOM — Portal".** Es la **fuente de verdad**: `npm run
   seed` la aplica por `name`, así que el espejo del portal
   (`docs/medplum/access-policy-paciente-portal.json`) debe quedar idéntico.
-  El paciente **escribe** solo su autogestión (perfil, vitales, cuestionarios,
-  documentos, mensajes) y **lee** su compartimento clínico/financiero
-  (`Appointment`, `Invoice`, `DiagnosticReport`, `CarePlan`, `Goal`,
-  `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`, `RiskAssessment`)
-  más catálogo y agenda (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
-  `Goal` se sumó para el seguimiento GLP-1: actualizar el espejo del portal.
+  El paciente **escribe** su autogestión (perfil, vitales, cuestionarios,
+  documentos, mensajes) y lo que necesita el **Plan Bienestar** del portal, con
+  escritura acotada (`CarePlan` del plan, `Goal`, `Task` `intent=plan`,
+  `CareTeam`, `Condition` con los SNOMED del plan); **lee** su compartimento
+  clínico/financiero (`Appointment`, `Coverage`, `Invoice`, `DiagnosticReport`,
+  `CarePlan`, `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`,
+  `RiskAssessment`) más `PlanDefinition`, catálogo y agenda
+  (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
+  Sincronizada con el espejo en `EPA-Developments/app@f7be844`; `tests/seed.test.ts`
+  fija las entradas que usa el portal, porque `npm run seed` pisa la del servidor.
 - **Reserva por *solicitud*.** El paciente pide desde el portal y se crea un
   `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`** (lógica pura
   en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
@@ -118,8 +122,7 @@ Secrets (`RECEPCION_WHATSAPP_TO` y los de Twilio; ver [`bots.md`](bots.md)).
 
 ## Acceso al repo del portal desde Claude Code
 
-Una sesión de Claude Code on the web solo puede sumar repos **del mismo owner**
-que los de la sesión: el portal (`drdalessandro/app`) no se puede agregar a una
-sesión de `EPA-Developments/recepcionistas`. Para revisar ambos, abrir una sesión
-con el repo del portal como fuente (o mover el portal a `EPA-Developments`). Doc:
+El portal canónico es **`EPA-Developments/app`** (`drdalessandro/app` quedó
+congelado como archivo histórico). Como es del mismo owner que este repo, una
+sesión de Claude Code on the web puede sumar los dos repos a la vez. Doc:
 https://code.claude.com/docs/en/claude-code-on-the-web

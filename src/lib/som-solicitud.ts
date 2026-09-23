@@ -8,7 +8,7 @@
  *
  * Lógica pura (sin FHIR ni red): valida la entrada y arma el texto. El bot
  * orquesta (crea la `ServiceRequest`). El contrato de entrada lo fija el portal
- * (`drdalessandro/app`, `docs/medplum/bot-som-interface.md`) y NO se negocia.
+ * (`EPA-Developments/app`, `docs/medplum/bot-som-interface.md`) y NO se negocia.
  */
 export interface SolicitudSom {
   /** Paciente que solicita, ej. "Patient/123". */

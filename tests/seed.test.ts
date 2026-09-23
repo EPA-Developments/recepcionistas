@@ -69,6 +69,20 @@ describe('Seed — AccessPolicy de recepción (privacidad por diseño)', () => {
     expect(permitidos).not.toContain(BOT_GLP1_PLAN);
   });
 
+  // Los criterios `Bot?name=` son por PREFIJO: un nombre habilitado no puede ser el
+  // comienzo del nombre de un bot que Recepción no debe ejecutar.
+  it('Ningún bot habilitado es prefijo de un bot no habilitado', () => {
+    const config = JSON.parse(readFileSync(new URL('../medplum.config.json', import.meta.url), 'utf8')) as {
+      bots: Array<{ name: string }>;
+    };
+    const habilitados = new Set<string>(BOTS_RECEPCION);
+    const otros = config.bots.map((b) => b.name).filter((n) => !habilitados.has(n));
+    expect(otros).toContain(BOT_GLP1_PLAN);
+    for (const h of habilitados) {
+      expect(otros.filter((o) => o.startsWith(h))).toEqual([]);
+    }
+  });
+
   it('Cubre todos los bots que llama la app de recepción', () => {
     const fuente = readFileSync(new URL('../app/src/lib/bots.ts', import.meta.url), 'utf8');
     const llamados = [...fuente.matchAll(/botIdPorNombre\('([^']+)'\)/g)].map((m) => m[1]);
@@ -80,9 +94,42 @@ describe('Seed — AccessPolicy de recepción (privacidad por diseño)', () => {
 });
 
 describe('Seed — AccessPolicy del portal del paciente', () => {
-  it('El paciente lee su meta del programa (Goal), solo la suya', () => {
-    const portal = seed.accessPolicies.find((p) => p.name === 'Paciente SOM — Portal')!;
-    const goal = portal.resource?.find((r) => r.resourceType === 'Goal');
-    expect(goal).toMatchObject({ readonly: true, criteria: 'Goal?subject=%patient' });
+  const portal = seed.accessPolicies.find((p) => p.name === 'Paciente SOM — Portal')!;
+  const entradas = (portal.resource ?? []).map((r) => `${r.resourceType}${r.readonly ? ' (lectura)' : ''} ${r.criteria ?? ''}`.trim());
+
+  it('Lee su seguimiento GLP-1: plan, meta, controles, pedidos y turnos (solo lo suyo)', () => {
+    expect(entradas).toEqual(
+      expect.arrayContaining([
+        'CarePlan (lectura) CarePlan?subject=%patient',
+        'Goal Goal?subject=%patient',
+        'Task (lectura) Task?patient=%patient',
+        'ServiceRequest (lectura) ServiceRequest?subject=%patient',
+        'Appointment (lectura) Appointment?actor=%patient',
+      ]),
+    );
+  });
+
+  // `npm run seed` pisa la policy del servidor: si faltan estas entradas, se rompe el
+  // Plan Bienestar del portal (espejo en EPA-Developments/app, docs/medplum/).
+  it('Conserva lo que necesita el Plan Bienestar del portal (escritura acotada)', () => {
+    expect(entradas).toEqual(
+      expect.arrayContaining([
+        'CarePlan CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/menopausia-cardiovascular',
+        'Task Task?patient=%patient&intent=plan',
+        'CareTeam CareTeam?subject=%patient',
+        'Condition (lectura) Condition?subject=%patient',
+        'PlanDefinition (lectura)',
+        'Coverage (lectura) Coverage?beneficiary=%patient',
+      ]),
+    );
+    // Escribe Condition solo con los hallazgos SNOMED del plan, nunca en general.
+    expect(entradas.filter((e) => e.startsWith('Condition Condition?') && !e.includes('&code='))).toEqual([]);
+  });
+
+  it('Solo ejecuta sus dos bots', () => {
+    expect(entradas.filter((e) => e.startsWith('Bot'))).toEqual([
+      'Bot (lectura) Bot?name=som-solicitar-turno',
+      'Bot (lectura) Bot?name=som-solicitar',
+    ]);
   });
 });

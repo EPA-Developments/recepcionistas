@@ -22,7 +22,7 @@ Naming: **kebab-case**.
 | **Basic** | Configuración (TC vigente) | `tc-aplicado` |
 | **ServiceRequest / RiskAssessment / DiagnosticReport** | Contrato SOM con el portal (solicitud + informe) | `som-origin`, `som-sections` |
 | **PlanDefinition** | Plantilla del seguimiento GLP-1 (`PlanDefinition/seguimiento-glp1`) | — |
-| **CarePlan / Goal** | Programa GLP-1 del paciente y su meta de peso | (category `CodeSystem/programa`) |
+| **CarePlan / Goal** | Programa GLP-1 del paciente y su meta de peso | (category `CodeSystem/care-plans`, compartido con la app del paciente) |
 | **ServiceRequest** (laboratorio) | Pedidos de estudios del programa GLP-1, por semana | (code `CodeSystem/biomarcador`) |
 | **Task** | Solicitudes de turno, controles GLP-1 a agendar, indicación GLP-1 | (code `CodeSystem/task-tipo`) |
 | **AuditEvent** | Log regulatorio (nativo Medplum) | — |

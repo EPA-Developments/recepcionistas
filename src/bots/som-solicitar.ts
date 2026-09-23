@@ -10,7 +10,7 @@
  * `Bot?name=som-solicitar`) y solo lee sus propias `ServiceRequest`. El bot debe
  * crearse con `runAsUser` para que el `subject`/`requester` no se pueda falsificar.
  *
- * Contrato (entrada/salida) fijado por el portal (`drdalessandro/app`,
+ * Contrato (entrada/salida) fijado por el portal (`EPA-Developments/app`,
  * `docs/medplum/bot-som-interface.md`). NO cambiar sin sincronizar con el portal.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';

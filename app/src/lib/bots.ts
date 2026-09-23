@@ -29,7 +29,8 @@ export function mensajeError(e: unknown): string {
 }
 
 async function botIdPorNombre(nombre: string): Promise<string> {
-  const bot = await medplum.searchOne('Bot', `name=${nombre}`);
+  // `name:exact`: `name=` busca por prefijo en FHIR (un bot podría tapar a otro).
+  const bot = await medplum.searchOne('Bot', `name:exact=${nombre}`);
   if (!bot?.id) {
     throw new Error(
       `El bot "${nombre}" no está desplegado todavía. Desplegá los bots (npm run deploy:bots) para activar esta función.`,

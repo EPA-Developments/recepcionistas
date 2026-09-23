@@ -1,17 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import {
+  codigoPedido,
   validarSolicitud,
   resumenSolicitud,
   preferenciaLegible,
   mensajeWhatsAppRecepcion,
+  servicioPedido,
   type SolicitudTurno,
 } from '../src/lib/solicitudes.js';
 
-const base: SolicitudTurno = { pacienteRef: 'Patient/123', terapia: 'Segunda opinión — Cardiología' };
+// Contrato del portal (EPA-Developments/app, src/fhir/solicitudes.ts).
+const base: SolicitudTurno = { pacienteRef: 'Patient/123', servicio: 'Segunda opinión — Cardiología', servicioCodigo: 'CONSULTA_CARDIO' };
 
 describe('Solicitudes de turno — validación', () => {
-  it('OK con paciente y terapia', () => {
+  it('OK con paciente y servicio (lo que manda el portal)', () => {
     expect(validarSolicitud(base)).toEqual({ ok: true });
+  });
+
+  it('Sigue aceptando el contrato anterior (terapia / terapiaCodigo)', () => {
+    const vieja: SolicitudTurno = { pacienteRef: 'Patient/123', terapia: 'Cardiología', terapiaCodigo: 'CARDIOLOGIA' };
+    expect(validarSolicitud(vieja)).toEqual({ ok: true });
+    expect(servicioPedido(vieja)).toBe('Cardiología');
+    expect(codigoPedido(vieja)).toBe('CARDIOLOGIA');
+    expect(codigoPedido(base)).toBe('CONSULTA_CARDIO');
   });
 
   it('Rechaza sin paciente o ref inválida', () => {
@@ -19,8 +30,9 @@ describe('Solicitudes de turno — validación', () => {
     expect(validarSolicitud({ ...base, pacienteRef: '123' }).ok).toBe(false);
   });
 
-  it('Rechaza sin terapia', () => {
-    expect(validarSolicitud({ ...base, terapia: '   ' }).ok).toBe(false);
+  it('Rechaza sin servicio', () => {
+    expect(validarSolicitud({ ...base, servicio: '   ' }).ok).toBe(false);
+    expect(validarSolicitud({ pacienteRef: 'Patient/123' }).ok).toBe(false);
   });
 
   it('Rechaza fecha preferida inválida', () => {
@@ -47,10 +59,32 @@ describe('Solicitudes de turno — textos', () => {
     expect(r).toContain('vengo con un amigo');
   });
 
-  it('mensajeWhatsAppRecepcion incluye el nombre y la terapia', () => {
+  it('mensajeWhatsAppRecepcion incluye el nombre y el servicio', () => {
     const m = mensajeWhatsAppRecepcion({ ...base, preferenciaTexto: 'mañana' }, 'Juan Pérez');
     expect(m).toContain('Juan Pérez');
     expect(m).toContain('Segunda opinión — Cardiología');
     expect(m).toContain('mañana');
+  });
+});
+
+describe('Bot som-solicitar-turno con el payload del portal', () => {
+  it('Crea la solicitud con servicio y código (antes rechazaba "Elegí una terapia")', async () => {
+    const { handler } = await import('../src/bots/solicitar-turno.js');
+    const { fakeMedplum } = await import('./fake-medplum.js');
+    const { medplum, todos } = fakeMedplum([{ resourceType: 'Patient', id: '123', name: [{ given: ['Ana'], family: 'Pérez' }] }]);
+    // Lo que manda `crearSolicitud` del portal: { pacienteRef, ...NuevaSolicitud }.
+    const r = await handler(medplum, {
+      input: { pacienteRef: 'Patient/123', servicio: 'Consulta cardiológica', servicioCodigo: 'CONSULTA_CARDIO', nota: 'por la tarde' },
+      secrets: {},
+    } as never);
+
+    expect(r).toMatchObject({ ok: true, avisada: false });
+    const [task] = todos<import('@medplum/fhirtypes').Task>('Task');
+    expect(task?.description).toContain('Consulta cardiológica');
+    expect(task?.input?.map((i) => [i.type?.text, i.valueString])).toEqual([
+      ['servicio', 'Consulta cardiológica'],
+      ['servicio-codigo', 'CONSULTA_CARDIO'],
+      ['nota', 'por la tarde'],
+    ]);
   });
 });

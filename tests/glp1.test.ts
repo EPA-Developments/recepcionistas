@@ -178,7 +178,10 @@ describe('GLP-1 · recursos FHIR del programa', () => {
   it('CarePlan: instancia la plantilla, esquema de titulación + visitas', () => {
     const cp = construirCarePlan(DM2, cal, 'Goal/g1', ahora);
     expect(cp.instantiatesCanonical?.[0]).toBe(`${PLAN_GLP1_URL}|1`);
-    expect(cp.category?.[0]?.coding?.[0]?.code).toBe(COD.seguimientoGlp1);
+    expect(cp.category?.[0]?.coding?.[0]).toMatchObject({
+      system: 'https://segundaopinionmedica.org/fhir/CodeSystem/care-plans',
+      code: COD.seguimientoGlp1,
+    });
     expect(cp.activity?.[0]?.detail?.description).toBe(
       'Titulación: 0,25 mg semanal × 4 sem → 0,5 mg semanal × 4 sem → 1 mg semanal (dosis terapéutica). Dosis terapéutica desde la semana 8.',
     );

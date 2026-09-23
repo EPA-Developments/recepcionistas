@@ -44,7 +44,7 @@ seguridad es un `Flag` de solo lectura (señal verde/rojo, sin detalle clínico)
 |---|---|---|
 | Recepción — Operativo | Recepcionistas | Operativo, sin historia clínica |
 | Director Médico — Clínico completo | Dirección médica | Todo |
-| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; lectura de turnos, pagos, solicitudes, informes y sus programas de seguimiento (`CarePlan`, `Goal`) |
+| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; su Plan Bienestar (escritura acotada); lectura de turnos, pagos, solicitudes, informes y sus programas de seguimiento (`CarePlan`, `Goal`, `Task`) |
 
 Los roles clínicos del equipo médico de SOM están **por definir** (los del
 catálogo anterior se retiraron). Los médicos se invitan igual que la
@@ -53,7 +53,7 @@ programa GLP-1 (`som-glp1-plan`) lo ejecuta "Director Médico — Clínico compl
 
 ## Pacientes y el portal
 
-El **portal del paciente** es una app aparte (repo `drdalessandro/app`, ver
+El **portal del paciente** es una app aparte (repo `EPA-Developments/app`, ver
 [`som.md`](som.md)), publicada en `https://app.segundaopinionmedica.org`.
 Ahí el paciente puede **auto-registrarse** ("Crear cuenta") e iniciar sesión. La
 AccessPolicy **"Paciente SOM — Portal"** (`src/fhir/access-policies.ts`) es la que

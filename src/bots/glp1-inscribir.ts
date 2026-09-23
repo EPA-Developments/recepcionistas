@@ -46,7 +46,7 @@ export async function handler(
     const activo = await medplum.searchOne('CarePlan', {
       subject: pacienteRef,
       status: 'active',
-      category: `${SYSTEM.programa}|${COD.seguimientoGlp1}`,
+      category: `${SYSTEM.planCuidado}|${COD.seguimientoGlp1}`,
     });
     if (activo?.id) {
       const porAgendar = await medplum.searchResources('Task', {

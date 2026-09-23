@@ -139,7 +139,7 @@ Namespace `https://segundaopinionmedica.org/fhir` (`src/fhir/identifiers.ts`).
 | Recurso | Qué es | Claves |
 |---|---|---|
 | `PlanDefinition` | Plantilla del programa (la carga el seed). | `url` `…/PlanDefinition/seguimiento-glp1`, `version` 1; acciones → `ActivityDefinition` `CONTROL_GLP1` |
-| `CarePlan` | El programa del paciente (uno activo por paciente). | `category` `…/CodeSystem/programa\|seguimiento-glp1`; `instantiatesCanonical` a la plantilla; actividad de medicación + una por visita (`scheduledPeriod` = ventana) |
+| `CarePlan` | El programa del paciente (uno activo por paciente). | `category` `…/CodeSystem/care-plans\|seguimiento-glp1` (mismo sistema que el Plan Bienestar de la app); `instantiatesCanonical` a la plantilla; actividad de medicación + una por visita (`scheduledPeriod` = ventana) |
 | `Goal` | Meta: ≥ 5 % de descenso del peso basal en la revisión. | LOINC 29463-7; `dueDate` = fecha de la revisión |
 | `ServiceRequest` | Un pedido por estudio y semana. | `code` `…/CodeSystem/biomarcador\|{slug}`; `category` SNOMED 108252007; `requisition` agrupa la semana; `basedOn` el `CarePlan`; `occurrencePeriod` = ventana |
 | `Task` `agendar-control-glp1` | Lo que ve Recepción: un control por semana. | `code` `…/CodeSystem/task-tipo\|agendar-control-glp1`; `restriction.period` = ventana; `input`: `semana`, `requiere-laboratorio`, `servicio`; al agendar, `output` → `Appointment` |
@@ -164,9 +164,15 @@ pendiente que ya no va, y lo cerrado nunca se pisa.
 
 ## App del paciente (slice 2) y unificación con CKM
 
-Contrato para el portal (`drdalessandro/app`), todo de solo lectura:
+Prompt de arranque para la sesión del portal: [`handoff-app-glp1.md`](handoff-app-glp1.md).
 
-- `CarePlan?subject=%patient&category=…/CodeSystem/programa|seguimiento-glp1&status=active`
+Contrato para el portal (`EPA-Developments/app`), todo de solo lectura. Ejemplo
+completo de lo que lee el paciente (DM2, retinopatía, peso basal 92 kg, basal ya
+agendado): [`docs/ejemplos/glp1-paciente.json`](ejemplos/glp1-paciente.json). Lo
+generan los bots reales y `tests/glp1-ejemplo.test.ts` falla si deja de coincidir
+(regenerar con `ACTUALIZAR_EJEMPLOS=1 npx vitest run tests/glp1-ejemplo.test.ts`).
+
+- `CarePlan?subject=%patient&category=…/CodeSystem/care-plans|seguimiento-glp1&status=active`
   → el programa: título, esquema (actividad `MedicationRequest`), visitas con sus
   ventanas y la nota con la revisión de respuesta.
 - `Goal` referenciado por el `CarePlan` → la meta de peso y la fecha de la
@@ -179,6 +185,26 @@ Contrato para el portal (`drdalessandro/app`), todo de solo lectura:
 
 Las solicitudes de segunda opinión se distinguen por su `code`
 (`som-services|som-cardiology`): el portal no debe mezclarlas con estos pedidos.
+
+Estudios: el `code` de los pedidos es el **slug** del catálogo de biomarcadores
+de CKM (`…/CodeSystem/biomarcador`), que **no** es el catálogo de la app (LOINC,
+o `…/CodeSystem/biomarker` para los que no tienen LOINC). Equivalencias
+(los LOINC de la app son provisionales, ver su `Biomarkers.data.ts`):
+
+| Slug | Nombre visible | Código en el catálogo de la app |
+|---|---|---|
+| `hba1c` | Hemoglobina glicosilada (HbA1c) | LOINC 4548-4 |
+| `glucosa-en-ayunas` | Glucemia en ayunas | LOINC 1558-6 |
+| `insulina-en-ayunas` | Insulina (ayunas) | LOINC 2484-4 |
+| `homa-ir` | Índice HOMA-IR | `…/CodeSystem/biomarker\|homa-ir` |
+| `colesterol-total` | Colesterol total | LOINC 2093-3 |
+| `hdl-colesterol` | Colesterol HDL | LOINC 2085-9 |
+| `ldl-colesterol` | Colesterol LDL | LOINC 13457-7 |
+| `trigliceridos` | Triglicéridos | LOINC 2571-8 |
+| `creatinina` | Creatinina | — (no está en el catálogo de la app) |
+| `egfr-tfg-estimada` | Filtrado glomerular estimado (eGFR) | — |
+| `ast-got` | AST (TGO) | — |
+| `alt-tgp` | ALT (TGP) | — |
 
 **Unificación con CKM (opción C):** `src/lib/glp1/` se mantiene igual al original
 (solo cambian los imports). `titration.ts` y `eligibility.ts` son contratos

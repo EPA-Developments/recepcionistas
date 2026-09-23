@@ -1,0 +1,2192 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      {
+        "code": "ejemplo",
+        "display": "Generado por los bots de recepcionistas (tests/glp1-ejemplo.test.ts)"
+      }
+    ]
+  },
+  "entry": [
+    {
+      "fullUrl": "CarePlan/careplan-3",
+      "resource": {
+        "resourceType": "CarePlan",
+        "status": "active",
+        "intent": "plan",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "paciente-ejemplo:2026-10-05"
+          }
+        ],
+        "instantiatesCanonical": [
+          "https://segundaopinionmedica.org/fhir/PlanDefinition/seguimiento-glp1|1"
+        ],
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "https://segundaopinionmedica.org/fhir/CodeSystem/care-plans",
+                "code": "seguimiento-glp1",
+                "display": "Seguimiento de tratamiento GLP-1"
+              }
+            ]
+          }
+        ],
+        "title": "Seguimiento de tratamiento GLP-1 — Semaglutida con esquema de diabetes tipo 2",
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "period": {
+          "start": "2026-10-05"
+        },
+        "created": "2026-09-23T12:00:00.000Z",
+        "goal": [
+          {
+            "reference": "Goal/goal-2"
+          }
+        ],
+        "activity": [
+          {
+            "detail": {
+              "kind": "MedicationRequest",
+              "status": "in-progress",
+              "productCodeableConcept": {
+                "text": "Semaglutida"
+              },
+              "description": "Titulación: 0,25 mg semanal × 4 sem → 0,5 mg semanal × 4 sem → 1 mg semanal (dosis terapéutica). Dosis terapéutica desde la semana 8."
+            }
+          },
+          {
+            "detail": {
+              "kind": "Appointment",
+              "status": "not-started",
+              "code": {
+                "text": "Basal"
+              },
+              "scheduledPeriod": {
+                "start": "2026-09-28",
+                "end": "2026-10-05"
+              },
+              "description": "Dejar registrado el punto de partida. Sin esto no hay forma de decir después si el tratamiento sirvió. Controles: Peso e IMC; Circunferencia de cintura; Presión arterial; Frecuencia cardíaca; Composición corporal si está disponible (masa magra, no solo peso); Repaso de antecedentes: pancreatitis, vesícula, tiroides, embarazo; Enseñar técnica de aplicación y qué esperar los primeros días. Estudios: hba1c, glucosa-en-ayunas, insulina-en-ayunas, homa-ir, colesterol-total, hdl-colesterol, ldl-colesterol, trigliceridos, creatinina, egfr-tfg-estimada, ast-got, alt-tgp."
+            }
+          },
+          {
+            "detail": {
+              "kind": "Appointment",
+              "status": "not-started",
+              "code": {
+                "text": "Semana 4"
+              },
+              "scheduledPeriod": {
+                "start": "2026-11-02",
+                "end": "2026-11-09"
+              },
+              "description": "Tolerancia y adherencia. Es la visita que decide si se sube la dosis o se sostiene el escalón. Controles: Tolerancia digestiva (náuseas, vómitos, constipación); Peso y presión arterial; Técnica de aplicación y adherencia real; Ingesta proteica y actividad de fuerza."
+            }
+          },
+          {
+            "detail": {
+              "kind": "Appointment",
+              "status": "not-started",
+              "code": {
+                "text": "Semana 12"
+              },
+              "scheduledPeriod": {
+                "start": "2026-12-28",
+                "end": "2027-01-04"
+              },
+              "description": "Primer balance objetivo, con el tratamiento ya en marcha. Controles: Peso e IMC; Circunferencia de cintura; Presión arterial; Frecuencia cardíaca; Porcentaje de peso perdido respecto del basal; Tolerancia y efectos adversos. Estudios: hba1c, glucosa-en-ayunas."
+            }
+          },
+          {
+            "detail": {
+              "kind": "Appointment",
+              "status": "not-started",
+              "code": {
+                "text": "Semana 12 · oftalmología"
+              },
+              "scheduledPeriod": {
+                "start": "2026-12-28",
+                "end": "2027-01-04"
+              },
+              "description": "Control de retinopatía por la corrección glucémica rápida. Controles: Fondo de ojo."
+            }
+          },
+          {
+            "detail": {
+              "kind": "Appointment",
+              "status": "not-started",
+              "code": {
+                "text": "Semana 20 · revisión de respuesta"
+              },
+              "scheduledPeriod": {
+                "start": "2027-02-22",
+                "end": "2027-03-01"
+              },
+              "description": "Decisión de continuar. Cae 12 semanas después de llegar a dosis terapéutica (semana 8), que es cuando el resultado ya es interpretable. Controles: Peso e IMC; Circunferencia de cintura; Presión arterial; Frecuencia cardíaca; Porcentaje de peso perdido respecto del basal; Composición corporal si está disponible; Revisar si la dosis alcanzada es la máxima tolerada. Estudios: hba1c, glucosa-en-ayunas, creatinina, egfr-tfg-estimada."
+            }
+          },
+          {
+            "detail": {
+              "kind": "Appointment",
+              "status": "not-started",
+              "code": {
+                "text": "Semana 26"
+              },
+              "scheduledPeriod": {
+                "start": "2027-04-05",
+                "end": "2027-04-12"
+              },
+              "description": "Control completo: eficacia metabólica y seguridad renal y hepática. Controles: Peso e IMC; Circunferencia de cintura; Presión arterial; Frecuencia cardíaca; Composición corporal; Reevaluar estadio CKM. Estudios: hba1c, glucosa-en-ayunas, insulina-en-ayunas, homa-ir, colesterol-total, hdl-colesterol, ldl-colesterol, trigliceridos, creatinina, egfr-tfg-estimada."
+            }
+          }
+        ],
+        "note": [
+          {
+            "text": "Revisión de respuesta en la semana 20 (desde el 22/02/2027): Descenso de al menos 5 % del peso basal. Con menos, revisar antes de concluir que el tratamiento no sirve. Antes de concluir que no responde: ¿Llegó a la dosis terapéutica, o quedó frenado en un escalón por intolerancia? ¿La aplicación es correcta y no hay salteos? (en la presentación oral, el ayuno y los 30 minutos son condición de absorción) ¿Hay algo que empuje en contra: corticoides, antipsicóticos, hipotiroidismo sin tratar? ¿El plan alimentario y la actividad de fuerza están sostenidos? Recién después: considerar cambio de molécula."
+          }
+        ],
+        "id": "careplan-3"
+      }
+    },
+    {
+      "fullUrl": "Goal/goal-2",
+      "resource": {
+        "resourceType": "Goal",
+        "lifecycleStatus": "active",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "paciente-ejemplo:2026-10-05:meta-peso"
+          }
+        ],
+        "description": {
+          "text": "Descenso de al menos 5 % del peso basal en la revisión de respuesta (semana 20)."
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "startDate": "2026-10-05",
+        "target": [
+          {
+            "measure": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "29463-7",
+                  "display": "Body weight"
+                }
+              ]
+            },
+            "detailQuantity": {
+              "value": 87.4,
+              "comparator": "<=",
+              "unit": "kg",
+              "system": "http://unitsofmeasure.org",
+              "code": "kg"
+            },
+            "dueDate": "2027-02-22"
+          }
+        ],
+        "note": [
+          {
+            "text": "Descenso de al menos 5 % del peso basal. Con menos, revisar antes de concluir que el tratamiento no sirve."
+          }
+        ],
+        "id": "goal-2"
+      }
+    },
+    {
+      "fullUrl": "Task/task-1",
+      "resource": {
+        "resourceType": "Task",
+        "status": "completed",
+        "intent": "order",
+        "priority": "routine",
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/task-tipo",
+              "code": "indicacion-glp1"
+            }
+          ],
+          "text": "Completar indicación GLP-1"
+        },
+        "description": "Seguimiento de tratamiento GLP-1: completar la indicación (molécula, indicación y esquema de titulación) para que el sistema arme el calendario de controles.",
+        "for": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "id": "task-1",
+        "output": [
+          {
+            "type": {
+              "text": "plan"
+            },
+            "valueReference": {
+              "reference": "CarePlan/careplan-3"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "Task/task-32",
+      "resource": {
+        "resourceType": "Task",
+        "status": "completed",
+        "intent": "order",
+        "priority": "routine",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/task-tipo",
+              "code": "agendar-control-glp1"
+            }
+          ],
+          "text": "Agendar control GLP-1"
+        },
+        "description": "Control GLP-1 · basal · agendar entre el 28/09/2026 y el 05/10/2026 · traer laboratorio",
+        "for": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "restriction": {
+          "period": {
+            "start": "2026-09-28",
+            "end": "2026-10-05"
+          }
+        },
+        "input": [
+          {
+            "type": {
+              "text": "semana"
+            },
+            "valueInteger": 0
+          },
+          {
+            "type": {
+              "text": "requiere-laboratorio"
+            },
+            "valueBoolean": true
+          },
+          {
+            "type": {
+              "text": "servicio"
+            },
+            "valueString": "CONTROL_GLP1"
+          }
+        ],
+        "id": "task-32",
+        "lastModified": "2026-09-23T12:00:00.000Z",
+        "output": [
+          {
+            "type": {
+              "text": "turno"
+            },
+            "valueReference": {
+              "reference": "Appointment/appointment-38"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "Task/task-33",
+      "resource": {
+        "resourceType": "Task",
+        "status": "requested",
+        "intent": "order",
+        "priority": "routine",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-4"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/task-tipo",
+              "code": "agendar-control-glp1"
+            }
+          ],
+          "text": "Agendar control GLP-1"
+        },
+        "description": "Control GLP-1 · semana 4 · agendar entre el 02/11/2026 y el 09/11/2026",
+        "for": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "restriction": {
+          "period": {
+            "start": "2026-11-02",
+            "end": "2026-11-09"
+          }
+        },
+        "input": [
+          {
+            "type": {
+              "text": "semana"
+            },
+            "valueInteger": 4
+          },
+          {
+            "type": {
+              "text": "requiere-laboratorio"
+            },
+            "valueBoolean": false
+          },
+          {
+            "type": {
+              "text": "servicio"
+            },
+            "valueString": "CONTROL_GLP1"
+          }
+        ],
+        "id": "task-33"
+      }
+    },
+    {
+      "fullUrl": "Task/task-34",
+      "resource": {
+        "resourceType": "Task",
+        "status": "requested",
+        "intent": "order",
+        "priority": "routine",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-12"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/task-tipo",
+              "code": "agendar-control-glp1"
+            }
+          ],
+          "text": "Agendar control GLP-1"
+        },
+        "description": "Control GLP-1 · semana 12 · agendar entre el 28/12/2026 y el 04/01/2027 · traer laboratorio",
+        "for": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "restriction": {
+          "period": {
+            "start": "2026-12-28",
+            "end": "2027-01-04"
+          }
+        },
+        "input": [
+          {
+            "type": {
+              "text": "semana"
+            },
+            "valueInteger": 12
+          },
+          {
+            "type": {
+              "text": "requiere-laboratorio"
+            },
+            "valueBoolean": true
+          },
+          {
+            "type": {
+              "text": "servicio"
+            },
+            "valueString": "CONTROL_GLP1"
+          }
+        ],
+        "id": "task-34"
+      }
+    },
+    {
+      "fullUrl": "Task/task-35",
+      "resource": {
+        "resourceType": "Task",
+        "status": "requested",
+        "intent": "order",
+        "priority": "routine",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-20"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/task-tipo",
+              "code": "agendar-control-glp1"
+            }
+          ],
+          "text": "Agendar control GLP-1"
+        },
+        "description": "Control GLP-1 · semana 20 · agendar entre el 22/02/2027 y el 01/03/2027 · traer laboratorio",
+        "for": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "restriction": {
+          "period": {
+            "start": "2027-02-22",
+            "end": "2027-03-01"
+          }
+        },
+        "input": [
+          {
+            "type": {
+              "text": "semana"
+            },
+            "valueInteger": 20
+          },
+          {
+            "type": {
+              "text": "requiere-laboratorio"
+            },
+            "valueBoolean": true
+          },
+          {
+            "type": {
+              "text": "servicio"
+            },
+            "valueString": "CONTROL_GLP1"
+          }
+        ],
+        "id": "task-35"
+      }
+    },
+    {
+      "fullUrl": "Task/task-36",
+      "resource": {
+        "resourceType": "Task",
+        "status": "requested",
+        "intent": "order",
+        "priority": "routine",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/task-tipo",
+              "code": "agendar-control-glp1"
+            }
+          ],
+          "text": "Agendar control GLP-1"
+        },
+        "description": "Control GLP-1 · semana 26 · agendar entre el 05/04/2027 y el 12/04/2027 · traer laboratorio",
+        "for": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "restriction": {
+          "period": {
+            "start": "2027-04-05",
+            "end": "2027-04-12"
+          }
+        },
+        "input": [
+          {
+            "type": {
+              "text": "semana"
+            },
+            "valueInteger": 26
+          },
+          {
+            "type": {
+              "text": "requiere-laboratorio"
+            },
+            "valueBoolean": true
+          },
+          {
+            "type": {
+              "text": "servicio"
+            },
+            "valueString": "CONTROL_GLP1"
+          }
+        ],
+        "id": "task-36"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-4",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:hba1c"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "hba1c"
+            }
+          ],
+          "text": "hba1c"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-4"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-5",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:glucosa-en-ayunas"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "glucosa-en-ayunas"
+            }
+          ],
+          "text": "glucosa en ayunas"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-5"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-6",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:insulina-en-ayunas"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "insulina-en-ayunas"
+            }
+          ],
+          "text": "insulina en ayunas"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-6"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-7",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:homa-ir"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "homa-ir"
+            }
+          ],
+          "text": "homa ir"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-7"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-8",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:colesterol-total"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "colesterol-total"
+            }
+          ],
+          "text": "colesterol total"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-8"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-9",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:hdl-colesterol"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "hdl-colesterol"
+            }
+          ],
+          "text": "hdl colesterol"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-9"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-10",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:ldl-colesterol"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "ldl-colesterol"
+            }
+          ],
+          "text": "ldl colesterol"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-10"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-11",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:trigliceridos"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "trigliceridos"
+            }
+          ],
+          "text": "trigliceridos"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-11"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-12",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:creatinina"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "creatinina"
+            }
+          ],
+          "text": "creatinina"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-12"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-13",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:egfr-tfg-estimada"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "egfr-tfg-estimada"
+            }
+          ],
+          "text": "egfr tfg estimada"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-13"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-14",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:ast-got"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "ast-got"
+            }
+          ],
+          "text": "ast got"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-14"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-15",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-0:alt-tgp"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-0"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "alt-tgp"
+            }
+          ],
+          "text": "alt tgp"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-09-28",
+          "end": "2026-10-05"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · basal (antes de la primera aplicación)"
+          }
+        ],
+        "id": "servicerequest-15"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-16",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-12:hba1c"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-12"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "hba1c"
+            }
+          ],
+          "text": "hba1c"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-12-28",
+          "end": "2027-01-04"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 12"
+          }
+        ],
+        "id": "servicerequest-16"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-17",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-12:glucosa-en-ayunas"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-12"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "glucosa-en-ayunas"
+            }
+          ],
+          "text": "glucosa en ayunas"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2026-12-28",
+          "end": "2027-01-04"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 12"
+          }
+        ],
+        "id": "servicerequest-17"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-18",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-20:hba1c"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-20"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "hba1c"
+            }
+          ],
+          "text": "hba1c"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-02-22",
+          "end": "2027-03-01"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 20"
+          }
+        ],
+        "id": "servicerequest-18"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-19",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-20:glucosa-en-ayunas"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-20"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "glucosa-en-ayunas"
+            }
+          ],
+          "text": "glucosa en ayunas"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-02-22",
+          "end": "2027-03-01"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 20"
+          }
+        ],
+        "id": "servicerequest-19"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-20",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-20:creatinina"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-20"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "creatinina"
+            }
+          ],
+          "text": "creatinina"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-02-22",
+          "end": "2027-03-01"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 20"
+          }
+        ],
+        "id": "servicerequest-20"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-21",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-20:egfr-tfg-estimada"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-20"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "egfr-tfg-estimada"
+            }
+          ],
+          "text": "egfr tfg estimada"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-02-22",
+          "end": "2027-03-01"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 20"
+          }
+        ],
+        "id": "servicerequest-21"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-22",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:hba1c"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "hba1c"
+            }
+          ],
+          "text": "hba1c"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-22"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-23",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:glucosa-en-ayunas"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "glucosa-en-ayunas"
+            }
+          ],
+          "text": "glucosa en ayunas"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-23"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-24",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:insulina-en-ayunas"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "insulina-en-ayunas"
+            }
+          ],
+          "text": "insulina en ayunas"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-24"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-25",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:homa-ir"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "homa-ir"
+            }
+          ],
+          "text": "homa ir"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-25"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-26",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:colesterol-total"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "colesterol-total"
+            }
+          ],
+          "text": "colesterol total"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-26"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-27",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:hdl-colesterol"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "hdl-colesterol"
+            }
+          ],
+          "text": "hdl colesterol"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-27"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-28",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:ldl-colesterol"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "ldl-colesterol"
+            }
+          ],
+          "text": "ldl colesterol"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-28"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-29",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:trigliceridos"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "trigliceridos"
+            }
+          ],
+          "text": "trigliceridos"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-29"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-30",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:creatinina"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "creatinina"
+            }
+          ],
+          "text": "creatinina"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-30"
+      }
+    },
+    {
+      "fullUrl": "ServiceRequest/servicerequest-31",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "status": "active",
+        "intent": "order",
+        "identifier": [
+          {
+            "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+            "value": "careplan-3:semana-26:egfr-tfg-estimada"
+          }
+        ],
+        "requisition": {
+          "system": "https://segundaopinionmedica.org/fhir/Identifier/programa-glp1",
+          "value": "careplan-3:semana-26"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "108252007",
+                "display": "Laboratory procedure"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://segundaopinionmedica.org/fhir/CodeSystem/biomarcador",
+              "code": "egfr-tfg-estimada"
+            }
+          ],
+          "text": "egfr tfg estimada"
+        },
+        "subject": {
+          "reference": "Patient/paciente-ejemplo"
+        },
+        "basedOn": [
+          {
+            "reference": "CarePlan/careplan-3"
+          }
+        ],
+        "occurrencePeriod": {
+          "start": "2027-04-05",
+          "end": "2027-04-12"
+        },
+        "authoredOn": "2026-09-23T12:00:00.000Z",
+        "note": [
+          {
+            "text": "Seguimiento GLP-1 · semana 26"
+          }
+        ],
+        "id": "servicerequest-31"
+      }
+    },
+    {
+      "fullUrl": "Appointment/appointment-38",
+      "resource": {
+        "resourceType": "Appointment",
+        "status": "pending",
+        "description": "Seguimiento de tratamiento GLP-1 — Control",
+        "start": "2026-09-30T13:00:00.000Z",
+        "end": "2026-09-30T13:45:00.000Z",
+        "slot": [
+          {
+            "reference": "Slot/slot-37"
+          }
+        ],
+        "participant": [
+          {
+            "actor": {
+              "reference": "Patient/paciente-ejemplo"
+            },
+            "status": "accepted"
+          }
+        ],
+        "extension": [
+          {
+            "url": "https://segundaopinionmedica.org/fhir/StructureDefinition/recurso-fisico",
+            "valueString": "R_CONSULTORIO_1"
+          },
+          {
+            "url": "https://segundaopinionmedica.org/fhir/StructureDefinition/ocupantes",
+            "valueInteger": 1
+          },
+          {
+            "url": "https://segundaopinionmedica.org/fhir/StructureDefinition/item-tipo",
+            "valueCode": "servicio"
+          },
+          {
+            "url": "https://segundaopinionmedica.org/fhir/StructureDefinition/item-codigo",
+            "valueString": "CONTROL_GLP1"
+          }
+        ],
+        "id": "appointment-38"
+      }
+    }
+  ]
+}
