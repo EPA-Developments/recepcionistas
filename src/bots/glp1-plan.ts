@@ -67,7 +67,7 @@ export async function handler(
     const existente = await medplum.searchOne('CarePlan', {
       subject: e.pacienteRef,
       status: 'active',
-      category: `${SYSTEM.programa}|${COD.seguimientoGlp1}`,
+      category: `${SYSTEM.planCuidado}|${COD.seguimientoGlp1}`,
     });
 
     const goalNuevo = construirGoal(e, cal);

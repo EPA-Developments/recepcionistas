@@ -1,7 +1,7 @@
 # Integración Recepción ↔ Portal del paciente
 
 Contrato de integración entre **esta app (recepción)** y el **portal del paciente
-de Segunda Opinión Médica** (repo `drdalessandro/app`, ver [`som.md`](som.md)),
+de Segunda Opinión Médica** (repo `EPA-Developments/app`, ver [`som.md`](som.md)),
 publicado en **`https://app.segundaopinionmedica.org`** (Project Secret
 `PORTAL_BASE_URL` para otros entornos).
 
@@ -118,8 +118,7 @@ Secrets (`RECEPCION_WHATSAPP_TO` y los de Twilio; ver [`bots.md`](bots.md)).
 
 ## Acceso al repo del portal desde Claude Code
 
-Una sesión de Claude Code on the web solo puede sumar repos **del mismo owner**
-que los de la sesión: el portal (`drdalessandro/app`) no se puede agregar a una
-sesión de `EPA-Developments/recepcionistas`. Para revisar ambos, abrir una sesión
-con el repo del portal como fuente (o mover el portal a `EPA-Developments`). Doc:
+El portal canónico es **`EPA-Developments/app`** (`drdalessandro/app` quedó
+congelado como archivo histórico). Como es del mismo owner que este repo, una
+sesión de Claude Code on the web puede sumar los dos repos a la vez. Doc:
 https://code.claude.com/docs/en/claude-code-on-the-web

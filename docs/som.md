@@ -4,7 +4,7 @@ Segunda Opinión Médica (SOM, Dr. Barbagelata · segundaopinionmedica.org) es u
 proyecto de **salud cardiovascular convencional** que corre sobre el MISMO backend
 Medplum (FHIR R4) que esta recepción (`https://api.medplum.com.ar/`, proyecto
 `7ce5e559-f315-4538-abf2-61fa4922f996`). Esta primera entrega agrega el **contrato
-de backend** que el portal (`drdalessandro/app`, PR #2) ya espera, reusando los
+de backend** que el portal (`EPA-Developments/app`; originalmente `drdalessandro/app`, PR #2) ya espera, reusando los
 patrones de la recepción (no se duplican).
 
 ## Namespace

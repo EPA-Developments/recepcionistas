@@ -53,7 +53,7 @@ programa GLP-1 (`som-glp1-plan`) lo ejecuta "Director Médico — Clínico compl
 
 ## Pacientes y el portal
 
-El **portal del paciente** es una app aparte (repo `drdalessandro/app`, ver
+El **portal del paciente** es una app aparte (repo `EPA-Developments/app`, ver
 [`som.md`](som.md)), publicada en `https://app.segundaopinionmedica.org`.
 Ahí el paciente puede **auto-registrarse** ("Crear cuenta") e iniciar sesión. La
 AccessPolicy **"Paciente SOM — Portal"** (`src/fhir/access-policies.ts`) es la que

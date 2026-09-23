@@ -318,7 +318,7 @@ export function construirCarePlan(e: EntradaPlanGlp1, cal: CalendarioGlp1, goalR
     intent: 'plan',
     identifier: [{ system: SYSTEM.programaGlp1, value: `${pacienteIdDe(e.pacienteRef)}:${e.fechaInicio}` }],
     instantiatesCanonical: [`${PLAN_GLP1_URL}|${PLAN_GLP1_VERSION}`],
-    category: [{ coding: [{ system: SYSTEM.programa, code: COD.seguimientoGlp1, display: 'Seguimiento de tratamiento GLP-1' }] }],
+    category: [{ coding: [{ system: SYSTEM.planCuidado, code: COD.seguimientoGlp1, display: 'Seguimiento de tratamiento GLP-1' }] }],
     title: `Seguimiento de tratamiento GLP-1 — ${indicationSummary(schedule.indication, schedule.molecule)}`,
     subject: { reference: e.pacienteRef },
     period: { start: e.fechaInicio },

@@ -12,7 +12,7 @@ const BASE = 'https://segundaopinionmedica.org/fhir';
  * Namespace de Segunda Opinión Médica (SOM). El proyecto SOM corre sobre el MISMO
  * backend FHIR, pero su contrato (bots `som-solicitar` / `bot-som-report` y la
  * AccessPolicy del paciente) usa este namespace propio, acordado con el portal
- * (`drdalessandro/app`, `docs/medplum/bot-som-interface.md`). No tocar estos
+ * (`EPA-Developments/app`, `docs/medplum/bot-som-interface.md`). No tocar estos
  * strings sin sincronizar con el portal.
  */
 const SOM_BASE = 'https://segundaopinionmedica.org/fhir';
@@ -90,8 +90,12 @@ export const SYSTEM = {
   cicloVidaCliente: `${BASE}/CodeSystem/ciclo-vida-cliente`,
   gateTerapia: `${BASE}/CodeSystem/gate-terapia`,
   // Programas de seguimiento (GLP-1)
-  /** CarePlan.category de los programas de seguimiento. */
-  programa: `${BASE}/CodeSystem/programa`,
+  /**
+   * CarePlan.category de los planes de cuidado de SOM. Compartido con la app del
+   * paciente (EPA-Developments/app), que ya lo usa para el Plan Bienestar
+   * (`plan-bienestar-100`); el seguimiento GLP-1 es `seguimiento-glp1`.
+   */
+  planCuidado: `${BASE}/CodeSystem/care-plans`,
   /** Identifier de los recursos de un programa GLP-1 (CarePlan, Goal, pedidos, tareas). */
   programaGlp1: `${BASE}/Identifier/programa-glp1`,
   /** Estudios por slug del catálogo de biomarcadores (ServiceRequest.code). */
