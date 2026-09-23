@@ -69,6 +69,20 @@ describe('Seed — AccessPolicy de recepción (privacidad por diseño)', () => {
     expect(permitidos).not.toContain(BOT_GLP1_PLAN);
   });
 
+  // Los criterios `Bot?name=` son por PREFIJO: un nombre habilitado no puede ser el
+  // comienzo del nombre de un bot que Recepción no debe ejecutar.
+  it('Ningún bot habilitado es prefijo de un bot no habilitado', () => {
+    const config = JSON.parse(readFileSync(new URL('../medplum.config.json', import.meta.url), 'utf8')) as {
+      bots: Array<{ name: string }>;
+    };
+    const habilitados = new Set<string>(BOTS_RECEPCION);
+    const otros = config.bots.map((b) => b.name).filter((n) => !habilitados.has(n));
+    expect(otros).toContain(BOT_GLP1_PLAN);
+    for (const h of habilitados) {
+      expect(otros.filter((o) => o.startsWith(h))).toEqual([]);
+    }
+  });
+
   it('Cubre todos los bots que llama la app de recepción', () => {
     const fuente = readFileSync(new URL('../app/src/lib/bots.ts', import.meta.url), 'utf8');
     const llamados = [...fuente.matchAll(/botIdPorNombre\('([^']+)'\)/g)].map((m) => m[1]);
