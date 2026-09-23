@@ -164,7 +164,11 @@ pendiente que ya no va, y lo cerrado nunca se pisa.
 
 ## App del paciente (slice 2) y unificación con CKM
 
-Contrato para el portal (`EPA-Developments/app`), todo de solo lectura:
+Contrato para el portal (`EPA-Developments/app`), todo de solo lectura. Ejemplo
+completo de lo que lee el paciente (DM2, retinopatía, peso basal 92 kg, basal ya
+agendado): [`docs/ejemplos/glp1-paciente.json`](ejemplos/glp1-paciente.json). Lo
+generan los bots reales y `tests/glp1-ejemplo.test.ts` falla si deja de coincidir
+(regenerar con `ACTUALIZAR_EJEMPLOS=1 npx vitest run tests/glp1-ejemplo.test.ts`).
 
 - `CarePlan?subject=%patient&category=…/CodeSystem/care-plans|seguimiento-glp1&status=active`
   → el programa: título, esquema (actividad `MedicationRequest`), visitas con sus
