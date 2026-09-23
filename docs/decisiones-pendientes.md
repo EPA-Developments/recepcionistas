@@ -8,7 +8,8 @@ frenan una parte del avance; el resto se resuelve en paralelo.
 **Se arma de cero con los profesionales de SOM** (decisión del Dr. Alejandro
 Barbagelata y el Dr. Alejandro Sergio D'Alessandro). Mientras tanto,
 `src/config/catalogo.ts` tiene 6 consultas de ejemplo (cardiología +
-subespecialidades) sin precio y `src/config/medicos.ts` está **vacío** (los
+subespecialidades) y el control del seguimiento GLP-1, sin precio, y
+`src/config/medicos.ts` está **vacío** (los
 profesionales anteriores se retiraron). El catálogo anterior, ajeno a SOM
 (servicios/combos/paquetes/membresías/contraindicaciones y sus bots/UI), **se
 retiró del código**.
@@ -19,9 +20,27 @@ retiró del código**.
 | 2 | **Duración de cada consulta** | Provisional 45 min. Confirmar con la operación (¿varía por subespecialidad? ¿telemedicina?). |
 | 3 | **Consultorios / salas reales** | `src/config/recursos.ts` tiene una lista PROVISIONAL (2 consultorios + telemedicina + sala de rehabilitación). Confirmar la lista real. |
 | 4 | **Honorarios profesionales (split)** | Hoy todo es `SOM_100`. Definir cómo se reparte el honorario del especialista por consulta. |
-| 5 | **¿Paquetes / seguimiento?** | ¿Existe algo como "paquete de seguimiento" con el mismo especialista, o cada segunda opinión es un evento único? Si existe, se modela con sus reglas oficiales (no se reutiliza el modelo anterior). |
+| 5 | **¿Paquetes / seguimiento?** | ¿Existe algo como "paquete de seguimiento" con el mismo especialista, o cada segunda opinión es un evento único? Si existe, se modela con sus reglas oficiales (no se reutiliza el modelo anterior). El primer programa de seguimiento ya modelado es el **GLP-1** (ver abajo). |
 | 6 | **Profesionales de SOM** | `src/config/medicos.ts` está vacío: cargar los profesionales de SOM (especialidad, consultas que atiende, modalidad, idiomas). |
 | 7 | **Contraindicaciones clínicas** | La tabla de contraindicaciones del catálogo anterior se retiró. Si el flujo de segunda opinión necesita señales clínicas de seguridad, las define el equipo médico. El banner verde/rojo (Flags) sigue operativo. |
+
+## Seguimiento GLP-1
+
+Slice 1 hecho (programa + controles a agendar desde Recepción; ver
+[`glp1.md`](glp1.md)). Para confirmar con el Dr. Alejandro Barbagelata y el Dr.
+Alejandro Sergio D'Alessandro:
+
+| # | Tema | Detalle | Estado |
+|---|---|---|---|
+| 1 | **Cobro** | ¿Cada control se cobra aparte, va incluido en un programa, o no se cobra? Hoy `CONTROL_GLP1` está en el catálogo con precio 0 (PENDIENTE) y el turno sigue el flujo normal (tentativo hasta la seña). | A definir |
+| 2 | **Ventana para agendar (R-19)** | Provisional: basal en los 7 días previos al inicio; el resto, desde la semana calculada hasta 7 días después (`VENTANA_CONTROL_GLP1_DIAS`). ¿Se acepta agendar antes? ¿Cuántos días de tolerancia? | A confirmar |
+| 3 | **Dónde carga el médico la indicación** | Hoy: bot `som-glp1-plan` con input JSON (app de Medplum o API). Definir una pantalla o un `Questionnaire` para el equipo médico. | A definir |
+| 4 | **Rol del equipo médico** | Hoy solo "Director Médico — Clínico completo" puede ejecutar `som-glp1-plan`. Definir el rol clínico de SOM (ver *Roles*). | A definir |
+| 5 | **Módulo compartido con CKM** | `src/lib/glp1/titration.ts` y `eligibility.ts` son contratos interinos: traer los originales de la plataforma CKM para unificar (opción C). | Pendiente |
+| 6 | **Biomarcadores** | Los estudios van con el slug del catálogo de biomarcadores (`CodeSystem/biomarcador`). Mapear cada slug a LOINC para interoperar con laboratorios. | Pendiente |
+| 7 | **Oftalmología / función renal** | Hoy se agendan como parte del control de la misma semana (12 y 26). ¿Se hacen en SOM o se derivan? | A definir |
+| 8 | **Nombre visible y duración** | "Seguimiento de tratamiento GLP-1 — Control", 45 min provisional, en consultorio. | A confirmar |
+| 9 | **App del paciente (slice 2)** | Mostrar el programa, la meta y el estado de cada control en el portal (`drdalessandro/app`), con el contrato de [`glp1.md`](glp1.md). | Próximo slice |
 
 ## Agenda
 

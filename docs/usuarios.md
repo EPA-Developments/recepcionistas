@@ -10,13 +10,15 @@ lista recursos operativos**. En Medplum, los `resourceType` que **no** están en
 policy quedan **denegados**, así que la recepción NO puede ver:
 
 `Observation`, `Condition`, `DiagnosticReport`, `DocumentReference`, `CarePlan`,
-`MedicationRequest` (ni nada clínico no listado).
+`Goal`, `ServiceRequest`, `MedicationRequest` (ni nada clínico no listado).
 
 La recepción sí ve: agenda (`Appointment`/`Slot`/`Schedule`), pagos
-(`Invoice`/`ChargeItem`), comunicación (`Communication`), CRM (`Task`), catálogo
-(lectura), `Bot` (para invocarlos) y la ficha del paciente (`Patient`) **con el
-`perfil-clinico` oculto**. El banner de seguridad es un `Flag` de solo lectura
-(señal verde/rojo, sin detalle clínico).
+(`Invoice`/`ChargeItem`), comunicación (`Communication`), CRM y tareas (`Task`,
+incluidos los controles GLP-1 a agendar: semana, ventana y si lleva laboratorio),
+catálogo (lectura), **solo los bots de Recepción** (`BOTS_RECEPCION`: para
+ejecutar un bot hay que poder leerlo; el que arma el plan GLP-1 queda fuera) y la
+ficha del paciente (`Patient`) **con el `perfil-clinico` oculto**. El banner de
+seguridad es un `Flag` de solo lectura (señal verde/rojo, sin detalle clínico).
 
 > ⚠️ La policy protege a un usuario **solo si se le asigna** y **no es admin**
 > (los admin saltean las AccessPolicies).
@@ -42,11 +44,12 @@ La recepción sí ve: agenda (`Appointment`/`Slot`/`Schedule`), pagos
 |---|---|---|
 | Recepción — Operativo | Recepcionistas | Operativo, sin historia clínica |
 | Director Médico — Clínico completo | Dirección médica | Todo |
-| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; lectura de turnos, pagos, solicitudes e informes |
+| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; lectura de turnos, pagos, solicitudes, informes y sus programas de seguimiento (`CarePlan`, `Goal`) |
 
 Los roles clínicos del equipo médico de SOM están **por definir** (los del
 catálogo anterior se retiraron). Los médicos se invitan igual que la
-recepcionista, con la AccessPolicy que corresponda.
+recepcionista, con la AccessPolicy que corresponda. Hoy el bot que arma el
+programa GLP-1 (`som-glp1-plan`) lo ejecuta "Director Médico — Clínico completo".
 
 ## Pacientes y el portal
 

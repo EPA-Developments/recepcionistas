@@ -29,10 +29,15 @@ import { medplum } from '../medplum';
 import { calcularCobro, reservarTurno, mensajeError, type ResultadoReserva } from '../lib/bots';
 import { InvitarPortal } from '../components/InvitarPortal';
 import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
+import { SeguimientoGlp1 } from '../components/SeguimientoGlp1';
 import { SERVICIOS } from '@som/config/catalogo';
 import { recursosParaCategoria } from '@som/config/recursos';
 import { generarSlots } from '@som/lib/slots';
 import { HORARIO_SEMANAL } from '@som/config/horario';
+import { seAgendaSinTarea } from '@som/lib/glp1-plan';
+
+/** Lo que se reserva libre (el control GLP-1 se agenda desde su tarea, R-19). */
+const SERVICIOS_RESERVA = SERVICIOS.filter((s) => seAgendaSinTarea(s.codigo));
 
 export function Atender({
   pacienteInicialId,
@@ -154,6 +159,7 @@ function FichaPaciente({ paciente, onVolver }: { paciente: Patient; onVolver: ()
       <BannerSeguridad pacienteId={paciente.id!} />
       <InvitarPortal paciente={paciente} />
       <PanelReserva paciente={paciente} />
+      <SeguimientoGlp1 paciente={paciente} />
       <PanelCobro paciente={paciente} />
     </Stack>
   );
@@ -252,7 +258,7 @@ function PanelReserva({ paciente }: { paciente: Patient }): JSX.Element {
           <Select
             label="Servicio"
             placeholder="Elegí qué reservar"
-            data={SERVICIOS.map((s) => ({ value: s.codigo, label: s.nombre }))}
+            data={SERVICIOS_RESERVA.map((s) => ({ value: s.codigo, label: s.nombre }))}
             value={servicioCodigo}
             onChange={(v) => {
               setServicioCodigo(v);

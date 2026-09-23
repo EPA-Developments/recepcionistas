@@ -101,6 +101,18 @@
       "id": "",
       "source": "src/bots/som-report.ts",
       "dist": "dist/bots/som-report.js"
+    },
+    {
+      "name": "som-glp1-inscribir",
+      "id": "",
+      "source": "src/bots/glp1-inscribir.ts",
+      "dist": "dist/bots/glp1-inscribir.js"
+    },
+    {
+      "name": "som-glp1-plan",
+      "id": "",
+      "source": "src/bots/glp1-plan.ts",
+      "dist": "dist/bots/glp1-plan.js"
     }
   ]
 }

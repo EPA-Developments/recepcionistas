@@ -20,6 +20,7 @@ import { SERVICIOS } from '@som/config/catalogo';
 import { RECURSOS_POR_CODIGO, recursosParaCategoria } from '@som/config/recursos';
 import { generarSlots } from '@som/lib/slots';
 import { HORARIO_SEMANAL } from '@som/config/horario';
+import { seAgendaSinTarea } from '@som/lib/glp1-plan';
 
 export interface PresetReserva {
   recursoCodigo: string;
@@ -53,11 +54,15 @@ export function ReservaModal({
 
   const recurso = preset ? RECURSOS_POR_CODIGO.get(preset.recursoCodigo) : undefined;
 
-  // Servicios que se pueden hacer en esta sala.
+  // Servicios que se pueden hacer en esta sala (el control GLP-1 se agenda desde su tarea, R-19).
   const serviciosCompatibles = useMemo(
     () =>
       preset
-        ? SERVICIOS.filter((s) => recursosParaCategoria(s.categoria).some((r) => r.codigo === preset.recursoCodigo))
+        ? SERVICIOS.filter(
+            (s) =>
+              seAgendaSinTarea(s.codigo) &&
+              recursosParaCategoria(s.categoria).some((r) => r.codigo === preset.recursoCodigo),
+          )
         : [],
     [preset],
   );

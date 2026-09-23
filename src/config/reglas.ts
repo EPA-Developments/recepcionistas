@@ -23,3 +23,11 @@ export const CANCELACION = {
  * antelación (el motor elige el más urgente que aún no se envió).
  */
 export const RECORDATORIO_HORAS = [48, 2] as const;
+
+/**
+ * Ventana para agendar cada control del programa GLP-1 (R-19). PROVISIONAL: a
+ * validar por el equipo médico. Un control se agenda desde su semana calculada y
+ * hasta estos días después (nunca antes: la revisión de respuesta solo es
+ * interpretable desde esa semana); el basal, en los días previos al inicio.
+ */
+export const VENTANA_CONTROL_GLP1_DIAS = 7;

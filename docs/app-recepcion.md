@@ -39,9 +39,10 @@ funcione end-to-end:
 
 ## Estructura
 
-- `app/src/pages/` — una por vista (Agenda, Solicitudes, Atender, Reportes).
+- `app/src/pages/` — una por vista (Agenda, Solicitudes, Controles GLP-1,
+  Atender, Reportes).
 - `app/src/components/` — `Shell` (layout + nav + tema), `Timeline`,
-  `ProximosTurnos`, `ReservaModal`, etc.
+  `ProximosTurnos`, `ReservaModal`, `SeguimientoGlp1`, `AgendarControlModal`, etc.
 - `app/src/lib/` — orquestación: `bots.ts` (llamadas a los Bots por nombre),
   `timeline.ts`, `estados.ts`.
 - `app/src/theme.ts` — tema Mantine (primario `somAzul`, tono 6 = `#007ce8`;
@@ -53,11 +54,15 @@ funcione end-to-end:
 |---|---|---|
 | **Agenda** | `AgendaDelDia` | Línea de tiempo del día por consultorio/sala, franjas libres clickeables para reservar y próximos turnos. |
 | **Solicitudes** | `Solicitudes` | Cola de solicitudes de turno del portal del paciente, para confirmar. |
-| **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (consulta de segunda opinión) y cobro. |
+| **GLP-1** | `ControlesGlp1` | Controles del seguimiento GLP-1 por agendar (todos los pacientes), ordenados por ventana y filtrables (*En ventana / Vencidos / Próximos*), con aviso de "traer laboratorio" y la lista de inscriptos que esperan la indicación médica. "Agendar" abre `AgendarControlModal` (consultorio, día y hora; el resto lo pone la tarea). Ver [`glp1.md`](glp1.md). |
+| **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (consulta de segunda opinión), seguimiento GLP-1 (inscribir / agendar controles) y cobro. |
 | **Reportes** | `Reportes` | Indicadores de gestión. |
 
-El botón **"Atender"** de Solicitudes abre `Atender` con ese paciente ya cargado
-(`pacienteInicialId`).
+El botón **"Atender"** de Solicitudes (y **"Ficha"** de GLP-1) abre `Atender`
+con ese paciente ya cargado (`pacienteInicialId`).
+
+En pantallas de menos de 1200 px el header oculta el subtítulo "Recepción" y el
+nombre del usuario para que entren las pestañas.
 
 ## Modo oscuro / claro
 

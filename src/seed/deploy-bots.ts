@@ -49,6 +49,9 @@ const BOTS: DefBot[] = [
   // SOM — Segunda Opinión Médica.
   { name: 'som-solicitar', source: 'src/bots/som-solicitar.ts', dist: 'dist/bots/som-solicitar.js', description: 'SOM: crea una ServiceRequest de segunda opinión cardiológica desde el portal del paciente.' },
   { name: 'bot-som-report', source: 'src/bots/som-report.ts', dist: 'dist/bots/som-report.js', description: 'SOM: genera el informe (PREVENT + Claude + PDF) ante una ServiceRequest activa. Lo dispara una Subscription.' },
+  // Seguimiento GLP-1 (docs/glp1.md).
+  { name: 'som-glp1-inscribir', source: 'src/bots/glp1-inscribir.ts', dist: 'dist/bots/glp1-inscribir.js', description: 'GLP-1 (Recepción): inscribe al paciente en el seguimiento; deja la indicación pendiente al equipo médico.' },
+  { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */

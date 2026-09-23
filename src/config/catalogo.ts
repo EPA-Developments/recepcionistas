@@ -23,8 +23,12 @@ interface DefConsulta {
   categoria: CategoriaServicio;
 }
 
+/** Código del control del programa de seguimiento GLP-1 (lo agendan las tareas del programa). */
+export const CODIGO_CONTROL_GLP1 = 'CONTROL_GLP1';
+
 /**
- * Consultas de segunda opinión, una por categoría (cardiología + subespecialidades).
+ * Consultas de segunda opinión, una por categoría (cardiología + subespecialidades),
+ * y el control del programa de seguimiento GLP-1 (ver docs/glp1.md).
  * Duración provisional de 45 min (a confirmar con la operación).
  */
 const CONSULTAS: DefConsulta[] = [
@@ -34,6 +38,7 @@ const CONSULTAS: DefConsulta[] = [
   { codigo: 'MEDICINA_NUCLEAR', nombre: 'Segunda Opinión — Medicina Nuclear', categoria: 'MEDICINA_NUCLEAR' },
   { codigo: 'PREVENCION_CV', nombre: 'Segunda Opinión — Prevención Cardiovascular', categoria: 'PREVENCION_CV' },
   { codigo: 'REHABILITACION_CV', nombre: 'Segunda Opinión — Rehabilitación Cardiovascular', categoria: 'REHABILITACION_CV' },
+  { codigo: CODIGO_CONTROL_GLP1, nombre: 'Seguimiento de tratamiento GLP-1 — Control', categoria: 'SEGUIMIENTO_GLP1' },
 ];
 
 export const SERVICIOS: Servicio[] = CONSULTAS.map((c) => ({

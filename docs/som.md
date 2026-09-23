@@ -51,7 +51,7 @@ Bot ejecutable `Bot?name=som-solicitar`. Debe quedar idéntica al espejo del por
   **porcentaje (0–100)**. Confirmar con el portal que es la escala esperada.
 - **Catálogo nuevo.** Se arma de cero con los profesionales de SOM: profesionales,
   consultas, precios, duraciones, consultorios/salas y horario (hoy hay 6 consultas
-  de ejemplo sin precio y ningún profesional cargado). No se inventan precios ni
+  de ejemplo y el control GLP-1, sin precio, y ningún profesional cargado). No se inventan precios ni
   reglas.
 - **Proyecto Medplum canónico: definido** (`MEDPLUM_PROJECT_ID=7ce5e559-f315-4538-abf2-61fa4922f996`
   en `https://api.medplum.com.ar/`). Falta cargar las credenciales del proyecto en

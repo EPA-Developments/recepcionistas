@@ -18,9 +18,10 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   (`docs/medplum/access-policy-paciente-portal.json`) debe quedar idéntico.
   El paciente **escribe** solo su autogestión (perfil, vitales, cuestionarios,
   documentos, mensajes) y **lee** su compartimento clínico/financiero
-  (`Appointment`, `Invoice`, `DiagnosticReport`, `CarePlan`, `MedicationRequest`,
-  `Immunization`, `Task`, `ServiceRequest`, `RiskAssessment`) más catálogo y
-  agenda (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
+  (`Appointment`, `Invoice`, `DiagnosticReport`, `CarePlan`, `Goal`,
+  `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`, `RiskAssessment`)
+  más catálogo y agenda (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
+  `Goal` se sumó para el seguimiento GLP-1: actualizar el espejo del portal.
 - **Reserva por *solicitud*.** El paciente pide desde el portal y se crea un
   `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`** (lógica pura
   en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
@@ -29,6 +30,13 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   solo puede **ejecutar** ese bot y `som-solicitar`: no escribe agenda.
 - **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`) y bot interno
   `bot-som-report` (informe), ver [`som.md`](som.md).
+- **Seguimiento GLP-1.** El programa del paciente (`CarePlan` + `Goal`), el estado
+  de cada control (`Task` `agendar-control-glp1`, con su turno en `output`) y los
+  estudios de cada semana (`ServiceRequest` con `basedOn` el `CarePlan`). Es lo
+  que muestra la app del paciente en el slice 2; contrato en
+  [`glp1.md`](glp1.md#app-del-paciente-slice-2-y-unificación-con-ckm). Las
+  solicitudes de segunda opinión se distinguen por su `code`
+  (`som-services|som-cardiology`).
 - **Alta de paciente** (`som-alta-paciente`): la recepción crea el `Patient`
   (dedupe por DNI/email/teléfono). No da login.
 - **Invitación al portal** (`som-invitar-paciente`, requiere admin): hace el

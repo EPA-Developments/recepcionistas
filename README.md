@@ -15,7 +15,7 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Andamiaje TypeScript + tooling | ✅ |
 | Catálogo | ⚠️ se arma de cero con los profesionales de SOM (hoy: consultas de ejemplo sin precio y sin profesionales) |
 | Motor de precios (USD→ARS, split SOM_100) | ✅ con tests |
-| Motor de reglas de agenda (R-07, R-13, R-14) | ✅ con tests |
+| Motor de reglas de agenda (R-07, R-13, R-14, R-19) | ✅ con tests |
 | Extensiones FHIR + AccessPolicies (recepción) | ✅ |
 | Bots: calcular-cobro · validar-turno · enviar-whatsapp | ✅ + deploy (`npm run deploy:bots`) |
 | Seed del catálogo (idempotente) | ✅ (`--dry-run` sin servidor) |
@@ -27,6 +27,7 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `som-webhook-mercadopago` |
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
+| Seguimiento de tratamiento GLP-1 (programa + controles a agendar) | ✅ slice 1: bots `som-glp1-inscribir` / `som-glp1-plan`, pestaña GLP-1 ([`docs/glp1.md`](docs/glp1.md)); app del paciente: slice 2 |
 | Harness de tests | ✅ |
 | CI (GitHub Actions) | ✅ |
 | Horario (L-V 08-22, Sáb 08-20) + consultorios/salas | ⚠️ provisional, confirmar con la operación |
@@ -76,7 +77,8 @@ src/
   domain/      Tipos de dominio (agnósticos de FHIR)
   config/      Catálogo (consultas de cardiología + subespecialidades), médicos,
                recursos (consultorios/salas), horario, TC, constantes de reglas
-  lib/         Lógica pura: money, pricing, reglas-turno (testeable sin servidor)
+  lib/         Lógica pura: money, pricing, reglas-turno, glp1-plan (testeable sin
+               servidor); glp1/ = calendario GLP-1 compartido con la plataforma CKM
   fhir/        Identificadores, extensiones (StructureDefinition), AccessPolicies
   bots/        Medplum Bots: calcular-cobro, validar-turno, enviar-whatsapp
   seed/        Builders FHIR + runner del seed
@@ -103,9 +105,13 @@ Pantallas del esqueleto:
   turno como bloque en su franja (servicio + paciente), con línea de "ahora".
   **Clic en una franja libre** abre el formulario de reserva precargado con esa
   sala y hora. Autorefresco cada 60 s.
+- **GLP-1** — controles del seguimiento de tratamiento GLP-1 por agendar (todos
+  los pacientes), con ventana calculada por el sistema y aviso de "traer
+  laboratorio". Ver [`docs/glp1.md`](docs/glp1.md).
 - **Atender paciente** — búsqueda por nombre/DNI, banner de seguridad verde/rojo
   (sin ver la historia clínica), **reserva de turnos** (valida + crea vía bot
-  `reservar-turno`) y cobro **calculado por el bot** `calcular-cobro`.
+  `reservar-turno`), seguimiento GLP-1 (inscribir y agendar controles) y cobro
+  **calculado por el bot** `calcular-cobro`.
 - **Reportes** — tablero del día/mes: turnos por estado, ingresos (cobros y
   señas), ocupación por sala y WhatsApp enviados. Lee de Medplum.
 
@@ -123,6 +129,7 @@ Pantallas del esqueleto:
 - [`docs/usuarios.md`](docs/usuarios.md) — usuarios, roles y AccessPolicies
 - [`docs/portal-integracion.md`](docs/portal-integracion.md) — integración con el portal del paciente
 - [`docs/crm.md`](docs/crm.md) — CRM: embudo de redes sociales, segmentos y campañas
+- [`docs/glp1.md`](docs/glp1.md) — seguimiento de tratamiento GLP-1: flujo, calendario, recursos FHIR y contrato con la app del paciente
 - [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) — decisiones abiertas
 - [`CLAUDE.md`](CLAUDE.md) — convenciones y guía para el desarrollo
 

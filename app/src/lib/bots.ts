@@ -53,6 +53,8 @@ export interface ReservaInput {
   ocupantes?: number;
   /** Si es false, solo valida (no crea). */
   confirmar?: boolean;
+  /** Tarea de Recepción que resuelve el turno (control del programa GLP-1). */
+  tareaId?: string;
 }
 
 export interface IssueValidacion {
@@ -162,4 +164,25 @@ export async function invitarPaciente(
 ): Promise<ResultadoInvitarPaciente> {
   const id = await botIdPorNombre('som-invitar-paciente');
   return (await medplum.executeBot(id, { pacienteRef, canal, email })) as ResultadoInvitarPaciente;
+}
+
+export interface ResultadoInscripcionGlp1 {
+  ok: boolean;
+  mensaje?: string;
+  /** `indicacion-pendiente`: el equipo médico tiene que cargar la indicación. `activo`: el programa ya está armado. */
+  estado?: 'indicacion-pendiente' | 'activo';
+  /** true si se dejó ahora la tarea de indicación al equipo médico. */
+  creado?: boolean;
+  taskId?: string;
+  controlesPorAgendar?: number;
+}
+
+/**
+ * Inscribe al paciente en el seguimiento GLP-1: deja la indicación pendiente al
+ * equipo médico (sin duplicar). El calendario de controles lo arma el sistema
+ * cuando el médico carga el esquema; Recepción solo agenda.
+ */
+export async function inscribirGlp1(pacienteRef: string): Promise<ResultadoInscripcionGlp1> {
+  const id = await botIdPorNombre('som-glp1-inscribir');
+  return (await medplum.executeBot(id, { pacienteRef })) as ResultadoInscripcionGlp1;
 }

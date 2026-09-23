@@ -11,7 +11,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 |---|---|---|
 | `som-calcular-cobro` | Calcula el cobro (USD→ARS al TC, splits) y emite `Invoice`. | `executeBot` desde el front (pantalla Atender). |
 | `som-validar-turno` | Valida un turno (capacidad de recursos, ventana de reserva). | `executeBot` al reservar/confirmar. |
-| `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). | `executeBot` desde el front (Reservar turno). |
+| `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). Con `tareaId` agenda un control GLP-1: valida su ventana (R-19) y completa la tarea. | `executeBot` desde el front (Reservar turno / Agendar control). |
 | `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` y libera la sala al completar/cancelar. | `executeBot` desde el front (clic en el turno). |
 | `som-pagar-sena` | Registra la seña (50%), confirma el turno (pending→booked) y envía WhatsApp de confirmación. | `executeBot` (clic en turno tentativo). |
 | `som-link-mercadopago` | Genera un link de MercadoPago por el monto de la seña (si está configurado el token). | `executeBot` (botón en turno tentativo). |
@@ -24,6 +24,8 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
 | `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
 | `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
+| `som-glp1-inscribir` | **GLP-1 (Recepción):** inscribe al paciente en el seguimiento: deja un `Task` `indicacion-glp1` al equipo médico (idempotente; si ya está activo, devuelve cuántos controles faltan agendar). | `executeBot` (Atender → Seguimiento GLP-1 → Inscribir). Ver [`glp1.md`](glp1.md). |
+| `som-glp1-plan` | **GLP-1 (equipo médico):** con la indicación (molécula, esquema de titulación, fecha de inicio) arma o recalcula el programa: `CarePlan`, `Goal`, pedidos de laboratorio y tareas de agenda de Recepción. **Recepción no puede ejecutarlo.** | `executeBot` / app de Medplum (input JSON). Ver [`glp1.md`](glp1.md). |
 
 ## Deploy
 
@@ -127,6 +129,13 @@ está configurado.
 El bot se crea con su propia `ProjectMembership`. Para mínimo privilegio se le
 puede asignar una `AccessPolicy` acotada (p. ej. solo `Invoice`/`Communication`/
 lectura de catálogo). Pendiente de afinar.
+
+**Quién ejecuta qué:** para ejecutar un bot hay que poder leerlo. La policy de
+Recepción solo habilita los bots de `BOTS_RECEPCION`
+(`src/fhir/access-policies.ts`): los que llama la app de recepción, más
+`som-validar-turno`. Los clínicos (`som-glp1-plan`) y los de administración
+quedan fuera. Si la app empieza a llamar un bot nuevo, sumarlo ahí:
+`tests/seed.test.ts` falla si falta.
 
 ## Webhook de MercadoPago (confirmación automática)
 

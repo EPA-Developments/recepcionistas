@@ -8,7 +8,26 @@
  * (Flag), nunca el detalle clínico.
  */
 import type { AccessPolicy } from '@medplum/fhirtypes';
-import { EXT } from './identifiers.js';
+import { BOT_GLP1_INSCRIBIR, EXT } from './identifiers.js';
+
+/**
+ * Bots que Recepción puede ejecutar (los que usa la app de recepción, más la
+ * validación de turno). Nada más: los bots clínicos (p. ej. `som-glp1-plan`) y los
+ * de administración quedan fuera. Si la app llama un bot nuevo, sumarlo acá (lo
+ * verifica `tests/seed.test.ts`).
+ */
+export const BOTS_RECEPCION = [
+  'som-calcular-cobro',
+  'som-validar-turno',
+  'som-reservar-turno',
+  'som-estado-turno',
+  'som-pagar-sena',
+  'som-link-mercadopago',
+  'som-enviar-whatsapp',
+  'som-alta-paciente',
+  'som-invitar-paciente',
+  BOT_GLP1_INSCRIBIR,
+] as const;
 
 /** Recepcionista — acceso Operativo: agenda, check-in/out, pagos, comunicación, CRM. */
 export const POLICY_RECEPCIONISTA: AccessPolicy = {
@@ -43,8 +62,8 @@ export const POLICY_RECEPCIONISTA: AccessPolicy = {
     { resourceType: 'Practitioner', readonly: true },
     { resourceType: 'Location', readonly: true },
     { resourceType: 'HealthcareService', readonly: true },
-    // Bots: lectura para poder invocarlos (cobro, validación, WhatsApp).
-    { resourceType: 'Bot', readonly: true },
+    // Bots: solo los de Recepción (lectura = poder invocarlos).
+    ...BOTS_RECEPCION.map((nombre) => ({ resourceType: 'Bot', readonly: true, criteria: `Bot?name=${nombre}` })),
   ],
 };
 
@@ -99,6 +118,8 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'CarePlan', readonly: true, criteria: 'CarePlan?subject=%patient' },
     { resourceType: 'MedicationRequest', readonly: true, criteria: 'MedicationRequest?patient=%patient' },
     { resourceType: 'Immunization', readonly: true, criteria: 'Immunization?patient=%patient' },
+    // Metas de sus programas de seguimiento (p. ej. GLP-1: descenso de peso).
+    { resourceType: 'Goal', readonly: true, criteria: 'Goal?subject=%patient' },
     // Solicitudes de turno propias (las crea el bot; el paciente solo las lee).
     // `patient` mapea a Task.for (que el bot setea al paciente).
     { resourceType: 'Task', readonly: true, criteria: 'Task?patient=%patient' },

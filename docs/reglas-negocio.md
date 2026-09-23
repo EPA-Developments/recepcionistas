@@ -11,6 +11,7 @@ implementada.
 | **R-07** | Capacidad por recurso: no se puede exceder la capacidad del consultorio/sala en una franja. | `validarCapacidadRecurso` |
 | **R-13** | Ventana de reserva: 48 h (perfil `PUBLICO`). | `validarVentanaReserva` |
 | **R-14** | Cancelación: < 24 h = sesión consumida (salvo fuerza mayor médica); ≥ 24 h devuelve saldo. | `evaluarCancelacion` |
+| **R-19** | Controles del seguimiento GLP-1 (**provisional**): se agendan solo desde su tarea; no antes de la ventana que calcula el programa (bloqueo) y, pasada la ventana, con advertencia. Ventana: basal = 7 días previos al inicio; el resto, desde la semana calculada hasta 7 días después. Ver [`glp1.md`](glp1.md). | `validarVentanaControl`, `validarControlSinTarea`, `validarTareaAgenda` (`src/lib/glp1-plan.ts`) |
 
 ## Pricing / cobros
 
