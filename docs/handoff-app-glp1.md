@@ -154,8 +154,9 @@ TAREA 4 — Integración:
 TAREA 5 (opcional) — "Pedir turno para este control", solo en controles por agendar:
 - Llamá a `crearSolicitud(medplum, patient, { servicio: 'Control GLP-1 · semana N',
   servicioCodigo: 'CONTROL_GLP1', nota: 'Ventana: del … al …' })`.
-- Requiere el bot `som-solicitar-turno` actualizado (recepcionistas 4933d5b). Antes rechazaba todo
-  pedido del portal con "Elegí una terapia para tu solicitud".
+- Requiere el bot `som-solicitar-turno` actualizado (acepta `servicio`/`servicioCodigo`; ver
+  `src/lib/solicitudes.ts` en recepcionistas). Antes rechazaba todo pedido del portal con "Elegí
+  una terapia para tu solicitud".
 - Si ese bot todavía no está desplegado, dejá esta tarea para después.
 
 ## Reglas
@@ -163,7 +164,8 @@ TAREA 5 (opcional) — "Pedir turno para este control", solo en controles por ag
   único que el paciente escribe es su peso, en la pantalla que ya existe.
 - AccessPolicy: el espejo `docs/medplum/access-policy-paciente-portal.json` ya da lectura de todo
   esto, no hace falta tocarlo. La fuente de verdad es `recepcionistas/src/fhir/access-policies.ts`,
-  que quedó idéntica al espejo en bbc6a70. Si cambiás uno, cambiá el otro.
+  que quedó idéntica al espejo (`tests/seed.test.ts` fija sus entradas). Si cambiás uno, cambiá
+  el otro.
 - EL SISTEMA CALCULA, LA APP MUESTRA. Ventanas, semanas de control y estudios se leen de los
   recursos; no se recalculan acá. Solo valen cálculos de presentación: semanas transcurridas,
   días que faltan, cambio de peso.
