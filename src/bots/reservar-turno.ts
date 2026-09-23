@@ -4,14 +4,19 @@
  * Valida un turno propuesto (R-07 capacidad, R-13 ventana) y, si está OK, crea
  * el Appointment + un Slot ocupado (para que la agenda lo refleje). Toda la
  * decisión vive acá; el front solo manda la propuesta.
+ *
+ * Con `tareaId` (control del programa GLP-1) valida además la ventana del control
+ * (R-19) y, al crear el turno, completa la tarea de Recepción. El control GLP-1
+ * sin su tarea se bloquea (R-19).
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type { Appointment, AppointmentParticipant, Slot } from '@medplum/fhirtypes';
+import type { Appointment, AppointmentParticipant, Slot, Task } from '@medplum/fhirtypes';
 import type { Servicio } from '../domain/types.js';
 import { getServicio } from '../config/catalogo.js';
 import type { PerfilReserva } from '../config/reglas.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { cargarReservasDelDia, enviarWhatsApp, scheduleIdDeRecurso } from './_shared.js';
+import { validarControlSinTarea, validarTareaAgenda, validarVentanaControl, type Ventana } from '../lib/glp1-plan.js';
 
 const fmtFechaHora = new Intl.DateTimeFormat('es-AR', {
   day: '2-digit',
@@ -34,6 +39,8 @@ export interface EntradaReserva {
   perfil?: PerfilReserva;
   /** Si es false, solo valida (no crea). Default true. */
   confirmar?: boolean;
+  /** Tarea de Recepción que este turno resuelve (control del programa GLP-1). */
+  tareaId?: string;
 }
 
 export interface ResultadoReserva extends ResultadoValidacion {
@@ -51,6 +58,8 @@ export interface ContextoReserva {
   reservasExistentes: ReservaRecurso[];
   perfil?: PerfilReserva;
   ahora: Date;
+  /** Ventana del control que se agenda (programa GLP-1, R-19). */
+  ventanaControl?: Ventana;
 }
 
 /** Validación pura de una reserva (sin FHIR). Reúne las reglas aplicables. */
@@ -73,6 +82,11 @@ export function validarReserva(ctx: ContextoReserva): ResultadoValidacion {
     partes.push(validarVentanaReserva(ctx.perfil, ctx.ahora, ctx.inicio));
   }
 
+  // R-19: el control GLP-1 va atado a su tarea (y a la ventana que calculó el programa).
+  partes.push(
+    ctx.ventanaControl ? validarVentanaControl(ctx.inicio, ctx.ventanaControl) : validarControlSinTarea(ctx.servicio.codigo),
+  );
+
   return combinar(...partes);
 }
 
@@ -86,6 +100,22 @@ export async function handler(
   const fin = new Date(inicio.getTime() + servicio.duracionMin * 60_000);
   const ahora = new Date();
 
+  // Control de un programa: la tarea tiene que ser de este paciente y estar pendiente.
+  let tarea: Task | undefined;
+  let ventanaControl: Ventana | undefined;
+  let traerLaboratorio = false;
+  if (e.tareaId) {
+    tarea = await medplum.readResource('Task', e.tareaId).catch(() => undefined);
+    const check = tarea
+      ? validarTareaAgenda(tarea, { pacienteRef: e.pacienteRef, servicioCodigo: e.servicioCodigo })
+      : ({ ok: false, error: 'La tarea no existe.' } as const);
+    if (!check.ok) {
+      return { ok: false, bloqueos: [{ regla: 'R-19', nivel: 'bloqueo', mensaje: check.error }], advertencias: [], creado: false };
+    }
+    ventanaControl = check.ventana;
+    traerLaboratorio = check.requiereLaboratorio;
+  }
+
   // Turnos ocupados de hoy (todos los recursos) para capacidad.
   const reservasExistentes = await cargarReservasDelDia(medplum, inicio);
 
@@ -97,6 +127,7 @@ export async function handler(
     reservasExistentes,
     perfil: e.perfil,
     ahora,
+    ventanaControl,
   });
 
   if (!resultado.ok || e.confirmar === false) {
@@ -152,10 +183,23 @@ export async function handler(
     ],
   });
 
+  // La tarea de Recepción queda resuelta con este turno.
+  if (tarea) {
+    await medplum.updateResource<Task>({
+      ...tarea,
+      status: 'completed',
+      lastModified: new Date().toISOString(),
+      output: [{ type: { text: 'turno' }, valueReference: { reference: `Appointment/${appointment.id}` } }],
+    });
+  }
+
   await enviarWhatsApp(medplum, event.secrets, {
     template: 'reserva-tentativa',
     pacienteRef: e.pacienteRef,
-    body: `Segunda Opinión Médica: reservamos tu turno de ${servicio.nombre} para el ${fmtFechaHora.format(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo. 💙`,
+    body:
+      `Segunda Opinión Médica: reservamos tu turno de ${servicio.nombre} para el ${fmtFechaHora.format(inicio)} (tentativo). Aboná la seña del 50% para confirmarlo.` +
+      (traerLaboratorio ? ' Traé los resultados del laboratorio del control.' : '') +
+      ' 💙',
   });
 
   return {

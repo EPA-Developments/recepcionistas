@@ -89,6 +89,13 @@ export const SYSTEM = {
   rasgoSegmento: `${BASE}/CodeSystem/rasgo-segmento`,
   cicloVidaCliente: `${BASE}/CodeSystem/ciclo-vida-cliente`,
   gateTerapia: `${BASE}/CodeSystem/gate-terapia`,
+  // Programas de seguimiento (GLP-1)
+  /** CarePlan.category de los programas de seguimiento. */
+  programa: `${BASE}/CodeSystem/programa`,
+  /** Identifier de los recursos de un programa GLP-1 (CarePlan, Goal, pedidos, tareas). */
+  programaGlp1: `${BASE}/Identifier/programa-glp1`,
+  /** Estudios por slug del catálogo de biomarcadores (ServiceRequest.code). */
+  biomarcador: `${BASE}/CodeSystem/biomarcador`,
 } as const;
 
 /** Códigos de negocio puntuales. */
@@ -97,6 +104,12 @@ export const COD = {
   solicitudTurno: 'solicitud-turno',
   /** ServiceRequest.code de una solicitud de segunda opinión cardiológica. */
   somCardiology: 'som-cardiology',
+  /** CarePlan.category del programa de seguimiento de tratamiento GLP-1. */
+  seguimientoGlp1: 'seguimiento-glp1',
+  /** Task del equipo médico: completar la indicación GLP-1 (molécula y titulación). */
+  indicacionGlp1: 'indicacion-glp1',
+  /** Task de Recepción: agendar un control del programa GLP-1 dentro de su ventana. */
+  agendarControlGlp1: 'agendar-control-glp1',
 } as const;
 
 /** Claves EXACTAS de las secciones del informe SOM (sub-extensiones de `som-sections`). */
@@ -116,6 +129,14 @@ export const LOINC_INFORME = '11488-4';
 /** Nombres canónicos de los bots SOM (deben coincidir con el portal y el deploy). */
 export const BOT_SOM_SOLICITAR = 'som-solicitar';
 export const BOT_SOM_REPORT = 'bot-som-report';
+
+/** Programa de seguimiento GLP-1: plantilla (PlanDefinition) y bots. */
+export const PLAN_GLP1_URL = `${BASE}/PlanDefinition/seguimiento-glp1`;
+export const PLAN_GLP1_VERSION = '1';
+/** Recepción: inscribe al paciente (pide la indicación al equipo médico). */
+export const BOT_GLP1_INSCRIBIR = 'som-glp1-inscribir';
+/** Equipo médico: con la indicación, arma o recalcula el plan. Recepción NO lo ejecuta. */
+export const BOT_GLP1_PLAN = 'som-glp1-plan';
 
 /** Clave del recurso de configuración de Tipo de Cambio (Basic). */
 export const CONFIG_TC_ID = 'config-tipo-cambio';

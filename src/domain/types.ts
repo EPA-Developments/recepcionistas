@@ -20,7 +20,8 @@ export type CategoriaServicio =
   | 'ELECTROFISIOLOGIA'
   | 'MEDICINA_NUCLEAR'
   | 'PREVENCION_CV'
-  | 'REHABILITACION_CV';
+  | 'REHABILITACION_CV'
+  | 'SEGUIMIENTO_GLP1';
 
 /**
  * Distribución de ingresos (split) por servicio.

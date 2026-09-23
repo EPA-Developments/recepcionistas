@@ -32,6 +32,7 @@ async function main(): Promise<void> {
     ['AccessPolicy (roles)', seed.accessPolicies],
     ['Basic (config TC)', [seed.tcConfig]],
     ['ActivityDefinition (servicios)', seed.activityDefinitions],
+    ['PlanDefinition (programas)', seed.planDefinitions],
     ['Location (recursos)', seed.locations],
     ['Schedule (agendas)', seed.schedules],
     ['Practitioner (médicos)', seed.practitioners],

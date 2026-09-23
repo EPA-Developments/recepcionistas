@@ -3,6 +3,7 @@ import { useMedplumProfile } from '@medplum/react';
 import { Shell, type Vista } from './components/Shell';
 import { AgendaDelDia } from './pages/AgendaDelDia';
 import { Solicitudes } from './pages/Solicitudes';
+import { ControlesGlp1 } from './pages/ControlesGlp1';
 import { Atender } from './pages/Atender';
 import { Reportes } from './pages/Reportes';
 import { SignInPage } from './pages/SignInPage';
@@ -10,7 +11,7 @@ import { SignInPage } from './pages/SignInPage';
 export function App(): JSX.Element {
   const profile = useMedplumProfile();
   const [vista, setVista] = useState<Vista>('agenda');
-  // Paciente con el que entrar a "Atender" (p. ej. al confirmar una solicitud).
+  // Paciente con el que entrar a "Atender" (p. ej. al confirmar una solicitud o desde Controles GLP-1).
   const [atenderId, setAtenderId] = useState<string | null>(null);
 
   if (!profile) {
@@ -26,6 +27,7 @@ export function App(): JSX.Element {
     <Shell vista={vista} onVista={setVista}>
       {vista === 'agenda' && <AgendaDelDia />}
       {vista === 'solicitudes' && <Solicitudes onAtender={irAtender} />}
+      {vista === 'glp1' && <ControlesGlp1 onAtender={irAtender} />}
       {vista === 'atender' && <Atender pacienteInicialId={atenderId} onPacienteInicialCargado={() => setAtenderId(null)} />}
       {vista === 'reportes' && <Reportes />}
     </Shell>

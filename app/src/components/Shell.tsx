@@ -10,11 +10,20 @@ import {
   useMantineColorScheme,
   useComputedColorScheme,
 } from '@mantine/core';
-import { IconCalendarEvent, IconUserHeart, IconChartBar, IconLogout, IconSun, IconMoon, IconInbox } from '@tabler/icons-react';
+import {
+  IconCalendarEvent,
+  IconUserHeart,
+  IconChartBar,
+  IconLogout,
+  IconSun,
+  IconMoon,
+  IconInbox,
+  IconVaccine,
+} from '@tabler/icons-react';
 import { useMedplum, useMedplumProfile } from '@medplum/react';
 import { getDisplayString } from '@medplum/core';
 
-export type Vista = 'agenda' | 'solicitudes' | 'atender' | 'reportes';
+export type Vista = 'agenda' | 'solicitudes' | 'glp1' | 'atender' | 'reportes';
 
 interface ShellProps {
   vista: Vista;
@@ -37,7 +46,8 @@ export function Shell({ vista, onVista, children }: ShellProps): JSX.Element {
             <Title order={3} c="somAzul.7">
               Segunda Opinión Médica
             </Title>
-            <Text c="dimmed" size="sm" visibleFrom="sm">
+            {/* Subtítulo y usuario se ocultan en pantallas chicas para que entren las pestañas. */}
+            <Text c="dimmed" size="sm" visibleFrom="lg">
               Recepción
             </Text>
           </Group>
@@ -48,13 +58,14 @@ export function Shell({ vista, onVista, children }: ShellProps): JSX.Element {
             data={[
               { value: 'agenda', label: segLabel(<IconCalendarEvent size={16} />, 'Agenda') },
               { value: 'solicitudes', label: segLabel(<IconInbox size={16} />, 'Solicitudes') },
+              { value: 'glp1', label: segLabel(<IconVaccine size={16} />, 'GLP-1') },
               { value: 'atender', label: segLabel(<IconUserHeart size={16} />, 'Atender paciente') },
               { value: 'reportes', label: segLabel(<IconChartBar size={16} />, 'Reportes') },
             ]}
           />
 
           <Group gap="sm" wrap="nowrap">
-            <Text size="sm" visibleFrom="sm">
+            <Text size="sm" visibleFrom="lg">
               {profile ? getDisplayString(profile) : ''}
             </Text>
             <ActionIcon

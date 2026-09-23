@@ -77,9 +77,10 @@ describe('Integridad del catálogo', () => {
     }
   });
 
-  it('Son las 6 consultas de cardiología + subespecialidades', () => {
+  it('Son las 6 consultas de cardiología + subespecialidades y el control GLP-1', () => {
     expect(SERVICIOS.map((s) => s.codigo).sort()).toEqual([
       'CARDIOLOGIA',
+      'CONTROL_GLP1',
       'ELECTROFISIOLOGIA',
       'HEMODINAMIA',
       'MEDICINA_NUCLEAR',

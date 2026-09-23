@@ -26,6 +26,7 @@ const CATEGORIA_A_TIPO: Record<CategoriaServicio, TipoRecurso> = {
   MEDICINA_NUCLEAR: 'CONSULTORIO',
   PREVENCION_CV: 'CONSULTORIO',
   REHABILITACION_CV: 'SALA',
+  SEGUIMIENTO_GLP1: 'CONSULTORIO',
 };
 
 /** Recursos físicos donde se puede agendar un servicio de la categoría dada. */

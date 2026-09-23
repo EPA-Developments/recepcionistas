@@ -8,6 +8,7 @@ import type {
   Basic,
   Extension,
   Location,
+  PlanDefinition,
   Practitioner,
   Schedule,
   Slot,
@@ -15,13 +16,14 @@ import type {
 } from '@medplum/fhirtypes';
 import type { Servicio } from '../domain/types.js';
 import { MEDICOS } from '../config/medicos.js';
-import { SERVICIOS } from '../config/catalogo.js';
+import { CODIGO_CONTROL_GLP1, SERVICIOS } from '../config/catalogo.js';
 import { RECURSOS } from '../config/recursos.js';
 import { TC_DEFAULT } from '../config/tipo-cambio.js';
 import type { SlotDescriptor } from '../lib/slots.js';
 import { EXTENSIONES } from '../fhir/extensions.js';
 import { ACCESS_POLICIES } from '../fhir/access-policies.js';
 import { CONFIG_TC_ID, EXT, SYSTEM } from '../fhir/identifiers.js';
+import { construirPlanDefinitionGlp1 } from '../lib/glp1-plan.js';
 
 const BASE = 'https://segundaopinionmedica.org/fhir';
 
@@ -114,11 +116,17 @@ export function buildPractitioner(codigo: string): Practitioner {
   };
 }
 
+/** Programa de seguimiento GLP-1 (plantilla del catálogo; sus visitas usan el control GLP-1). */
+export function buildPlanDefinitionGlp1(): PlanDefinition {
+  return construirPlanDefinitionGlp1(canonical('ActivityDefinition', CODIGO_CONTROL_GLP1));
+}
+
 export interface RecursosSeed {
   structureDefinitions: StructureDefinition[];
   accessPolicies: typeof ACCESS_POLICIES;
   tcConfig: Basic;
   activityDefinitions: ActivityDefinition[];
+  planDefinitions: PlanDefinition[];
   locations: Location[];
   schedules: Schedule[];
   practitioners: Practitioner[];
@@ -131,6 +139,7 @@ export function buildSeed(): RecursosSeed {
     accessPolicies: ACCESS_POLICIES,
     tcConfig: buildTcConfig(),
     activityDefinitions: SERVICIOS.map(buildActivityDefinition),
+    planDefinitions: [buildPlanDefinitionGlp1()],
     locations: RECURSOS.map((r) => buildLocation(r.codigo)),
     schedules: RECURSOS.map((r) => buildSchedule(r.codigo)),
     practitioners: MEDICOS.map((m) => buildPractitioner(m.codigo)),

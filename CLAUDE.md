@@ -23,8 +23,10 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 - `src/domain` — tipos de dominio, agnósticos de FHIR.
 - `src/config` — catálogo (consultas de segunda opinión), médicos, recursos
   (consultorios/salas), horario, TC, constantes de reglas.
-- `src/lib` — **lógica pura** (sin FHIR ni red): `money`, `pricing`,
-  `reglas-turno`. Es lo que se testea exhaustivamente.
+- `src/lib` — **lógica pura** (sin red): `money`, `pricing`, `reglas-turno`,
+  `glp1-plan` (armado FHIR del seguimiento GLP-1). Es lo que se testea
+  exhaustivamente. `src/lib/glp1/` es el calendario GLP-1 **compartido con la
+  plataforma CKM**: se mantiene igual al original (solo imports), sin lógica de SOM.
 - `src/fhir` — identificadores/URLs, extensiones (`StructureDefinition`),
   AccessPolicies.
 - `src/bots` — Medplum Bots: envoltura fina sobre `src/lib` + integraciones.

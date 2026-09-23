@@ -77,4 +77,10 @@ describe('validarReserva', () => {
     expect(r.ok).toBe(false);
     expect(r.bloqueos.some((b) => b.regla === 'R-13')).toBe(true);
   });
+
+  it('Control GLP-1 sin su tarea del programa => bloqueo (R-19)', () => {
+    const r = validarReserva(ctx({ servicioCodigo: 'CONTROL_GLP1', recursoCodigo: 'R_CONSULTORIO_1', inicio: new Date('2026-06-22T09:00:00-03:00') }));
+    expect(r.ok).toBe(false);
+    expect(r.bloqueos.some((b) => b.regla === 'R-19')).toBe(true);
+  });
 });
