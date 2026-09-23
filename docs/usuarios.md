@@ -44,7 +44,7 @@ seguridad es un `Flag` de solo lectura (señal verde/rojo, sin detalle clínico)
 |---|---|---|
 | Recepción — Operativo | Recepcionistas | Operativo, sin historia clínica |
 | Director Médico — Clínico completo | Dirección médica | Todo |
-| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; lectura de turnos, pagos, solicitudes, informes y sus programas de seguimiento (`CarePlan`, `Goal`) |
+| **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; su Plan Bienestar (escritura acotada); lectura de turnos, pagos, solicitudes, informes y sus programas de seguimiento (`CarePlan`, `Goal`, `Task`) |
 
 Los roles clínicos del equipo médico de SOM están **por definir** (los del
 catálogo anterior se retiraron). Los médicos se invitan igual que la

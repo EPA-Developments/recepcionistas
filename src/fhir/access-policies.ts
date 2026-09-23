@@ -88,18 +88,24 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
  * Alcance dentro de su compartimento:
  *  - **Escribe** (autogestión): su perfil, las observaciones/vitales que él carga,
  *    sus respuestas de cuestionarios, sus consentimientos y sus mensajes.
- *  - **Sólo lee**: agenda, cobertura/plan, facturas y su historia clínica (esa la
- *    genera el equipo médico, no el paciente).
+ *  - **Plan Bienestar** (módulo drop-in del portal): el paciente inicia su plan y
+ *    tilda pasos, con escritura acotada: `CarePlan` solo el que instancia la
+ *    PlanDefinition del plan, `Task` solo `intent=plan`, `Condition` solo los
+ *    hallazgos SNOMED del plan, más sus `Goal` y su `CareTeam`.
+ *  - **Sólo lee**: agenda, cobertura, facturas, sus programas de seguimiento
+ *    (p. ej. GLP-1: `CarePlan`, `Task`, `ServiceRequest`) y su historia clínica
+ *    (esa la genera el equipo médico, no el paciente).
  * Catálogo, agenda y profesionales: sólo lectura (para mostrar la oferta).
  *
  * Reservar un turno NO se hace escribiendo `Appointment` directo: el modelo es de
  * **solicitud** (el paciente ejecuta solo el bot `som-solicitar-turno`, que crea un
  * `Task`, y Recepción confirma con los bots de reserva), por eso `Appointment` es de
- * sólo lectura y el acceso a `Bot` está acotado a ese único bot.
+ * sólo lectura y el acceso a `Bot` está acotado a ese único bot (y `som-solicitar`).
  *
  * IMPORTANTE — fuente de verdad: esta definición es la que aplica `npm run seed`
- * (upsert por `name`). Debe mantenerse en sincronía con su **espejo** de
- * documentación en el portal: `portal/docs/medplum/access-policy-paciente-portal.json`.
+ * (upsert por `name`: pisa la del servidor). Debe quedar **idéntica** a su espejo en
+ * el portal: `EPA-Developments/app` → `docs/medplum/access-policy-paciente-portal.json`
+ * (sincronizada con ese archivo en `app@f7be844`). Si cambia una, cambiar la otra.
  */
 export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
   resourceType: 'AccessPolicy',
@@ -111,22 +117,44 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'QuestionnaireResponse', criteria: 'QuestionnaireResponse?subject=%patient' },
     { resourceType: 'DocumentReference', criteria: 'DocumentReference?subject=%patient' },
     { resourceType: 'Communication', criteria: 'Communication?subject=%patient' },
+
+    // Planes de cuidado: lee todos los suyos (Plan Bienestar, seguimiento GLP-1, …);
+    // escribe solo el Plan Bienestar, que inicia el propio paciente.
+    { resourceType: 'CarePlan', readonly: true, criteria: 'CarePlan?subject=%patient' },
+    {
+      resourceType: 'CarePlan',
+      criteria:
+        'CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/menopausia-cardiovascular',
+    },
+    // Sus metas (las del Plan Bienestar las crea él; la del GLP-1, el equipo médico).
+    { resourceType: 'Goal', criteria: 'Goal?subject=%patient' },
+    // Tareas: lee las suyas (solicitudes de turno, controles GLP-1); escribe solo los
+    // pasos del Plan Bienestar (`intent=plan`). `patient` mapea a Task.for.
+    { resourceType: 'Task', readonly: true, criteria: 'Task?patient=%patient' },
+    { resourceType: 'Task', criteria: 'Task?patient=%patient&intent=plan' },
+    { resourceType: 'CareTeam', criteria: 'CareTeam?subject=%patient' },
+    // Condiciones: lee las suyas; escribe solo los hallazgos del Plan Bienestar
+    // (menopausia, prematura, perimenopausia, posmenopausia, quirúrgica).
+    { resourceType: 'Condition', readonly: true, criteria: 'Condition?subject=%patient' },
+    {
+      resourceType: 'Condition',
+      criteria:
+        'Condition?subject=%patient&code=http://snomed.info/sct|289903006,http://snomed.info/sct|373717006,http://snomed.info/sct|307409000,http://snomed.info/sct|76498008,http://snomed.info/sct|67207009',
+    },
+    // Plantillas de planes (elegibilidad del Plan Bienestar, programa GLP-1).
+    { resourceType: 'PlanDefinition', readonly: true },
+
     // Compartimento propio — sólo lectura (lo gestiona Recepción / el equipo médico).
     { resourceType: 'Appointment', readonly: true, criteria: 'Appointment?actor=%patient' },
+    { resourceType: 'Coverage', readonly: true, criteria: 'Coverage?beneficiary=%patient' },
     { resourceType: 'Invoice', readonly: true, criteria: 'Invoice?subject=%patient' },
     { resourceType: 'DiagnosticReport', readonly: true, criteria: 'DiagnosticReport?subject=%patient' },
-    { resourceType: 'CarePlan', readonly: true, criteria: 'CarePlan?subject=%patient' },
-    { resourceType: 'MedicationRequest', readonly: true, criteria: 'MedicationRequest?patient=%patient' },
-    { resourceType: 'Immunization', readonly: true, criteria: 'Immunization?patient=%patient' },
-    // Metas de sus programas de seguimiento (p. ej. GLP-1: descenso de peso).
-    { resourceType: 'Goal', readonly: true, criteria: 'Goal?subject=%patient' },
-    // Solicitudes de turno propias (las crea el bot; el paciente solo las lee).
-    // `patient` mapea a Task.for (que el bot setea al paciente).
-    { resourceType: 'Task', readonly: true, criteria: 'Task?patient=%patient' },
-    // SOM — Segunda Opinión Médica: el paciente ve sus solicitudes y su evaluación
-    // de riesgo (las genera el bot interno; el paciente solo las lee).
+    // SOM (solicitudes de segunda opinión) y pedidos de laboratorio de sus programas.
     { resourceType: 'ServiceRequest', readonly: true, criteria: 'ServiceRequest?subject=%patient' },
     { resourceType: 'RiskAssessment', readonly: true, criteria: 'RiskAssessment?subject=%patient' },
+    { resourceType: 'MedicationRequest', readonly: true, criteria: 'MedicationRequest?patient=%patient' },
+    { resourceType: 'Immunization', readonly: true, criteria: 'Immunization?patient=%patient' },
+
     // Catálogo, agenda y profesionales — sólo lectura (para mostrar la oferta).
     { resourceType: 'ObservationDefinition', readonly: true },
     { resourceType: 'Questionnaire', readonly: true },
@@ -136,6 +164,7 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Practitioner', readonly: true },
     { resourceType: 'Organization', readonly: true },
     { resourceType: 'Binary', readonly: true },
+
     // Reserva por solicitud: el paciente solo puede ejecutar ESTE bot (crea el Task
     // de solicitud y avisa a Recepción). No puede ejecutar ningún otro bot.
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar-turno' },

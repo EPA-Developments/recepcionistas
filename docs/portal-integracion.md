@@ -16,12 +16,16 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
 - **AccessPolicy "Paciente SOM — Portal".** Es la **fuente de verdad**: `npm run
   seed` la aplica por `name`, así que el espejo del portal
   (`docs/medplum/access-policy-paciente-portal.json`) debe quedar idéntico.
-  El paciente **escribe** solo su autogestión (perfil, vitales, cuestionarios,
-  documentos, mensajes) y **lee** su compartimento clínico/financiero
-  (`Appointment`, `Invoice`, `DiagnosticReport`, `CarePlan`, `Goal`,
-  `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`, `RiskAssessment`)
-  más catálogo y agenda (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
-  `Goal` se sumó para el seguimiento GLP-1: actualizar el espejo del portal.
+  El paciente **escribe** su autogestión (perfil, vitales, cuestionarios,
+  documentos, mensajes) y lo que necesita el **Plan Bienestar** del portal, con
+  escritura acotada (`CarePlan` del plan, `Goal`, `Task` `intent=plan`,
+  `CareTeam`, `Condition` con los SNOMED del plan); **lee** su compartimento
+  clínico/financiero (`Appointment`, `Coverage`, `Invoice`, `DiagnosticReport`,
+  `CarePlan`, `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`,
+  `RiskAssessment`) más `PlanDefinition`, catálogo y agenda
+  (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
+  Sincronizada con el espejo en `EPA-Developments/app@f7be844`; `tests/seed.test.ts`
+  fija las entradas que usa el portal, porque `npm run seed` pisa la del servidor.
 - **Reserva por *solicitud*.** El paciente pide desde el portal y se crea un
   `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`** (lógica pura
   en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
