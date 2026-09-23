@@ -164,6 +164,8 @@ pendiente que ya no va, y lo cerrado nunca se pisa.
 
 ## App del paciente (slice 2) y unificación con CKM
 
+Prompt de arranque para la sesión del portal: [`handoff-app-glp1.md`](handoff-app-glp1.md).
+
 Contrato para el portal (`EPA-Developments/app`), todo de solo lectura. Ejemplo
 completo de lo que lee el paciente (DM2, retinopatía, peso basal 92 kg, basal ya
 agendado): [`docs/ejemplos/glp1-paciente.json`](ejemplos/glp1-paciente.json). Lo

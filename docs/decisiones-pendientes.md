@@ -41,7 +41,7 @@ Alejandro Sergio D'Alessandro:
 | 7 | **Oftalmología / función renal** | Hoy se agendan como parte del control de la misma semana (12 y 26). ¿Se hacen en SOM o se derivan? | A definir |
 | 8 | **Nombre visible y duración** | "Seguimiento de tratamiento GLP-1 — Control", 45 min provisional, en consultorio. | A confirmar |
 | 9 | **Metas del GLP-1 editables por el paciente** | La policy del portal le da escritura sobre todos sus `Goal` (el Plan Bienestar crea los suyos), así que técnicamente podría editar la meta del GLP-1 (el bot la reescribe al recalcular). Acotar la escritura a las metas del Plan Bienestar (p. ej. por su categoría), en los dos repos a la vez. | A definir |
-| 10 | **App del paciente (slice 2)** | Mostrar el programa, la meta y el estado de cada control en el portal (`EPA-Developments/app`), con el contrato de [`glp1.md`](glp1.md). | Próximo slice |
+| 10 | **App del paciente (slice 2)** | Mostrar el programa, la meta y el estado de cada control en el portal (`EPA-Developments/app`), con el contrato de [`glp1.md`](glp1.md). Prompt listo: [`handoff-app-glp1.md`](handoff-app-glp1.md). | Próximo slice |
 
 ## Agenda
 
