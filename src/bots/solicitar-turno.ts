@@ -1,7 +1,7 @@
 /**
  * Bot · Solicitar turno (desde el portal del paciente).
  *
- * Modelo de "solicitud": el paciente pide un turno (terapia + preferencia) y este
+ * Modelo de "solicitud": el paciente pide un turno (servicio + preferencia) y este
  * bot crea un `Task` (cola de solicitudes que ve Recepción) y avisa a Recepción por
  * WhatsApp. El bot NO reserva: la confirmación la hace Recepción con los bots de
  * reserva (que aplican las reglas). Toda la decisión vive en recepción.
@@ -15,7 +15,14 @@
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Task, TaskInput } from '@medplum/fhirtypes';
 import { COD, SYSTEM } from '../fhir/identifiers.js';
-import { mensajeWhatsAppRecepcion, resumenSolicitud, validarSolicitud, type SolicitudTurno } from '../lib/solicitudes.js';
+import {
+  codigoPedido,
+  mensajeWhatsAppRecepcion,
+  resumenSolicitud,
+  servicioPedido,
+  validarSolicitud,
+  type SolicitudTurno,
+} from '../lib/solicitudes.js';
 import { enviarWhatsApp } from './_shared.js';
 
 export interface ResultadoSolicitud {
@@ -46,8 +53,8 @@ export async function handler(medplum: MedplumClient, event: BotEvent<SolicitudT
   }
 
   const input: TaskInput[] = [
-    { type: { text: 'terapia' }, valueString: e.terapia.trim() },
-    ...(e.terapiaCodigo ? [{ type: { text: 'terapia-codigo' }, valueString: e.terapiaCodigo }] : []),
+    { type: { text: 'servicio' }, valueString: servicioPedido(e) },
+    ...(codigoPedido(e) ? [{ type: { text: 'servicio-codigo' }, valueString: codigoPedido(e) }] : []),
     ...(e.preferenciaInicio ? [{ type: { text: 'preferencia-inicio' }, valueDateTime: e.preferenciaInicio }] : []),
     ...(e.preferenciaTexto?.trim() ? [{ type: { text: 'preferencia-texto' }, valueString: e.preferenciaTexto.trim() }] : []),
     ...(e.nota?.trim() ? [{ type: { text: 'nota' }, valueString: e.nota.trim() }] : []),

@@ -12,9 +12,13 @@
 export interface SolicitudTurno {
   /** Paciente que pide, ej. "Patient/123". */
   pacienteRef: string;
-  /** Servicio elegido (texto que vio el paciente, ej. "Segunda opinión — Cardiología"). */
-  terapia: string;
-  /** Código de categoría del servicio, si el portal lo manda (ej. "CARDIOLOGIA"). */
+  /** Servicio elegido (texto que vio el paciente, ej. "Consulta cardiológica"). */
+  servicio?: string;
+  /** Código del servicio, si el portal lo manda (ej. "CONSULTA_CARDIO"). */
+  servicioCodigo?: string;
+  /** @deprecated Nombre anterior de `servicio` (portales viejos); se sigue aceptando. */
+  terapia?: string;
+  /** @deprecated Nombre anterior de `servicioCodigo`; se sigue aceptando. */
   terapiaCodigo?: string;
   /** Fecha/hora preferida en ISO (opcional). */
   preferenciaInicio?: string;
@@ -32,13 +36,25 @@ export interface SolicitudValidacion {
 const RE_PATIENT_REF = /^Patient\/[A-Za-z0-9\-.]+$/;
 const MAX_TEXTO = 500;
 
+/**
+ * Servicio pedido. El portal (EPA-Developments/app, `src/fhir/solicitudes.ts`) manda
+ * `servicio`/`servicioCodigo`; `terapia`/`terapiaCodigo` es el contrato anterior.
+ */
+export function servicioPedido(s: SolicitudTurno): string {
+  return (s.servicio ?? s.terapia ?? '').trim();
+}
+
+export function codigoPedido(s: SolicitudTurno): string | undefined {
+  return (s.servicioCodigo ?? s.terapiaCodigo)?.trim() || undefined;
+}
+
 /** Valida una solicitud antes de crear el Task. No decide reglas de agenda. */
 export function validarSolicitud(s: SolicitudTurno): SolicitudValidacion {
   if (!s.pacienteRef || !RE_PATIENT_REF.test(s.pacienteRef)) {
     return { ok: false, error: 'Falta el paciente de la solicitud.' };
   }
-  if (!s.terapia?.trim()) {
-    return { ok: false, error: 'Elegí una terapia para tu solicitud.' };
+  if (!servicioPedido(s)) {
+    return { ok: false, error: 'Elegí el servicio de tu solicitud.' };
   }
   if (s.preferenciaInicio && Number.isNaN(new Date(s.preferenciaInicio).getTime())) {
     return { ok: false, error: 'La fecha/hora preferida no es válida.' };
@@ -72,7 +88,7 @@ export function preferenciaLegible(s: SolicitudTurno): string | undefined {
 
 /** Resumen humano para `Task.description` (lo lee Recepción). */
 export function resumenSolicitud(s: SolicitudTurno): string {
-  const partes = [`Solicitud de turno: ${s.terapia.trim()}`];
+  const partes = [`Solicitud de turno: ${servicioPedido(s)}`];
   const pref = preferenciaLegible(s);
   if (pref) {
     partes.push(`Preferencia: ${pref}`);
@@ -88,7 +104,7 @@ export function mensajeWhatsAppRecepcion(s: SolicitudTurno, nombrePaciente?: str
   const quien = nombrePaciente?.trim() || 'Un paciente';
   const pref = preferenciaLegible(s);
   return (
-    `Segunda Opinión Médica · Nueva solicitud de turno.\n${quien} pidió: ${s.terapia.trim()}` +
+    `Segunda Opinión Médica · Nueva solicitud de turno.\n${quien} pidió: ${servicioPedido(s)}` +
     (pref ? `.\nPreferencia: ${pref}` : '') +
     (s.nota?.trim() ? `.\nNota: ${s.nota.trim()}` : '') +
     `.\nConfirmala desde la app de Recepción (Solicitudes).`
