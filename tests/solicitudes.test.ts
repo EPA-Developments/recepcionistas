@@ -6,6 +6,7 @@ import {
   preferenciaLegible,
   mensajeWhatsAppRecepcion,
   servicioPedido,
+  SERVICIOS_SOLICITABLES,
   type SolicitudTurno,
 } from '../src/lib/solicitudes.js';
 
@@ -28,6 +29,13 @@ describe('Solicitudes de turno — validación', () => {
   it('Rechaza sin paciente o ref inválida', () => {
     expect(validarSolicitud({ ...base, pacienteRef: '' }).ok).toBe(false);
     expect(validarSolicitud({ ...base, pacienteRef: '123' }).ok).toBe(false);
+  });
+
+  it('Acepta todos los servicios del portal y rechaza un código desconocido', () => {
+    for (const { codigo, label } of SERVICIOS_SOLICITABLES) {
+      expect(validarSolicitud({ pacienteRef: 'Patient/1', servicio: label, servicioCodigo: codigo }).ok).toBe(true);
+    }
+    expect(validarSolicitud({ ...base, servicioCodigo: 'HBOT' }).ok).toBe(false);
   });
 
   it('Rechaza sin servicio', () => {

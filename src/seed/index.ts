@@ -13,8 +13,9 @@
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
-import type { Resource } from '@medplum/fhirtypes';
-import { buildSeed, buildSlot } from './builders.js';
+import type { ObservationDefinition, Resource } from '@medplum/fhirtypes';
+import { buildSeed, buildSlot, claveObservationDefinition } from './builders.js';
+import { rangosPendientes } from '../config/biomarcadores.js';
 import { conectarMedplum } from './conexion.js';
 import { HORARIO_ES_PLACEHOLDER, HORARIO_SEMANAL } from '../config/horario.js';
 import { RECURSOS } from '../config/recursos.js';
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
     ['Location (recursos)', seed.locations],
     ['Schedule (agendas)', seed.schedules],
     ['Practitioner (médicos)', seed.practitioners],
+    ['ObservationDefinition (biomarcadores)', seed.observationDefinitions],
   ];
 
   const total = grupos.reduce((acc, [, arr]) => acc + arr.length, 0);
@@ -65,8 +67,12 @@ async function main(): Promise<void> {
   console.log(`\nConectado a Medplum: ${baseUrl} (project ${projectId})`);
 
   for (const [nombre, arr] of grupos) {
-    for (const recurso of arr) {
-      await upsert(medplum, recurso);
+    if (arr[0]?.resourceType === 'ObservationDefinition') {
+      await upsertObservationDefinitions(medplum, arr as ObservationDefinition[]);
+    } else {
+      for (const recurso of arr) {
+        await upsert(medplum, recurso);
+      }
     }
     console.log(`  ✓ ${nombre} (${arr.length})`);
   }
@@ -151,6 +157,32 @@ async function upsert(medplum: MedplumClient, recurso: Resource): Promise<string
   return creado.id;
 }
 
+/**
+ * Upsert de ObservationDefinition por `system|code`. R4 no define search params para
+ * ObservationDefinition (no hay create condicional): se traen todas y se matchea del
+ * lado del cliente. Reusa las que ya estén en el servidor (p. ej. las cargadas a mano
+ * con el Batch del portal) y avisa si encuentra duplicados.
+ */
+async function upsertObservationDefinitions(medplum: MedplumClient, defs: ObservationDefinition[]): Promise<void> {
+  const existentes = await withRetry(() => medplum.searchResources('ObservationDefinition', '_count=1000'));
+  const porClave = new Map<string, ObservationDefinition[]>();
+  for (const od of existentes) {
+    const k = claveObservationDefinition(od);
+    if (k) {
+      porClave.set(k, [...(porClave.get(k) ?? []), od]);
+    }
+  }
+  for (const def of defs) {
+    const k = claveObservationDefinition(def);
+    const previas = k ? (porClave.get(k) ?? []) : [];
+    if (previas.length > 1) {
+      console.log(`    ⚠️  ${k}: ${previas.length} ObservationDefinition duplicadas en el servidor; se actualiza la primera.`);
+    }
+    const id = previas[0]?.id;
+    await withRetry(() => (id ? medplum.updateResource({ ...def, id }) : medplum.createResource(def)));
+  }
+}
+
 function buildQuery(recurso: Resource): string | undefined {
   const r = recurso as Resource & {
     url?: string;
@@ -179,6 +211,9 @@ function imprimirAdvertencias(): void {
   }
   if (RECURSOS.some((r) => r.provisional)) {
     avisos.push('La lista de recursos físicos (consultorios/salas) es PROVISIONAL. Confirmar con la operación.');
+  }
+  for (const r of rangosPendientes()) {
+    avisos.push(`Rango NO publicado hasta la revisión médica: ${r.nombre}. ${r.motivo}`);
   }
   if (avisos.length) {
     console.log('\n⚠️  Pendientes (ver docs/decisiones-pendientes.md):');

@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { BotEvent, MedplumClient } from '@medplum/core';
+import type { Patient } from '@medplum/fhirtypes';
 import {
   esCanalValido,
+  esOrigenValido,
+  extensionesInvitacion,
   validarEmail,
   linkSetPassword,
   partirNombre,
@@ -9,6 +12,7 @@ import {
 } from '../src/lib/onboarding.js';
 import { handler as invitarHandler, type EntradaInvitarPaciente } from '../src/bots/invitar-paciente.js';
 import { APP_BASE_URL_DEFAULT, PORTAL_BASE_URL_DEFAULT, urlBase } from '../src/config/urls.js';
+import { EXT } from '../src/fhir/identifiers.js';
 
 describe('onboarding · canal y email', () => {
   it('canales válidos', () => {
@@ -97,5 +101,64 @@ describe('Bot invitar-paciente · link al portal SOM', () => {
       evento({ PORTAL_BASE_URL: { name: 'PORTAL_BASE_URL', valueString: 'https://staging.ejemplo.org/' } }),
     );
     expect(r.link).toBe('https://staging.ejemplo.org/setpassword/usr1/s3cr3t');
+  });
+});
+
+describe('Patient Journey · origen del paciente (patient-origin)', () => {
+  const origenDe = (ext: ReturnType<typeof extensionesInvitacion>) => ext.find((x) => x.url === EXT.patientOrigin)?.valueCode;
+
+  it('origen válido: reception | referral (self no lo escribe nunca el backend)', () => {
+    expect(esOrigenValido('reception')).toBe(true);
+    expect(esOrigenValido('referral')).toBe(true);
+    expect(esOrigenValido('self')).toBe(false);
+  });
+
+  it('por defecto la invitación es de Recepción', () => {
+    expect(origenDe(extensionesInvitacion(undefined, 'qr'))).toBe('reception');
+  });
+
+  it('respeta el origen pedido y, si no se pide, conserva una derivación previa', () => {
+    expect(origenDe(extensionesInvitacion(undefined, 'email', 'referral'))).toBe('referral');
+    const previas = [{ url: EXT.patientOrigin, valueCode: 'referral' }];
+    expect(origenDe(extensionesInvitacion(previas, 'whatsapp'))).toBe('referral');
+  });
+
+  it('no duplica extensiones y nunca toca onboarding-completed (la escribe el portal)', () => {
+    const previas = [
+      { url: EXT.canalInvitacion, valueCode: 'qr' },
+      { url: EXT.patientOrigin, valueCode: 'reception' },
+      { url: EXT.onboardingCompleted, valueDateTime: '2026-09-01T10:00:00Z' },
+    ];
+    const ext = extensionesInvitacion(previas, 'email', 'referral');
+    expect(ext.filter((x) => x.url === EXT.patientOrigin)).toHaveLength(1);
+    expect(ext.filter((x) => x.url === EXT.canalInvitacion)).toEqual([{ url: EXT.canalInvitacion, valueCode: 'email' }]);
+    expect(ext).toContainEqual({ url: EXT.onboardingCompleted, valueDateTime: '2026-09-01T10:00:00Z' });
+  });
+
+  it('el bot de invitación guarda el origen en el Patient', async () => {
+    let guardado: Patient | undefined;
+    const medplum = {
+      getProfile: () => ({ meta: { project: 'p1' } }),
+      readResource: async () => ({
+        resourceType: 'Patient',
+        id: 'p1',
+        name: [{ text: 'Ana Pérez' }],
+        telecom: [{ system: 'email', value: 'ana@ejemplo.com' }],
+      }),
+      updateResource: async (r: Patient) => (guardado = r),
+      searchOne: async () => ({ resourceType: 'AccessPolicy', id: 'ap1' }),
+      post: async () => ({ resourceType: 'ProjectMembership', id: 'm1', user: { reference: 'User/u1' } }),
+      get: async () => ({ resourceType: 'Bundle', entry: [{ resource: { id: 'usr1', secret: 's3cr3t' } }] }),
+    } as unknown as MedplumClient;
+    const input: EntradaInvitarPaciente = { pacienteRef: 'Patient/p1', canal: 'qr', origen: 'referral' };
+    const r = await invitarHandler(medplum, { input, secrets: {} } as unknown as BotEvent<EntradaInvitarPaciente>);
+    expect(r.ok).toBe(true);
+    expect(guardado?.extension).toContainEqual({ url: EXT.patientOrigin, valueCode: 'referral' });
+  });
+
+  it('el bot rechaza un origen inválido', async () => {
+    const input = { pacienteRef: 'Patient/p1', canal: 'qr', origen: 'self' } as unknown as EntradaInvitarPaciente;
+    const r = await invitarHandler({} as MedplumClient, { input, secrets: {} } as unknown as BotEvent<EntradaInvitarPaciente>);
+    expect(r.ok).toBe(false);
   });
 });

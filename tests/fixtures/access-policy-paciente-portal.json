@@ -1,0 +1,159 @@
+{
+  "_origen": "EPA-Developments/app@091e20f — docs/medplum/access-policy-paciente-portal.json (solo name + resource)",
+  "name": "Paciente SOM — Portal",
+  "resource": [
+    {
+      "resourceType": "Patient",
+      "criteria": "Patient?_id=%patient.id"
+    },
+    {
+      "resourceType": "Observation",
+      "criteria": "Observation?subject=%patient"
+    },
+    {
+      "resourceType": "QuestionnaireResponse",
+      "criteria": "QuestionnaireResponse?subject=%patient"
+    },
+    {
+      "resourceType": "DocumentReference",
+      "criteria": "DocumentReference?subject=%patient"
+    },
+    {
+      "resourceType": "Communication",
+      "criteria": "Communication?subject=%patient"
+    },
+    {
+      "resourceType": "Consent",
+      "criteria": "Consent?patient=%patient"
+    },
+    {
+      "resourceType": "Binary",
+      "criteria": "Binary?_compartment=%patient"
+    },
+    {
+      "resourceType": "CarePlan",
+      "readonly": true,
+      "criteria": "CarePlan?subject=%patient"
+    },
+    {
+      "resourceType": "CarePlan",
+      "criteria": "CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/menopausia-cardiovascular"
+    },
+    {
+      "resourceType": "Goal",
+      "criteria": "Goal?subject=%patient"
+    },
+    {
+      "resourceType": "Task",
+      "readonly": true,
+      "criteria": "Task?patient=%patient"
+    },
+    {
+      "resourceType": "Task",
+      "criteria": "Task?patient=%patient&intent=plan"
+    },
+    {
+      "resourceType": "CareTeam",
+      "criteria": "CareTeam?subject=%patient"
+    },
+    {
+      "resourceType": "Condition",
+      "readonly": true,
+      "criteria": "Condition?subject=%patient"
+    },
+    {
+      "resourceType": "Condition",
+      "criteria": "Condition?subject=%patient&code=http://snomed.info/sct|289903006,http://snomed.info/sct|373717006,http://snomed.info/sct|307409000,http://snomed.info/sct|76498008,http://snomed.info/sct|67207009"
+    },
+    {
+      "resourceType": "PlanDefinition",
+      "readonly": true
+    },
+    {
+      "resourceType": "Appointment",
+      "readonly": true,
+      "criteria": "Appointment?actor=%patient"
+    },
+    {
+      "resourceType": "Coverage",
+      "readonly": true,
+      "criteria": "Coverage?beneficiary=%patient"
+    },
+    {
+      "resourceType": "Coverage",
+      "criteria": "Coverage?beneficiary=%patient&type=http://terminology.hl7.org/CodeSystem/v3-ActCode|HIP"
+    },
+    {
+      "resourceType": "Invoice",
+      "readonly": true,
+      "criteria": "Invoice?subject=%patient"
+    },
+    {
+      "resourceType": "DiagnosticReport",
+      "readonly": true,
+      "criteria": "DiagnosticReport?subject=%patient"
+    },
+    {
+      "resourceType": "ServiceRequest",
+      "readonly": true,
+      "criteria": "ServiceRequest?subject=%patient"
+    },
+    {
+      "resourceType": "RiskAssessment",
+      "readonly": true,
+      "criteria": "RiskAssessment?subject=%patient"
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "readonly": true,
+      "criteria": "MedicationRequest?patient=%patient"
+    },
+    {
+      "resourceType": "Immunization",
+      "readonly": true,
+      "criteria": "Immunization?patient=%patient"
+    },
+    {
+      "resourceType": "ObservationDefinition",
+      "readonly": true
+    },
+    {
+      "resourceType": "Questionnaire",
+      "readonly": true
+    },
+    {
+      "resourceType": "Schedule",
+      "readonly": true
+    },
+    {
+      "resourceType": "Slot",
+      "readonly": true
+    },
+    {
+      "resourceType": "HealthcareService",
+      "readonly": true
+    },
+    {
+      "resourceType": "Practitioner",
+      "readonly": true
+    },
+    {
+      "resourceType": "Organization",
+      "readonly": true
+    },
+    {
+      "resourceType": "Binary",
+      "readonly": true
+    },
+    {
+      "resourceType": "Bot",
+      "readonly": true,
+      "criteria": "Bot?name=som-solicitar-turno"
+    },
+    {
+      "resourceType": "Bot",
+      "readonly": true,
+      "criteria": "Bot?name=som-solicitar"
+    }
+  ]
+}

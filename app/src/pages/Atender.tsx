@@ -30,6 +30,7 @@ import { calcularCobro, reservarTurno, mensajeError, type ResultadoReserva } fro
 import { InvitarPortal } from '../components/InvitarPortal';
 import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
 import { SeguimientoGlp1 } from '../components/SeguimientoGlp1';
+import { PlanBienestar } from '../components/PlanBienestar';
 import { SERVICIOS } from '@som/config/catalogo';
 import { recursosParaCategoria } from '@som/config/recursos';
 import { generarSlots } from '@som/lib/slots';
@@ -160,6 +161,7 @@ function FichaPaciente({ paciente, onVolver }: { paciente: Patient; onVolver: ()
       <InvitarPortal paciente={paciente} />
       <PanelReserva paciente={paciente} />
       <SeguimientoGlp1 paciente={paciente} />
+      <PlanBienestar paciente={paciente} />
       <PanelCobro paciente={paciente} />
     </Stack>
   );

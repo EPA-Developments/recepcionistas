@@ -1,7 +1,7 @@
 /**
  * MedplumClient en memoria para tests de bots: guarda recursos y resuelve las
  * búsquedas que usan los bots y la app (_id, subject/patient, status, category,
- * code, based-on, identifier; en los tokens, la coma es OR). No es un servidor
+ * code, type, based-on, identifier; en los tokens, la coma es OR). No es un servidor
  * FHIR: solo lo necesario para probar la orquestación sin red.
  */
 import type { MedplumClient } from '@medplum/core';
@@ -22,7 +22,7 @@ function codingsDe(campo: unknown): Coding[] {
 
 function cumple(r: Registro, param: string, valor: string): boolean {
   // Token con varios valores separados por coma = OR (semántica FHIR).
-  if (['category', 'code', 'identifier', '_id'].includes(param) && valor.includes(',')) {
+  if (['category', 'code', 'type', 'identifier', '_id'].includes(param) && valor.includes(',')) {
     return valor.split(',').some((v) => cumple(r, param, v));
   }
   switch (param) {
@@ -40,6 +40,8 @@ function cumple(r: Registro, param: string, valor: string): boolean {
       return token(valor, codingsDe(r.category));
     case 'code':
       return token(valor, codingsDe(r.code));
+    case 'type':
+      return token(valor, codingsDe(r.type));
     case 'based-on':
       return ((r.basedOn as Array<{ reference?: string }> | undefined) ?? []).some((b) => b.reference === valor);
     case 'identifier': {
@@ -96,6 +98,11 @@ export function fakeMedplum(iniciales: Resource[] = []) {
         throw new Error(`Not found: ${tipo}/${id}`);
       }
       return copia(r);
+    },
+    createBinary: async (_data: unknown, _nombre?: string, contentType?: string) => {
+      const nuevo = { resourceType: 'Binary', id: `binary-${++n}`, contentType } as Registro;
+      store.set(clave('Binary', nuevo.id!), nuevo);
+      return copia(nuevo);
     },
     searchResources: async (tipo: string, query?: unknown) => buscar(tipo, query).map(copia),
     searchOne: async (tipo: string, query?: unknown) => {

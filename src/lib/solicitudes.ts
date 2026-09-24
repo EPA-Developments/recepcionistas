@@ -33,6 +33,31 @@ export interface SolicitudValidacion {
   error?: string;
 }
 
+/**
+ * Servicios cardiovasculares que el paciente puede pedir desde el portal. Deben
+ * coincidir con `SERVICIOS` en `EPA-Developments/app` (`src/fhir/solicitudes.ts`):
+ * el portal manda uno de estos `servicioCodigo`. Son los códigos de la *solicitud*
+ * (qué pide el paciente), no el catálogo con precios: la consulta real, su precio y
+ * su duración los fija Recepción al confirmar (catálogo SOM, PENDIENTE).
+ */
+export const SERVICIOS_SOLICITABLES = [
+  { codigo: 'CONSULTA_CARDIO', label: 'Consulta cardiológica' },
+  { codigo: 'EVALUACION_INICIAL', label: 'Evaluación inicial' },
+  { codigo: 'TELECONSULTA', label: 'Teleconsulta' },
+  { codigo: 'ECG', label: 'Electrocardiograma (ECG)' },
+  { codigo: 'ECOCARDIOGRAMA', label: 'Ecocardiograma Doppler' },
+  { codigo: 'ERGOMETRIA', label: 'Ergometría' },
+  { codigo: 'HOLTER', label: 'Holter 24 h' },
+  { codigo: 'MAPA', label: 'MAPA (presión 24 h)' },
+  { codigo: 'MONITOREO_REMOTO', label: 'Monitoreo remoto' },
+  { codigo: 'REHABILITACION_CV', label: 'Rehabilitación cardiovascular' },
+  { codigo: 'LABORATORIO_CARDIO', label: 'Laboratorio cardiometabólico' },
+] as const;
+
+export function esServicioSolicitable(codigo: string): boolean {
+  return SERVICIOS_SOLICITABLES.some((s) => s.codigo === codigo);
+}
+
 const RE_PATIENT_REF = /^Patient\/[A-Za-z0-9\-.]+$/;
 const MAX_TEXTO = 500;
 
@@ -55,6 +80,12 @@ export function validarSolicitud(s: SolicitudTurno): SolicitudValidacion {
   }
   if (!servicioPedido(s)) {
     return { ok: false, error: 'Elegí el servicio de tu solicitud.' };
+  }
+  // El contrato actual (`servicioCodigo`) solo admite los servicios del portal; el
+  // anterior (`terapiaCodigo`) se sigue aceptando tal cual para portales viejos.
+  const codigo = s.servicioCodigo?.trim();
+  if (codigo && !esServicioSolicitable(codigo)) {
+    return { ok: false, error: 'Ese servicio no está disponible para pedir desde el portal.' };
   }
   if (s.preferenciaInicio && Number.isNaN(new Date(s.preferenciaInicio).getTime())) {
     return { ok: false, error: 'La fecha/hora preferida no es válida.' };

@@ -157,14 +157,18 @@ export interface ResultadoInvitarPaciente {
   enviado?: boolean;
 }
 
+/** Origen del paciente invitado: Recepción o derivación de un colega (Patient Journey del portal). */
+export type OrigenPaciente = 'reception' | 'referral';
+
 /** Invita al paciente al portal por el canal elegido (WhatsApp / email / QR). */
 export async function invitarPaciente(
   pacienteRef: string,
   canal: CanalInvitacion,
   email?: string,
+  origen?: OrigenPaciente,
 ): Promise<ResultadoInvitarPaciente> {
   const id = await botIdPorNombre('som-invitar-paciente');
-  return (await medplum.executeBot(id, { pacienteRef, canal, email })) as ResultadoInvitarPaciente;
+  return (await medplum.executeBot(id, { pacienteRef, canal, email, origen })) as ResultadoInvitarPaciente;
 }
 
 export interface ResultadoInscripcionGlp1 {
@@ -186,4 +190,24 @@ export interface ResultadoInscripcionGlp1 {
 export async function inscribirGlp1(pacienteRef: string): Promise<ResultadoInscripcionGlp1> {
   const id = await botIdPorNombre('som-glp1-inscribir');
   return (await medplum.executeBot(id, { pacienteRef })) as ResultadoInscripcionGlp1;
+}
+
+export interface ResultadoInscripcionBienestar {
+  ok: boolean;
+  mensaje?: string;
+  /** true si se inscribió ahora; false si ya estaba inscripto. */
+  creado?: boolean;
+  carePlanId?: string;
+  /** Día 1 y fin del plan (AAAA-MM-DD), calculados por el bot. */
+  inicio?: string;
+  fin?: string;
+}
+
+/**
+ * Inscribe al paciente en el Plan Bienestar de 100 días (idempotente). El bot arma
+ * el plan que ve el paciente en el portal; Recepción no calcula fechas.
+ */
+export async function inscribirBienestar(pacienteRef: string): Promise<ResultadoInscripcionBienestar> {
+  const id = await botIdPorNombre('som-bienestar-inscribir');
+  return (await medplum.executeBot(id, { pacienteRef })) as ResultadoInscripcionBienestar;
 }

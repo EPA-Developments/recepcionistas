@@ -1,6 +1,6 @@
 /**
  * Builders FHIR del seed: traducen el catálogo de dominio a recursos FHIR R4
- * (ActivityDefinition, Basic, Location, Schedule). Funciones puras: no hacen
+ * (ActivityDefinition, Basic, Location, Schedule, ObservationDefinition). Funciones puras: no hacen
  * IO. El runner (index.ts) los persiste en Medplum.
  */
 import type {
@@ -8,6 +8,7 @@ import type {
   Basic,
   Extension,
   Location,
+  ObservationDefinition,
   PlanDefinition,
   Practitioner,
   Schedule,
@@ -16,6 +17,7 @@ import type {
 } from '@medplum/fhirtypes';
 import type { Servicio } from '../domain/types.js';
 import { MEDICOS } from '../config/medicos.js';
+import { BIOMARCADORES, PANEL_DISPLAY, type Biomarcador } from '../config/biomarcadores.js';
 import { CODIGO_CONTROL_GLP1, SERVICIOS } from '../config/catalogo.js';
 import { RECURSOS } from '../config/recursos.js';
 import { TC_DEFAULT } from '../config/tipo-cambio.js';
@@ -121,6 +123,47 @@ export function buildPlanDefinitionGlp1(): PlanDefinition {
   return construirPlanDefinitionGlp1(canonical('ActivityDefinition', CODIGO_CONTROL_GLP1));
 }
 
+const LOINC = 'http://loinc.org';
+const UCUM = 'http://unitsofmeasure.org';
+
+/**
+ * ObservationDefinition de un biomarcador, con el shape exacto que parsea el portal
+ * (`app/src/fhir/biomarkers.ts`): `code`, `category` panel-biomarcador,
+ * `quantitativeDetails.unit` y `qualifiedInterval` con `tipo-rango` y `gender`.
+ * Los rangos pendientes de revisión médica no se publican.
+ */
+export function buildObservationDefinition(b: Biomarcador): ObservationDefinition {
+  const system = b.sistema === 'loinc' ? LOINC : SYSTEM.biomarker;
+  return {
+    resourceType: 'ObservationDefinition',
+    code: { coding: [{ system, code: b.codigo, display: b.nombre }], text: b.nombre },
+    category: [{ coding: [{ system: SYSTEM.panelBiomarcador, code: b.panel, display: PANEL_DISPLAY[b.panel] }] }],
+    permittedDataType: ['Quantity'],
+    quantitativeDetails: { unit: { coding: [{ system: UCUM, code: b.unidad }], text: b.unidad } },
+    qualifiedInterval: b.rangos
+      .filter((r) => !r.pendienteRevisionMedica)
+      .map((r) => ({
+        category: 'reference' as const,
+        context: { coding: [{ system: SYSTEM.tipoRango, code: r.tipo }] },
+        range: {
+          ...(r.bajo !== undefined ? { low: { value: r.bajo, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
+          ...(r.alto !== undefined ? { high: { value: r.alto, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
+        },
+        ...(r.sexo ? { gender: r.sexo } : {}),
+      })),
+  };
+}
+
+/**
+ * Clave de una ObservationDefinition para el upsert del seed (`system|code`). R4 no
+ * define search params para ObservationDefinition, así que el seed las trae todas y
+ * matchea por esta clave: correr el seed dos veces no duplica.
+ */
+export function claveObservationDefinition(od: ObservationDefinition): string | undefined {
+  const c = od.code?.coding?.[0];
+  return c?.code ? `${c.system ?? ''}|${c.code}` : undefined;
+}
+
 export interface RecursosSeed {
   structureDefinitions: StructureDefinition[];
   accessPolicies: typeof ACCESS_POLICIES;
@@ -130,6 +173,7 @@ export interface RecursosSeed {
   locations: Location[];
   schedules: Schedule[];
   practitioners: Practitioner[];
+  observationDefinitions: ObservationDefinition[];
 }
 
 /** Construye TODOS los recursos del seed (sin IO). */
@@ -143,5 +187,6 @@ export function buildSeed(): RecursosSeed {
     locations: RECURSOS.map((r) => buildLocation(r.codigo)),
     schedules: RECURSOS.map((r) => buildSchedule(r.codigo)),
     practitioners: MEDICOS.map((m) => buildPractitioner(m.codigo)),
+    observationDefinitions: BIOMARCADORES.map(buildObservationDefinition),
   };
 }

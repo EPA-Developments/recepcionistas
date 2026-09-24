@@ -5,7 +5,42 @@
  * login: usa el invite de Medplum con `sendEmail:false` y entrega el link mágico
  * (`/setpassword/{id}/{secret}`) por el canal elegido (WhatsApp / mail / QR).
  */
+import type { Extension } from '@medplum/fhirtypes';
+import { EXT } from '../fhir/identifiers.js';
+
 export type CanalInvitacion = 'whatsapp' | 'email' | 'qr';
+
+/**
+ * Origen del paciente invitado (Patient Journey del portal): `reception` = lo invitó
+ * Recepción; `referral` = lo derivó un colega. El portal ramifica la primera pantalla
+ * (Bienvenida vs Onboarding) según este valor; sin la extensión lo trata como
+ * auto-registrado (`self`), que el backend nunca escribe.
+ */
+export type OrigenPaciente = 'reception' | 'referral';
+
+export function esOrigenValido(o: string | undefined): o is OrigenPaciente {
+  return o === 'reception' || o === 'referral';
+}
+
+/**
+ * Extensiones del Patient al invitarlo: registra el canal elegido (auditoría) y el
+ * origen (`patient-origin`, valueCode). Si no se indica el origen, conserva el que
+ * ya tenía (p. ej. una derivación) y si no tenía ninguno, es Recepción. Nunca toca
+ * `onboarding-completed` (la escribe el portal).
+ */
+export function extensionesInvitacion(
+  actuales: Extension[] | undefined,
+  canal: CanalInvitacion,
+  origen?: OrigenPaciente,
+): Extension[] {
+  const previo = actuales?.find((x) => x.url === EXT.patientOrigin)?.valueCode;
+  const origenFinal: OrigenPaciente = origen ?? (esOrigenValido(previo) ? previo : 'reception');
+  return [
+    ...(actuales ?? []).filter((x) => x.url !== EXT.canalInvitacion && x.url !== EXT.patientOrigin),
+    { url: EXT.canalInvitacion, valueCode: canal },
+    { url: EXT.patientOrigin, valueCode: origenFinal },
+  ];
+}
 
 export const CANALES_INVITACION: readonly CanalInvitacion[] = ['whatsapp', 'email', 'qr'];
 

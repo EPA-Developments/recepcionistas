@@ -16,7 +16,7 @@ import { dirname, resolve, basename } from 'node:path';
 import { build, type Plugin } from 'esbuild';
 import type { MedplumClient } from '@medplum/core';
 import type { Bot, Subscription } from '@medplum/fhirtypes';
-import { BOT_SOM_REPORT, COD, SYSTEM } from '../fhir/identifiers.js';
+import { BOT_SOM_LABORATORIO, BOT_SOM_REPORT, COD, SYSTEM } from '../fhir/identifiers.js';
 import { conectarMedplum } from './conexion.js';
 
 /** Runtime de los bots. El servidor Medplum de SOM usa AWS Lambda. Configurable por env. */
@@ -49,9 +49,12 @@ const BOTS: DefBot[] = [
   // SOM — Segunda Opinión Médica.
   { name: 'som-solicitar', source: 'src/bots/som-solicitar.ts', dist: 'dist/bots/som-solicitar.js', description: 'SOM: crea una ServiceRequest de segunda opinión cardiológica desde el portal del paciente.' },
   { name: 'bot-som-report', source: 'src/bots/som-report.ts', dist: 'dist/bots/som-report.js', description: 'SOM: genera el informe (PREVENT + Claude + PDF) ante una ServiceRequest activa. Lo dispara una Subscription.' },
+  { name: 'som-procesar-laboratorio', source: 'src/bots/som-procesar-laboratorio.ts', dist: 'dist/bots/som-procesar-laboratorio.js', description: 'SOM: transcribe el PDF de laboratorio que manda el paciente (Claude) a Observation + DiagnosticReport. Lo dispara una Subscription (create).' },
   // Seguimiento GLP-1 (docs/glp1.md).
   { name: 'som-glp1-inscribir', source: 'src/bots/glp1-inscribir.ts', dist: 'dist/bots/glp1-inscribir.js', description: 'GLP-1 (Recepción): inscribe al paciente en el seguimiento; deja la indicación pendiente al equipo médico.' },
   { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
+  // Plan Bienestar · 100 días (portal: tarjeta de progreso).
+  { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 de 100 días que lee el portal.' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */
@@ -68,6 +71,12 @@ const jsToTs: Plugin = {
   },
 };
 
+/**
+ * `$deploy` manda el código en un JSON: el servidor Medplum rechaza cuerpos de más
+ * de 1 MB por defecto (`maxJsonSize`). Avisamos antes de llegar.
+ */
+const MAX_BUNDLE_KB = 900;
+
 async function bundle(source: string): Promise<string> {
   const result = await build({
     entryPoints: [source],
@@ -78,6 +87,10 @@ async function bundle(source: string): Promise<string> {
     write: false,
     logLevel: 'silent',
     legalComments: 'none',
+    // Compacta (el SDK de Anthropic pesa ~850 kB sin compactar) sin renombrar
+    // identificadores: los stack traces en CloudWatch siguen siendo legibles.
+    minifyWhitespace: true,
+    minifySyntax: true,
     plugins: [jsToTs],
   });
   return result.outputFiles[0]!.text;
@@ -91,7 +104,11 @@ async function main(): Promise<void> {
   for (const b of BOTS) {
     const code = await bundle(b.source);
     bundles.set(b.name, code);
+    const kb = JSON.stringify({ code }).length / 1024;
     console.log(`  • ${b.name}: ${(code.length / 1024).toFixed(1)} kB bundleado`);
+    if (kb > MAX_BUNDLE_KB) {
+      throw new Error(`${b.name}: el bundle (${kb.toFixed(0)} kB en JSON) supera ${MAX_BUNDLE_KB} kB; $deploy lo rechazaría.`);
+    }
   }
 
   if (dryRun) {
@@ -120,10 +137,12 @@ async function main(): Promise<void> {
     ids.set(b.name, id);
   }
 
-  // 4) Asegurar la Subscription que dispara el informe SOM (apunta a bot-som-report).
-  const somReportId = ids.get(BOT_SOM_REPORT);
-  if (somReportId) {
-    await asegurarSubscriptionSom(medplum, somReportId);
+  // 4) Asegurar las Subscriptions que disparan los bots internos de SOM.
+  for (const sub of SUBSCRIPTIONS) {
+    const botId = ids.get(sub.bot);
+    if (botId) {
+      await asegurarSubscription(medplum, botId, sub);
+    }
   }
 
   // 5) Escribir los ids en medplum.config.json.
@@ -169,34 +188,68 @@ async function asegurarBot(medplum: MedplumClient, projectId: string, b: DefBot)
   }
 }
 
+interface DefSubscription {
+  /** Bot al que apunta (por nombre). */
+  bot: string;
+  nombre: string;
+  reason: string;
+  criteria: string;
+  /** Si está, solo dispara en esa interacción (extensión de Medplum). */
+  soloEn?: 'create' | 'update' | 'delete';
+}
+
+const EXT_INTERACCION = 'https://medplum.com/fhir/StructureDefinition/subscription-supported-interaction';
+
+const SUBSCRIPTIONS: DefSubscription[] = [
+  {
+    bot: BOT_SOM_REPORT,
+    nombre: 'SOM informe',
+    reason: 'SOM: generar informe ante una solicitud de segunda opinión cardiológica.',
+    criteria: `ServiceRequest?status=active&code=${SYSTEM.somServices}|${COD.somCardiology}`,
+  },
+  {
+    bot: BOT_SOM_LABORATORIO,
+    nombre: 'SOM laboratorio',
+    reason: 'SOM: procesar el PDF de laboratorio que manda el paciente desde el portal.',
+    criteria: `DocumentReference?category=${SYSTEM.documento}|${COD.resultadoLaboratorio}`,
+    // Solo al crear: el bot actualiza ese mismo documento al terminar.
+    soloEn: 'create',
+  },
+];
+
 /**
- * Asegura (idempotente) la Subscription que dispara el informe SOM: ante una
- * `ServiceRequest` activa con código `som-services|som-cardiology`, invoca al bot
- * `bot-som-report`. Busca una existente que apunte al mismo bot con el mismo
- * criterio; si no hay, la crea.
+ * Asegura (idempotente) una Subscription rest-hook que invoca a un bot. Busca una
+ * existente que apunte al mismo bot con el mismo criterio; si no hay, la crea.
  */
-async function asegurarSubscriptionSom(medplum: MedplumClient, botId: string): Promise<void> {
-  const criteria = `ServiceRequest?status=active&code=${SYSTEM.somServices}|${COD.somCardiology}`;
+async function asegurarSubscription(medplum: MedplumClient, botId: string, def: DefSubscription): Promise<void> {
   const endpoint = `Bot/${botId}`;
+  const extension = def.soloEn ? [{ url: EXT_INTERACCION, valueCode: def.soloEn }] : undefined;
   const existentes = await medplum.searchResources('Subscription', '_count=200');
-  const ya = existentes.find((s) => s.criteria === criteria && s.channel?.endpoint === endpoint);
+  const ya = existentes.find((s) => s.criteria === def.criteria && s.channel?.endpoint === endpoint);
   if (ya) {
-    if (ya.status !== 'active') {
-      await medplum.updateResource<Subscription>({ ...ya, status: 'active' });
-      console.log('  = Subscription SOM reactivada.');
+    const interaccion = ya.extension?.find((e) => e.url === EXT_INTERACCION)?.valueCode;
+    if (ya.status !== 'active' || interaccion !== def.soloEn) {
+      const otras = (ya.extension ?? []).filter((e) => e.url !== EXT_INTERACCION);
+      await medplum.updateResource<Subscription>({
+        ...ya,
+        status: 'active',
+        extension: [...otras, ...(extension ?? [])],
+      });
+      console.log(`  = Subscription ${def.nombre} actualizada/reactivada.`);
     } else {
-      console.log('  = Subscription SOM ya existente.');
+      console.log(`  = Subscription ${def.nombre} ya existente.`);
     }
     return;
   }
   const creada = await medplum.createResource<Subscription>({
     resourceType: 'Subscription',
     status: 'active',
-    reason: 'SOM: generar informe ante una solicitud de segunda opinión cardiológica.',
-    criteria,
+    reason: def.reason,
+    criteria: def.criteria,
     channel: { type: 'rest-hook', endpoint },
+    ...(extension ? { extension } : {}),
   });
-  console.log(`  + Subscription SOM creada (${creada.id}).`);
+  console.log(`  + Subscription ${def.nombre} creada (${creada.id}).`);
 }
 
 function esForbidden(err: unknown): boolean {

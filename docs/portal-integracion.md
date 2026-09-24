@@ -17,23 +17,33 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   seed` la aplica por `name`, así que el espejo del portal
   (`docs/medplum/access-policy-paciente-portal.json`) debe quedar idéntico.
   El paciente **escribe** su autogestión (perfil, vitales, cuestionarios,
-  documentos, mensajes) y lo que necesita el **Plan Bienestar** del portal, con
+  documentos, mensajes, su `Consent` por estudio, el `Binary` de sus PDF y solo su
+  obra social/prepaga `Coverage` type HIP) y lo que necesita el **Plan Bienestar** del portal, con
   escritura acotada (`CarePlan` del plan, `Goal`, `Task` `intent=plan`,
   `CareTeam`, `Condition` con los SNOMED del plan); **lee** su compartimento
   clínico/financiero (`Appointment`, `Coverage`, `Invoice`, `DiagnosticReport`,
   `CarePlan`, `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`,
   `RiskAssessment`) más `PlanDefinition`, catálogo y agenda
   (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
-  Sincronizada con el espejo en `EPA-Developments/app@f7be844`; `tests/seed.test.ts`
-  fija las entradas que usa el portal, porque `npm run seed` pisa la del servidor.
+  Sincronizada con el espejo en `EPA-Developments/app@091e20f`; `tests/seed.test.ts`
+  la compara entera con la copia en `tests/fixtures/`, porque `npm run seed` pisa la
+  del servidor.
 - **Reserva por *solicitud*.** El paciente pide desde el portal y se crea un
   `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`** (lógica pura
   en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
   `RECEPCION_WHATSAPP_TO`). La app de recepción tiene la vista **"Solicitudes"**
   para confirmarlas con los bots de reserva. El paciente solo **lee** sus `Task` y
   solo puede **ejecutar** ese bot y `som-solicitar`: no escribe agenda.
-- **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`) y bot interno
-  `bot-som-report` (informe), ver [`som.md`](som.md).
+- **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`; exige el
+  consentimiento firmado) y bot interno `bot-som-report` (informe), ver [`som.md`](som.md).
+- **Estudios de laboratorio en PDF.** Bot interno `som-procesar-laboratorio`: lo
+  dispara el `DocumentReference` que sube el paciente y crea sus `Observation` +
+  `DiagnosticReport` ("Ver resultados" en el portal). Ver [`som.md`](som.md).
+- **Biomarcadores.** El seed publica las `ObservationDefinition` del panel
+  Cardiometabólico (lípidos; `src/config/biomarcadores.ts`), que el portal usa como
+  catálogo y rangos.
+- **Plan Bienestar · 100 días.** `som-bienestar-inscribir` (Recepción) crea el
+  `CarePlan` `care-plans|plan-bienestar-100` que muestra la tarjeta de progreso.
 - **Seguimiento GLP-1.** El programa del paciente (`CarePlan` + `Goal`), el estado
   de cada control (`Task` `agendar-control-glp1`, con su turno en `output`) y los
   estudios de cada semana (`ServiceRequest` con `basedOn` el `CarePlan`). Es lo
@@ -45,7 +55,9 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   (dedupe por DNI/email/teléfono). No da login.
 - **Invitación al portal** (`som-invitar-paciente`, requiere admin): hace el
   *invite* de Medplum (`sendEmail:false`, `upsert:true` → reusa el `Patient`, no
-  duplica) con la AccessPolicy "Paciente SOM — Portal", y entrega el link mágico
+  duplica) con la AccessPolicy "Paciente SOM — Portal", marca el origen del paciente
+  (`patient-origin`: `reception`, o `referral` si lo derivó un colega; el portal elige
+  Bienvenida u Onboarding con eso), y entrega el link mágico
   `https://app.segundaopinionmedica.org/setpassword/{id}/{secret}` por
   **WhatsApp / email / QR**.
 - **Auto-registro** (portal, "Crear cuenta"): el paciente se crea solo. Medplum le

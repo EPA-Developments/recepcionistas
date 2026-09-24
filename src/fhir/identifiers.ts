@@ -60,6 +60,11 @@ export const EXT = {
   somOrigin: `${SOM_BASE}/StructureDefinition/som-origin`,
   /** Contenedor de las secciones del informe SOM (sub-extensiones por sección). */
   somSections: `${SOM_BASE}/StructureDefinition/som-sections`,
+  // Patient Journey (contrato con el portal, `app/src/fhir/onboarding.ts`)
+  /** Origen del paciente (`reception` | `referral`): lo setea el backend al invitar. Ausente = auto-registrado. */
+  patientOrigin: `${SOM_BASE}/StructureDefinition/patient-origin`,
+  /** Fecha en que el paciente completó la Bienvenida/Onboarding. La escribe el PORTAL: el backend no la toca. */
+  onboardingCompleted: `${SOM_BASE}/StructureDefinition/onboarding-completed`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */
@@ -100,6 +105,18 @@ export const SYSTEM = {
   programaGlp1: `${BASE}/Identifier/programa-glp1`,
   /** Estudios por slug del catálogo de biomarcadores (ServiceRequest.code). */
   biomarcador: `${BASE}/CodeSystem/biomarcador`,
+  // Biomarcadores del portal (ObservationDefinition; `app/src/fhir/biomarkers.ts`).
+  /** Biomarcadores sin código LOINC (p. ej. `ldl-p`). No es el `biomarcador` del GLP-1. */
+  biomarker: `${SOM_BASE}/CodeSystem/biomarker`,
+  /** Panel del portal al que pertenece cada ObservationDefinition (p. ej. `metabolico`). */
+  panelBiomarcador: `${SOM_BASE}/CodeSystem/panel-biomarcador`,
+  /** Tipo de rango de referencia de la ObservationDefinition: `convencional` | `funcional`. */
+  tipoRango: `${SOM_BASE}/CodeSystem/tipo-rango`,
+  // Documentos y consentimientos que manda el paciente desde el portal.
+  /** DocumentReference.category de lo que sube el paciente (p. ej. `resultado-laboratorio`). */
+  documento: `${SOM_BASE}/CodeSystem/documento`,
+  /** Consent.policyRule del procesamiento de datos de salud (Ley 25.326). */
+  consentimiento: `${SOM_BASE}/CodeSystem/consentimiento`,
 } as const;
 
 /** Códigos de negocio puntuales. */
@@ -114,6 +131,12 @@ export const COD = {
   indicacionGlp1: 'indicacion-glp1',
   /** Task de Recepción: agendar un control del programa GLP-1 dentro de su ventana. */
   agendarControlGlp1: 'agendar-control-glp1',
+  /** CarePlan.category del Plan Bienestar de 100 días (contrato con el portal). */
+  planBienestar100: 'plan-bienestar-100',
+  /** DocumentReference.category del PDF de laboratorio que manda el paciente. */
+  resultadoLaboratorio: 'resultado-laboratorio',
+  /** Task del equipo: revisar a mano un PDF de laboratorio que no se pudo procesar. */
+  revisarLaboratorio: 'revisar-laboratorio',
 } as const;
 
 /** Claves EXACTAS de las secciones del informe SOM (sub-extensiones de `som-sections`). */
@@ -130,9 +153,36 @@ export type SomSeccion = (typeof SOM_SECCIONES)[number];
 /** Código LOINC del documento "Consultation note" (informe SOM en PDF). */
 export const LOINC_INFORME = '11488-4';
 
+/**
+ * Código LOINC del consentimiento informado firmado ("Patient Consent"): un
+ * DocumentReference `status=current` del paciente. Sin él no se procesa nada
+ * clínico ni se envía al LLM (contrato con el portal, `bot-som-interface.md`).
+ */
+export const LOINC_CONSENTIMIENTO = '59284-0';
+
+/** Código LOINC del informe de laboratorio ("Laboratory report"). */
+export const LOINC_INFORME_LABORATORIO = '11502-2';
+
+/**
+ * Modelo de Claude que usan los bots SOM (informe y laboratorio). Fijado por el
+ * contrato con el portal (`bot-som-interface.md`); cambiarlo en los dos repos.
+ */
+export const MODELO_CLAUDE_SOM = 'claude-sonnet-4-6';
+
+/**
+ * Modelo de Claude que transcribe los PDF de laboratorio (`som-procesar-laboratorio`).
+ * El contrato no lo fija: se usa el modelo actual más capaz de la línea Opus, con
+ * salida estructurada y respaldo del servidor ante una negativa.
+ */
+export const MODELO_CLAUDE_LABORATORIO = 'claude-opus-5';
+
 /** Nombres canónicos de los bots SOM (deben coincidir con el portal y el deploy). */
 export const BOT_SOM_SOLICITAR = 'som-solicitar';
 export const BOT_SOM_REPORT = 'bot-som-report';
+/** Interno: procesa el PDF de laboratorio que manda el paciente (lo dispara una Subscription). */
+export const BOT_SOM_LABORATORIO = 'som-procesar-laboratorio';
+/** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
+export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
 
 /** Programa de seguimiento GLP-1: plantilla (PlanDefinition) y bots. */
 export const PLAN_GLP1_URL = `${BASE}/PlanDefinition/seguimiento-glp1`;

@@ -7,7 +7,7 @@ import type { StructureDefinition, ElementDefinition } from '@medplum/fhirtypes'
 import { EXT } from './identifiers.js';
 
 /** Tipo de valor permitido en value[x] de la extensión. */
-type TipoValor = 'string' | 'boolean' | 'decimal' | 'integer' | 'code' | 'Money';
+type TipoValor = 'string' | 'boolean' | 'decimal' | 'integer' | 'code' | 'dateTime' | 'Money';
 
 interface SpecExtension {
   url: string;
@@ -43,7 +43,10 @@ const SPECS: SpecExtension[] = [
   { url: EXT.canal, nombre: 'canal', contexto: ['Communication'], tipoValor: 'code', descripcion: 'Canal de la comunicación (whatsapp/email).' },
   { url: EXT.templateUsado, nombre: 'template-usado', contexto: ['Communication'], tipoValor: 'string', descripcion: 'Template usado para el mensaje.' },
   // SOM — Segunda Opinión Médica
-  { url: EXT.somOrigin, nombre: 'som-origin', contexto: ['ServiceRequest'], tipoValor: 'string', descripcion: 'Origen de la solicitud SOM (web/app/derivación).' },
+  { url: EXT.somOrigin, nombre: 'som-origin', contexto: ['ServiceRequest'], tipoValor: 'code', descripcion: 'Origen de la solicitud SOM: self (el paciente) | referral (derivación de un colega).' },
+  // Patient Journey del portal
+  { url: EXT.patientOrigin, nombre: 'patient-origin', contexto: ['Patient'], tipoValor: 'code', descripcion: 'Origen del paciente: reception (invitado por Recepción) | referral (derivado por un colega). Ausente = auto-registrado.' },
+  { url: EXT.onboardingCompleted, nombre: 'onboarding-completed', contexto: ['Patient'], tipoValor: 'dateTime', descripcion: 'Fecha en que el paciente completó la Bienvenida/Onboarding del portal (la escribe el portal).' },
 ];
 
 function buildStructureDefinition(spec: SpecExtension): StructureDefinition {

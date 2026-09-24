@@ -27,6 +27,9 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `som-webhook-mercadopago` |
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
+| SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |
+| Plan Bienestar · 100 días (inscripción) | ✅ bot `som-bienestar-inscribir` (sin cobro: precio PENDIENTE) |
+| Biomarcadores del portal (ObservationDefinition, lípidos) | ✅ en el seed |
 | Seguimiento de tratamiento GLP-1 (programa + controles a agendar) | ✅ slice 1: bots `som-glp1-inscribir` / `som-glp1-plan`, pestaña GLP-1 ([`docs/glp1.md`](docs/glp1.md)); app del paciente: slice 2 |
 | Harness de tests | ✅ |
 | CI (GitHub Actions) | ✅ |
