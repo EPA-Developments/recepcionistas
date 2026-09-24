@@ -8,7 +8,7 @@
  * (Flag), nunca el detalle clínico.
  */
 import type { AccessPolicy } from '@medplum/fhirtypes';
-import { BOT_GLP1_INSCRIBIR, EXT } from './identifiers.js';
+import { BOT_BIENESTAR_INSCRIBIR, BOT_GLP1_INSCRIBIR, EXT } from './identifiers.js';
 
 /**
  * Bots que Recepción puede ejecutar (los que usa la app de recepción, más la
@@ -27,6 +27,7 @@ export const BOTS_RECEPCION = [
   'som-alta-paciente',
   'som-invitar-paciente',
   BOT_GLP1_INSCRIBIR,
+  BOT_BIENESTAR_INSCRIBIR,
 ] as const;
 
 /** Recepcionista — acceso Operativo: agenda, check-in/out, pagos, comunicación, CRM. */
@@ -87,7 +88,9 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
  *
  * Alcance dentro de su compartimento:
  *  - **Escribe** (autogestión): su perfil, las observaciones/vitales que él carga,
- *    sus respuestas de cuestionarios, sus consentimientos y sus mensajes.
+ *    sus respuestas de cuestionarios, sus documentos (consentimiento firmado, estudios
+ *    en PDF y el `Binary` del archivo), la autorización por estudio (`Consent`), su
+ *    obra social / prepaga (`Coverage` type HIP) y sus mensajes.
  *  - **Plan Bienestar** (módulo drop-in del portal): el paciente inicia su plan y
  *    tilda pasos, con escritura acotada: `CarePlan` solo el que instancia la
  *    PlanDefinition del plan, `Task` solo `intent=plan`, `Condition` solo los
@@ -105,7 +108,8 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
  * IMPORTANTE — fuente de verdad: esta definición es la que aplica `npm run seed`
  * (upsert por `name`: pisa la del servidor). Debe quedar **idéntica** a su espejo en
  * el portal: `EPA-Developments/app` → `docs/medplum/access-policy-paciente-portal.json`
- * (sincronizada con ese archivo en `app@f7be844`). Si cambia una, cambiar la otra.
+ * (sincronizada con ese archivo en `app@091e20f`; `tests/seed.test.ts` la compara
+ * con la copia en `tests/fixtures/`). Si cambia una, cambiar la otra.
  */
 export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
   resourceType: 'AccessPolicy',
@@ -117,6 +121,11 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'QuestionnaireResponse', criteria: 'QuestionnaireResponse?subject=%patient' },
     { resourceType: 'DocumentReference', criteria: 'DocumentReference?subject=%patient' },
     { resourceType: 'Communication', criteria: 'Communication?subject=%patient' },
+    // Autorización por estudio que manda (Ley 25.326; `Consent.policyRule` propia).
+    { resourceType: 'Consent', criteria: 'Consent?patient=%patient' },
+    // El PDF que sube desde "Enviar estudios en PDF" (Binary con securityContext = el
+    // paciente, que lo pone en su compartimento).
+    { resourceType: 'Binary', criteria: 'Binary?_compartment=%patient' },
 
     // Planes de cuidado: lee todos los suyos (Plan Bienestar, seguimiento GLP-1, …);
     // escribe solo el Plan Bienestar, que inicia el propio paciente.
@@ -147,6 +156,12 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     // Compartimento propio — sólo lectura (lo gestiona Recepción / el equipo médico).
     { resourceType: 'Appointment', readonly: true, criteria: 'Appointment?actor=%patient' },
     { resourceType: 'Coverage', readonly: true, criteria: 'Coverage?beneficiary=%patient' },
+    // Excepción: escribe SOLO su obra social / prepaga (type HIP, desde "Mis datos");
+    // membresías y paquetes siguen de solo lectura.
+    {
+      resourceType: 'Coverage',
+      criteria: 'Coverage?beneficiary=%patient&type=http://terminology.hl7.org/CodeSystem/v3-ActCode|HIP',
+    },
     { resourceType: 'Invoice', readonly: true, criteria: 'Invoice?subject=%patient' },
     { resourceType: 'DiagnosticReport', readonly: true, criteria: 'DiagnosticReport?subject=%patient' },
     // SOM (solicitudes de segunda opinión) y pedidos de laboratorio de sus programas.

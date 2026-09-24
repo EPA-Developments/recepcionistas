@@ -3,7 +3,7 @@
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Appointment, Communication, Flag, Invoice } from '@medplum/fhirtypes';
-import { CONFIG_TC_ID, EXT, SYSTEM } from '../fhir/identifiers.js';
+import { CONFIG_TC_ID, EXT, LOINC_CONSENTIMIENTO, SYSTEM } from '../fhir/identifiers.js';
 import { resolverTC } from '../config/tipo-cambio.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
@@ -53,6 +53,21 @@ export async function borrarRecursosDemo(
     }
   }
   return { borrados, porTipo };
+}
+
+/**
+ * ¿El paciente firmó el consentimiento informado? Un `DocumentReference` suyo,
+ * `status=current`, tipo LOINC 59284-0 (lo escribe el portal). Es precondición de
+ * todo procesamiento clínico SOM: sin él no se crea la solicitud ni se envía nada
+ * al LLM (contrato con el portal, `bot-som-interface.md`). El portal lo exige del
+ * lado cliente, pero la verificación que vale es la del servidor.
+ */
+export async function tieneConsentimiento(medplum: MedplumClient, pacienteRef: string): Promise<boolean> {
+  const doc = await medplum.searchOne(
+    'DocumentReference',
+    `subject=${pacienteRef}&type=http://loinc.org|${LOINC_CONSENTIMIENTO}&status=current`,
+  );
+  return Boolean(doc);
 }
 
 /** Project id del proyecto Medplum (vía el recurso Basic de configuración). */

@@ -17,11 +17,14 @@ import { EXT } from '../fhir/identifiers.js';
 import { NOMBRE_POLICY_PACIENTE } from '../fhir/access-policies.js';
 import {
   esCanalValido,
+  esOrigenValido,
+  extensionesInvitacion,
   linkSetPassword,
   mensajeInvitacion,
   partirNombre,
   validarEmail,
   type CanalInvitacion,
+  type OrigenPaciente,
 } from '../lib/onboarding.js';
 import { enviarEmail, enviarWhatsApp, resolverProjectId } from './_shared.js';
 
@@ -30,6 +33,11 @@ export interface EntradaInvitarPaciente {
   canal: CanalInvitacion;
   /** Email para el login (si no se pasa, se toma del Patient.telecom). */
   email?: string;
+  /**
+   * Origen del paciente para el Patient Journey del portal (`patient-origin`):
+   * `reception` (default) o `referral` (derivación de un colega).
+   */
+  origen?: OrigenPaciente;
 }
 
 export interface ResultadoInvitarPaciente {
@@ -52,6 +60,9 @@ export async function handler(
     if (!esCanalValido(e.canal)) {
       return { ok: false, mensaje: 'Canal de invitación inválido (whatsapp / email / qr).' };
     }
+    if (e.origen !== undefined && !esOrigenValido(e.origen)) {
+      return { ok: false, mensaje: 'Origen inválido (reception / referral).' };
+    }
 
     // El link va al PORTAL del paciente SOM, no a la app de recepción
     // (Project Secret PORTAL_BASE_URL; default: el portal de producción).
@@ -69,9 +80,9 @@ export async function handler(
     const { firstName, lastName } =
       given || family ? { firstName: given ?? '', lastName: family ?? '' } : partirNombre(display);
 
-    // Registrar el canal elegido en el Patient (auditoría) + asegurar el email.
-    const extension = [...(patient.extension ?? [])].filter((x) => x.url !== EXT.canalInvitacion);
-    extension.push({ url: EXT.canalInvitacion, valueCode: e.canal });
+    // Registrar en el Patient el canal elegido (auditoría) y el origen que lee el
+    // portal (`patient-origin`: Bienvenida vs Onboarding) + asegurar el email.
+    const extension = extensionesInvitacion(patient.extension, e.canal, e.origen);
     const telecom = [...(patient.telecom ?? [])];
     if (!telecom.some((t) => t.system === 'email' && t.value === email)) {
       telecom.push({ system: 'email', value: email });

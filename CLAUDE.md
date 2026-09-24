@@ -78,7 +78,8 @@ npm run deploy:bots        # deploy de bots (medplum CLI)
 Nunca commitear `.env` ni credenciales. El `.env` (ver `.env.example`) es solo
 para los scripts locales (credenciales de la ClientApplication de Medplum). Los
 bots leen sus credenciales de **Project Secrets** de Medplum: Twilio (WhatsApp por
-la WABA de EPA Bienestar IA) y MercadoPago con credenciales propias de SOM, nada
+la WABA de EPA Bienestar IA), MercadoPago y Anthropic (`ANTHROPIC_API_KEY`, bots SOM
+que llaman a Claude con el SDK oficial) con credenciales propias de SOM, nada
 hardcodeado (ver `docs/bots.md`).
 El email se envía con `medplum.sendEmail()` (proveedor AWS SES configurado en el
 servidor Medplum). MercadoPago tokeniza tarjetas: **nunca** almacenar números de

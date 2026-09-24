@@ -25,6 +25,10 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
 | `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
 | `som-glp1-inscribir` | **GLP-1 (Recepción):** inscribe al paciente en el seguimiento: deja un `Task` `indicacion-glp1` al equipo médico (idempotente; si ya está activo, devuelve cuántos controles faltan agendar). | `executeBot` (Atender → Seguimiento GLP-1 → Inscribir). Ver [`glp1.md`](glp1.md). |
+| `som-solicitar` | **Portal (SOM):** crea la `ServiceRequest` de segunda opinión. Valida consentimiento firmado (LOINC 59284-0), que quien ejecuta sea el mismo paciente y que los adjuntos sean suyos. `runAsUser` **desactivado**. | `executeBot` desde el **portal** (whitelisteado en la policy del paciente). Ver [`som.md`](som.md). |
+| `bot-som-report` | **Interno (SOM):** PREVENT → `RiskAssessment`, informe con Claude → `DiagnosticReport` + PDF, `ServiceRequest` → `completed`, aviso al paciente. Sin consentimiento no llama a Claude. | `Subscription` sobre `ServiceRequest?status=active&code=…som-cardiology` (la crea `deploy:bots`). |
+| `som-procesar-laboratorio` | **Interno (SOM):** transcribe el PDF de laboratorio que manda el paciente (Claude) a `Observation` + `DiagnosticReport` y lo liga al documento; si no puede, avisa al paciente y deja un `Task` `revisar-laboratorio`. | `Subscription` (solo *create*) sobre `DocumentReference?category=…/documento\|resultado-laboratorio` (la crea `deploy:bots`). |
+| `som-bienestar-inscribir` | **Plan Bienestar (Recepción):** crea el `CarePlan` `plan-bienestar-100` (100 días) que lee el portal. Idempotente. No cobra. | `executeBot` (Atender → Plan Bienestar). |
 | `som-glp1-plan` | **GLP-1 (equipo médico):** con la indicación (molécula, esquema de titulación, fecha de inicio) arma o recalcula el programa: `CarePlan`, `Goal`, pedidos de laboratorio y tareas de agenda de Recepción. **Recepción no puede ejecutarlo.** | `executeBot` / app de Medplum (input JSON). Ver [`glp1.md`](glp1.md). |
 
 ## Deploy
@@ -43,9 +47,19 @@ npm run deploy:bots   # crea (si faltan) + bundlea + deploya + guarda ids
 
 `deploy:bots` hace, por cada bot:
 1. lo busca por `name`; si no existe, lo crea (`POST admin/projects/{id}/bot`, runtime `awslambda`);
-2. bundlea el source con esbuild (CJS, sin dependencias externas);
+2. bundlea el source con esbuild (CJS, sin dependencias externas; compactado sin
+   renombrar identificadores — el SDK de Anthropic pesa — y aborta si el bundle se
+   acerca al límite de 1 MB de JSON de `$deploy`);
 3. lo deploya (`POST Bot/{id}/$deploy`);
 4. guarda los ids en `medplum.config.json`.
+
+Además asegura (idempotente) las `Subscription` de los bots internos SOM:
+`bot-som-report` (solicitud activa) y `som-procesar-laboratorio` (solo al crear el
+documento, con la extensión `subscription-supported-interaction=create`).
+
+> Los bots que llaman a Claude (`bot-som-report`, `som-procesar-laboratorio`)
+> pueden tardar más que el timeout por defecto del Bot: subir `Bot.timeout` en
+> Medplum si el log muestra cortes.
 
 Es idempotente: reejecutar redeploya el código sobre los bots existentes. Los ids
 de `medplum.config.json` son del proyecto SOM: arrancan vacíos y los completa el
@@ -69,7 +83,7 @@ MercadoPago usan las credenciales propias de SOM.
 | `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
 | `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
 | `EMAIL_FROM` | `som-invitar-paciente` (remitente con marca) | opcional |
-| `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe) | opcional (sin él, informe mínimo) |
+| `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe), `som-procesar-laboratorio` (transcripción del PDF) | opcional (sin él: informe mínimo / el PDF pasa al equipo) |
 
 **Regla de oro:** los helpers (`enviarWhatsApp` / `enviarEmail` en
 `src/bots/_shared.ts`) **siempre** registran la `Communication`, pero **solo

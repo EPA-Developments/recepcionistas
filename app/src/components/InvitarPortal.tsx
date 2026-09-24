@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Alert, Button, Card, CopyButton, Group, Image, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Card, Checkbox, CopyButton, Group, Image, Stack, Text, TextInput } from '@mantine/core';
 import { IconBrandWhatsapp, IconMail, IconQrcode, IconInfoCircle, IconCopy, IconCheck } from '@tabler/icons-react';
 import type { Patient } from '@medplum/fhirtypes';
 import QRCode from 'qrcode';
+import { EXT } from '@som/fhir/identifiers';
 import { invitarPaciente, mensajeError, type CanalInvitacion } from '../lib/bots';
 
 /**
@@ -13,6 +14,12 @@ import { invitarPaciente, mensajeError, type CanalInvitacion } from '../lib/bots
 export function InvitarPortal({ paciente }: { paciente: Patient }): JSX.Element {
   const emailExistente = paciente.telecom?.find((t) => t.system === 'email')?.value ?? '';
   const [email, setEmail] = useState(emailExistente);
+  // Origen para el Patient Journey del portal (lo registra el bot en `patient-origin`).
+  const [derivado, setDerivado] = useState(
+    paciente.extension?.some(
+      (x) => x.url === EXT.patientOrigin && x.valueCode === 'referral',
+    ) ?? false,
+  );
   const [cargando, setCargando] = useState<CanalInvitacion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -26,7 +33,12 @@ export function InvitarPortal({ paciente }: { paciente: Patient }): JSX.Element 
     setQr(null);
     setLink(null);
     try {
-      const r = await invitarPaciente(`Patient/${paciente.id}`, canal, email || undefined);
+      const r = await invitarPaciente(
+        `Patient/${paciente.id}`,
+        canal,
+        email || undefined,
+        derivado ? 'referral' : 'reception',
+      );
       if (!r.ok) {
         setError(r.mensaje ?? 'No se pudo invitar.');
         return;
@@ -76,6 +88,13 @@ export function InvitarPortal({ paciente }: { paciente: Patient }): JSX.Element 
         type="email"
         mb="sm"
         w={360}
+      />
+
+      <Checkbox
+        label="Lo derivó un colega (en el portal ve el onboarding de derivación)"
+        checked={derivado}
+        onChange={(e) => setDerivado(e.currentTarget.checked)}
+        mb="sm"
       />
 
       <Group>

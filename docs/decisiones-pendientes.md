@@ -43,6 +43,19 @@ Alejandro Sergio D'Alessandro:
 | 9 | **Metas del GLP-1 editables por el paciente** | La policy del portal le da escritura sobre todos sus `Goal` (el Plan Bienestar crea los suyos), así que técnicamente podría editar la meta del GLP-1 (el bot la reescribe al recalcular). Acotar la escritura a las metas del Plan Bienestar (p. ej. por su categoría), en los dos repos a la vez. | A definir |
 | 10 | **App del paciente (slice 2)** | Mostrar el programa, la meta y el estado de cada control en el portal (`EPA-Developments/app`), con el contrato de [`glp1.md`](glp1.md). Prompt listo: [`handoff-app-glp1.md`](handoff-app-glp1.md). | Próximo slice |
 
+## SOM — contrato con el portal
+
+Implementado (ver [`som.md`](som.md)); queda para confirmar:
+
+| # | Tema | Detalle | Estado |
+|---|---|---|---|
+| 1 | **PREVENT: validación clínica** | Coeficientes transcriptos (`src/lib/prevent.ts`); el `RiskAssessment` sale `preliminary` hasta la firma del equipo médico (el contrato del portal pide `final`). | A validar |
+| 2 | **Colesterol total funcional** | El rango funcional < 100 mg/dL de la tabla institucional parece errata (¿objetivo de LDL?). **No se publica** hasta que lo confirme el Dr. Barbagelata (`src/config/biomarcadores.ts`). | A confirmar |
+| 3 | **`performer` de la solicitud SOM** | El contrato pide el `Practitioner` del Dr. Barbagelata "si está disponible": falta cargar los profesionales de SOM. | Bloqueado por catálogo |
+| 4 | **Precio del Plan Bienestar** | `som-bienestar-inscribir` inscribe sin cobrar. ¿Es membresía paga? ¿Quién inscribe (Recepción, el paciente, al pagar)? | A definir |
+| 5 | **Modelo del bot de laboratorio** | `som-procesar-laboratorio` usa `claude-opus-5` (el contrato no lo fija; el informe sigue en `claude-sonnet-4-6` por contrato). Cambiar en `MODELO_CLAUDE_LABORATORIO`. | A confirmar |
+| 6 | **Aplicar en el servidor** | `npm run seed` (policy + lípidos) y `npm run deploy:bots` (bots + Subscriptions) contra `7ce5e559-…`; Project Secret `ANTHROPIC_API_KEY`; revisar `Bot.timeout` de los bots con Claude. | Pendiente (credenciales) |
+
 ## Agenda
 
 Horario de atención: L-V 08-22, Sáb 08-20 (`src/config/horario.ts`) — heredado y

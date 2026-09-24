@@ -29,6 +29,7 @@
     "app:typecheck": "npm run typecheck --workspace @som/recepcion-app"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@medplum/core": "^3.2.0",
     "@medplum/fhirtypes": "^3.2.0"
   },

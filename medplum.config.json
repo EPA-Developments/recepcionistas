@@ -103,6 +103,12 @@
       "dist": "dist/bots/som-report.js"
     },
     {
+      "name": "som-procesar-laboratorio",
+      "id": "",
+      "source": "src/bots/som-procesar-laboratorio.ts",
+      "dist": "dist/bots/som-procesar-laboratorio.js"
+    },
+    {
       "name": "som-glp1-inscribir",
       "id": "",
       "source": "src/bots/glp1-inscribir.ts",
@@ -113,6 +119,12 @@
       "id": "",
       "source": "src/bots/glp1-plan.ts",
       "dist": "dist/bots/glp1-plan.js"
+    },
+    {
+      "name": "som-bienestar-inscribir",
+      "id": "",
+      "source": "src/bots/bienestar-inscribir.ts",
+      "dist": "dist/bots/bienestar-inscribir.js"
     }
   ]
 }

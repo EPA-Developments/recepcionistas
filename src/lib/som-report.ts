@@ -31,8 +31,15 @@ export const NOTA_PENDIENTE_VALIDACION =
   'Coeficientes pendientes de validación clínica: no usar como valor definitivo sin revisión médica.';
 
 /**
- * RiskAssessment a partir del resultado PREVENT. `probabilityDecimal` se expresa
- * en porcentaje (0–100), como documenta FHIR para RiskAssessment.prediction.
+ * RiskAssessment a partir del resultado PREVENT.
+ *
+ * Contrato con el portal (`EPA-Developments/app`, `src/fhir/som.ts`):
+ *  - `basedOn` = la ServiceRequest: el portal busca `RiskAssessment?subject=…` y
+ *    filtra por `basedOn` (R4 no tiene search param `based-on` en RiskAssessment).
+ *  - `probabilityDecimal` es una **probabilidad 0–1** (el portal la multiplica por
+ *    100 para mostrar el %). Cumple igual la invariante ras-2 de R4 (≤ 100).
+ *  - `outcome.text` lleva "ASCVD" / "Insuficiencia" / "total … 30": el portal
+ *    reconoce cada desenlace por ese texto.
  */
 export function construirRiskAssessment(
   prevent: ResultadoPrevent,
@@ -42,12 +49,12 @@ export function construirRiskAssessment(
     resourceType: 'RiskAssessment',
     status: prevent.pendienteValidacion ? 'preliminary' : 'final',
     subject: { reference: refs.pacienteRef },
-    basis: [{ reference: refs.serviceRequestRef }],
+    basedOn: { reference: refs.serviceRequestRef },
     method: { text: 'AHA PREVENT 2023 (modelo base)' },
     occurrenceDateTime: new Date().toISOString(),
     prediction: prevent.predicciones.map((p) => ({
       outcome: { text: p.etiqueta },
-      probabilityDecimal: Math.round(p.probabilidad * 1000) / 10,
+      probabilityDecimal: Math.round(p.probabilidad * 10000) / 10000,
     })),
     ...(prevent.pendienteValidacion ? { note: [{ text: NOTA_PENDIENTE_VALIDACION }] } : {}),
   };

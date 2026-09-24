@@ -126,6 +126,26 @@ describe('Seed — AccessPolicy del portal del paciente', () => {
     expect(entradas.filter((e) => e.startsWith('Condition Condition?') && !e.includes('&code='))).toEqual([]);
   });
 
+  it('Es idéntica al espejo del portal (EPA-Developments/app, docs/medplum/)', () => {
+    const espejo = JSON.parse(
+      readFileSync(new URL('./fixtures/access-policy-paciente-portal.json', import.meta.url), 'utf8'),
+    ) as { name: string; resource: unknown[] };
+    expect(portal.name).toBe(espejo.name);
+    expect(portal.resource).toEqual(espejo.resource);
+  });
+
+  it('Escribe su Consent, el Binary de su PDF y solo su obra social (Coverage HIP)', () => {
+    expect(entradas).toEqual(
+      expect.arrayContaining([
+        'Consent Consent?patient=%patient',
+        'Binary Binary?_compartment=%patient',
+        'Coverage Coverage?beneficiary=%patient&type=http://terminology.hl7.org/CodeSystem/v3-ActCode|HIP',
+      ]),
+    );
+    // Ninguna otra escritura de Coverage (membresías y paquetes siguen de solo lectura).
+    expect(entradas.filter((e) => e.startsWith('Coverage Coverage?') && !e.includes('|HIP'))).toEqual([]);
+  });
+
   it('Solo ejecuta sus dos bots', () => {
     expect(entradas.filter((e) => e.startsWith('Bot'))).toEqual([
       'Bot (lectura) Bot?name=som-solicitar-turno',

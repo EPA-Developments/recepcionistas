@@ -10,7 +10,8 @@
  *     (Patient, Condition, Observation, MedicationRequest, DocumentReference).
  *  2) Calcula PREVENT (AHA 2023) → crea un `RiskAssessment`.
  *  3) Llama a Claude (`claude-sonnet-4-6`, secret `ANTHROPIC_API_KEY`) para
- *     redactar las 6 secciones del informe.
+ *     redactar las 6 secciones del informe — solo si el paciente firmó el
+ *     consentimiento informado (sin él, ningún dato clínico sale hacia el LLM).
  *  4) Genera un PDF → `Binary` → `DocumentReference` (LOINC 11488-4).
  *  5) Crea el `DiagnosticReport` final (secciones en la extensión `som-sections`).
  *  6) Pasa la ServiceRequest a `completed` y notifica al paciente.
@@ -28,7 +29,7 @@ import type {
   Patient,
   ServiceRequest,
 } from '@medplum/fhirtypes';
-import { COD, LOINC_INFORME, SYSTEM } from '../fhir/identifiers.js';
+import { COD, LOINC_INFORME, MODELO_CLAUDE_SOM, SYSTEM } from '../fhir/identifiers.js';
 import { calcularPrevent, type EntradaPrevent } from '../lib/prevent.js';
 import {
   SYSTEM_PROMPT,
@@ -43,7 +44,8 @@ import {
   type Secciones,
 } from '../lib/som-report.js';
 import { SOM_SECCIONES } from '../fhir/identifiers.js';
-import { enviarWhatsApp } from './_shared.js';
+import { clienteClaude, textoRespuesta } from './_claude.js';
+import { enviarWhatsApp, tieneConsentimiento } from './_shared.js';
 
 export interface ResultadoInforme {
   ok: boolean;
@@ -106,7 +108,11 @@ export async function handler(
     estudios,
     resumenRiesgo: resumenRiesgo(prevent),
   };
-  const secciones = await redactarSecciones(contexto, event.secrets);
+  // Sin consentimiento informado firmado no se envía ningún dato clínico al LLM
+  // (defensa en profundidad: `som-solicitar` ya lo exige al crear la solicitud).
+  const secciones = (await tieneConsentimiento(medplum, pacienteRef))
+    ? await redactarSecciones(contexto, event.secrets)
+    : seccionesFallback(contexto);
 
   // 4) PDF → Binary → DocumentReference.
   const docPdf: Array<{ titulo: string; texto: string }> = SOM_SECCIONES.map((clave) => ({
@@ -278,33 +284,23 @@ async function redactarSecciones(
   contexto: ContextoClinico,
   secrets: BotEvent['secrets'],
 ): Promise<Partial<Secciones>> {
-  const apiKey = secrets['ANTHROPIC_API_KEY']?.valueString;
-  if (!apiKey) {
+  const claude = clienteClaude(secrets);
+  if (!claude) {
     console.warn('som-report: falta ANTHROPIC_API_KEY; se emite el informe sin análisis de Claude.');
     return seccionesFallback(contexto);
   }
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: construirPromptUsuario(contexto) }],
-      }),
+    const resp = await claude.messages.create({
+      model: MODELO_CLAUDE_SOM,
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: construirPromptUsuario(contexto) }],
     });
-    if (!resp.ok) {
-      console.error('som-report: Claude respondió', resp.status, await resp.text().catch(() => ''));
+    if (resp.stop_reason === 'refusal') {
+      console.error('som-report: Claude declinó redactar el informe.');
       return seccionesFallback(contexto);
     }
-    const data = (await resp.json()) as { content?: Array<{ text?: string }> };
-    const texto = data.content?.map((b) => b.text ?? '').join('') ?? '';
-    const secciones = parsearSecciones(texto);
+    const secciones = parsearSecciones(textoRespuesta(resp.content));
     return Object.keys(secciones).length > 0 ? secciones : seccionesFallback(contexto);
   } catch (err) {
     console.error('som-report: error llamando a Claude:', err instanceof Error ? err.message : err);
