@@ -34,6 +34,13 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   `RECEPCION_WHATSAPP_TO`). La app de recepción tiene la vista **"Solicitudes"**
   para confirmarlas con los bots de reserva. El paciente solo **lee** sus `Task` y
   solo puede **ejecutar** ese bot y `som-solicitar`: no escribe agenda.
+- **Mensajes.** El paciente abre una conversación desde "Mensajes" del portal
+  (`Communication` topic con el motivo en `topic` — `SYSTEM.motivoMensaje` — y sus
+  mensajes hijos con `partOf`, el modelo del ThreadInbox de Medplum). Recepción la
+  atiende en la vista **"Mensajes"** (`src/lib/mensajes.ts`); cada respuesta que sigue a
+  un mensaje del paciente le deja una Novedad `mensaje-nuevo` (`SYSTEM.notificacion`,
+  `about` = la conversación) en la campanita. Contrato: `docs/medplum/notificaciones.md`
+  del portal.
 - **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`; exige el
   consentimiento firmado) y bot interno `bot-som-report` (informe), ver [`som.md`](som.md).
 - **Estudios de laboratorio en PDF.** Bot interno `som-procesar-laboratorio`: lo

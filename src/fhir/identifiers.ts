@@ -125,6 +125,11 @@ export const SYSTEM = {
   documento: `${SOM_BASE}/CodeSystem/documento`,
   /** Consent.policyRule del procesamiento de datos de salud (Ley 25.326). */
   consentimiento: `${SOM_BASE}/CodeSystem/consentimiento`,
+  // Mensajes y Novedades del portal (Communication; `app/src/fhir/mensajes.ts` y `notificaciones.ts`).
+  /** Communication.topic de una conversación: el motivo que elige el paciente (p. ej. `turnos`). */
+  motivoMensaje: `${SOM_BASE}/CodeSystem/motivo-mensaje`,
+  /** Communication.category de una Novedad (campanita del portal), p. ej. `mensaje-nuevo`. */
+  notificacion: `${SOM_BASE}/CodeSystem/notificacion`,
 } as const;
 
 /** Códigos de negocio puntuales. */

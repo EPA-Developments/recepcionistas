@@ -39,7 +39,7 @@ funcione end-to-end:
 
 ## Estructura
 
-- `app/src/pages/` — una por vista (Agenda, Solicitudes, Controles GLP-1,
+- `app/src/pages/` — una por vista (Agenda, Solicitudes, Mensajes, Controles GLP-1,
   Atender, Reportes).
 - `app/src/components/` — `Shell` (layout + nav + tema), `Timeline`,
   `ProximosTurnos`, `ReservaModal`, `SeguimientoGlp1`, `AgendarControlModal`, etc.
@@ -54,11 +54,12 @@ funcione end-to-end:
 |---|---|---|
 | **Agenda** | `AgendaDelDia` | Línea de tiempo del día por consultorio/sala, franjas libres clickeables para reservar y próximos turnos. |
 | **Solicitudes** | `Solicitudes` | Cola de solicitudes de turno del portal del paciente, para confirmar. |
+| **Mensajes** | `Mensajes` | Bandeja de las conversaciones que abren los pacientes desde "Mensajes" del portal (con motivo obligatorio). *Abiertas / Cerradas*, paciente + motivo + último mensaje + sin leer; a la derecha la conversación y la respuesta (Enter envía, Shift+Enter salto de línea). Abrirla marca leído lo del paciente; responder le deja una Novedad `mensaje-nuevo` en la campanita del portal (una por tanda). "Ver paciente" abre `Atender`; "Cerrar conversación" / "Reabrir". Se refresca cada 20 s; la pestaña muestra los mensajes sin leer (cada 60 s). Lógica en `src/lib/mensajes.ts`. |
 | **GLP-1** | `ControlesGlp1` | Controles del seguimiento GLP-1 por agendar (todos los pacientes), ordenados por ventana y filtrables (*En ventana / Vencidos / Próximos*), con aviso de "traer laboratorio" y la lista de inscriptos que esperan la indicación médica. "Agendar" abre `AgendarControlModal` (consultorio, día y hora; el resto lo pone la tarea). Ver [`glp1.md`](glp1.md). |
 | **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (consulta de segunda opinión), seguimiento GLP-1 (inscribir / agendar controles) y cobro. |
 | **Reportes** | `Reportes` | Indicadores de gestión. |
 
-El botón **"Atender"** de Solicitudes (y **"Ficha"** de GLP-1) abre `Atender`
+El botón **"Atender"** de Solicitudes (**"Ficha"** de GLP-1 y **"Ver paciente"** de Mensajes) abre `Atender`
 con ese paciente ya cargado (`pacienteInicialId`).
 
 En pantallas de menos de 1200 px el header oculta el subtítulo "Recepción" y el

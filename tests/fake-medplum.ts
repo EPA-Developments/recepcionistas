@@ -1,8 +1,8 @@
 /**
  * MedplumClient en memoria para tests de bots: guarda recursos y resuelve las
  * búsquedas que usan los bots y la app (_id, subject/patient, status, category,
- * code, type, based-on, identifier; en los tokens, la coma es OR). No es un servidor
- * FHIR: solo lo necesario para probar la orquestación sin red.
+ * code, type, based-on, part-of, part-of:missing, identifier; en los tokens, la coma
+ * es OR). No es un servidor FHIR: solo lo necesario para probar la orquestación sin red.
  */
 import type { MedplumClient } from '@medplum/core';
 import type { Resource } from '@medplum/fhirtypes';
@@ -42,6 +42,15 @@ function cumple(r: Registro, param: string, valor: string): boolean {
       return token(valor, codingsDe(r.code));
     case 'type':
       return token(valor, codingsDe(r.type));
+    case 'part-of': {
+      // Varias conversaciones separadas por coma = OR.
+      const refs = valor.split(',');
+      return ((r.partOf as Array<{ reference?: string }> | undefined) ?? []).some((p) => refs.includes(p.reference ?? ''));
+    }
+    case 'part-of:missing': {
+      const tiene = ((r.partOf as unknown[] | undefined) ?? []).length > 0;
+      return valor === 'true' ? !tiene : tiene;
+    }
     case 'based-on':
       return ((r.basedOn as Array<{ reference?: string }> | undefined) ?? []).some((b) => b.reference === valor);
     case 'identifier': {
