@@ -53,7 +53,8 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
   (`usdAArs`), nunca hardcodear el TC (usar `resolverTC` / config FHIR).
 - **Naming SOM (obligatorio):** ningún prefijo `bw-`/`bw_`/`BW_` (pasan a
   `som-`/`som_`/`SOM_`) y ninguna referencia a BioWellness fuera de este archivo.
-  Verificación (debe dar vacío; también corre en CI):
+  Verificación (debe dar vacío; corre en CI y en `npm test` vía
+  `tests/sin-marca-anterior.test.ts`):
   `git grep -niE '\bbw[-_]|biowellness|bio\.medplum' -- . ':!CLAUDE.md'`
 - **Medplum:** `https://api.medplum.com.ar/`, proyecto SOM
   `7ce5e559-f315-4538-abf2-61fa4922f996` (`MEDPLUM_PROJECT_ID`: seed, deploy y

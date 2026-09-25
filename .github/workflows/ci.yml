@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, staging, 'claude/**']
+    branches: [som-base, main, staging, 'claude/**']
   pull_request:
-    branches: [main, staging]
+    branches: [som-base, main, staging]
 
 jobs:
   verify:
