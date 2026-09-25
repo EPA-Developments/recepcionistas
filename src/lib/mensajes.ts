@@ -16,7 +16,8 @@
  */
 import type { MedplumClient } from '@medplum/core';
 import type { Communication, Patient } from '@medplum/fhirtypes';
-import { SYSTEM } from '../fhir/identifiers.js';
+import { EXT, SYSTEM } from '../fhir/identifiers.js';
+import { usoDelBorrador } from './borrador.js';
 
 /** Motivos que elige el paciente (mismos códigos y textos que el portal). */
 export const MOTIVOS_MENSAJE: Readonly<Record<string, string>> = {
@@ -171,18 +172,40 @@ export async function marcarLeidos(medplum: MedplumClient, mensajes: Communicati
  * respuesta desde el último mensaje del paciente, le deja además una Novedad
  * `mensaje-nuevo` que abre la conversación.
  */
+/** Novedad `mensaje-nuevo` para el paciente (campanita del portal): abre la conversación. */
+async function avisarAlPaciente(medplum: MedplumClient, topic: Communication, texto: string): Promise<Communication> {
+  const paciente = topic.subject!;
+  return medplum.createResource<Communication>({
+    resourceType: 'Communication',
+    status: 'in-progress',
+    subject: paciente,
+    recipient: [paciente],
+    sent: new Date().toISOString(),
+    category: [{ coding: [{ system: SYSTEM.notificacion, code: 'mensaje-nuevo', display: 'Mensaje nuevo' }] }],
+    about: [{ reference: `Communication/${topic.id}` }],
+    payload: [{ contentString: texto }],
+  });
+}
+
+/**
+ * Responde en la conversación como `autor` (el usuario de Recepción). Si es la primera
+ * respuesta desde el último mensaje del paciente, le deja además una Novedad
+ * `mensaje-nuevo` que abre la conversación. Si la respuesta partió de un borrador de
+ * "Sugerir", queda marcado si salió tal cual o editado (`EXT.borradorUsado`).
+ */
 export async function responder(
   medplum: MedplumClient,
   autor: NonNullable<Communication['sender']>,
   topic: Communication,
   texto: string,
   anteriores: Communication[],
+  borradorSugerido?: string,
 ): Promise<{ mensaje: Communication; aviso?: Communication }> {
   const limpio = texto.trim();
   if (!limpio) {
     throw new Error('Escribí la respuesta.');
   }
-  const ahora = new Date().toISOString();
+  const uso = usoDelBorrador(limpio, borradorSugerido);
   const mensaje = await medplum.createResource<Communication>({
     resourceType: 'Communication',
     status: 'in-progress',
@@ -190,27 +213,61 @@ export async function responder(
     sender: autor,
     recipient: (topic.recipient ?? []).filter((r) => r.reference !== autor.reference),
     partOf: [{ reference: `Communication/${topic.id}` }],
-    sent: ahora,
+    sent: new Date().toISOString(),
     payload: [{ contentString: limpio }],
+    ...(uso ? { extension: [{ url: EXT.borradorUsado, valueCode: uso }] } : {}),
   });
 
   const ultimoPrevio = [...anteriores].sort(porFecha).pop();
-  const paciente = topic.subject;
-  if (!paciente?.reference?.startsWith('Patient/') || (ultimoPrevio && !esDelPaciente(ultimoPrevio))) {
+  if (!topic.subject?.reference?.startsWith('Patient/') || (ultimoPrevio && !esDelPaciente(ultimoPrevio))) {
     return { mensaje };
   }
   const { titulo } = motivoDe(topic);
-  const aviso = await medplum.createResource<Communication>({
+  const aviso = await avisarAlPaciente(medplum, topic, `Te respondimos sobre «${titulo}». Tocá para ver la respuesta.`);
+  return { mensaje, aviso };
+}
+
+/**
+ * Recepción le escribe primero al paciente: conversación con motivo + primer mensaje
+ * (el mismo modelo que crea el portal) y la Novedad en su campanita.
+ */
+export async function nuevaConversacion(
+  medplum: MedplumClient,
+  autor: NonNullable<Communication['sender']>,
+  pacienteRef: string,
+  motivoCode: string,
+  texto: string,
+): Promise<Communication> {
+  const titulo = MOTIVOS_MENSAJE[motivoCode];
+  if (!titulo) {
+    throw new Error('Elegí el motivo de la conversación.');
+  }
+  const limpio = texto.trim();
+  if (!pacienteRef.startsWith('Patient/') || !limpio) {
+    throw new Error('Elegí el paciente y escribí el mensaje.');
+  }
+  const paciente = { reference: pacienteRef };
+  const ahora = new Date().toISOString();
+  const topic = await medplum.createResource<Communication>({
     resourceType: 'Communication',
     status: 'in-progress',
     subject: paciente,
+    sender: autor,
     recipient: [paciente],
-    sent: ahora,
-    category: [{ coding: [{ system: SYSTEM.notificacion, code: 'mensaje-nuevo', display: 'Mensaje nuevo' }] }],
-    about: [{ reference: `Communication/${topic.id}` }],
-    payload: [{ contentString: `Te respondimos sobre «${titulo}». Tocá para ver la respuesta.` }],
+    topic: { coding: [{ system: SYSTEM.motivoMensaje, code: motivoCode, display: titulo }], text: titulo },
   });
-  return { mensaje, aviso };
+  await medplum.createResource<Communication>({
+    resourceType: 'Communication',
+    status: 'in-progress',
+    subject: paciente,
+    sender: autor,
+    recipient: [paciente],
+    partOf: [{ reference: `Communication/${topic.id}` }],
+    sent: ahora,
+    payload: [{ contentString: limpio }],
+  });
+  await avisarAlPaciente(medplum, topic, `Te escribimos sobre «${titulo}». Tocá para leer el mensaje.`);
+  return topic;
 }
 
 /** Cierra (o reabre) la conversación. */

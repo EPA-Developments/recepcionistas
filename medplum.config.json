@@ -125,6 +125,12 @@
       "id": "",
       "source": "src/bots/bienestar-inscribir.ts",
       "dist": "dist/bots/bienestar-inscribir.js"
+    },
+    {
+      "name": "som-borrador-respuesta",
+      "id": "",
+      "source": "src/bots/borrador-respuesta.ts",
+      "dist": "dist/bots/borrador-respuesta.js"
     }
   ]
 }

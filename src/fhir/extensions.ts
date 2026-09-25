@@ -42,6 +42,7 @@ const SPECS: SpecExtension[] = [
   // Communication
   { url: EXT.canal, nombre: 'canal', contexto: ['Communication'], tipoValor: 'code', descripcion: 'Canal de la comunicación (whatsapp/email).' },
   { url: EXT.templateUsado, nombre: 'template-usado', contexto: ['Communication'], tipoValor: 'string', descripcion: 'Template usado para el mensaje.' },
+  { url: EXT.borradorUsado, nombre: 'borrador-usado', contexto: ['Communication'], tipoValor: 'code', descripcion: 'La respuesta de Mensajes partió de un borrador de "Sugerir": sin-editar | editado.' },
   // SOM — Segunda Opinión Médica
   { url: EXT.somOrigin, nombre: 'som-origin', contexto: ['ServiceRequest'], tipoValor: 'code', descripcion: 'Origen de la solicitud SOM: self (el paciente) | referral (derivación de un colega).' },
   // Estadificación CKM (Guía AHA/ACC/ADA/ASN 2026)

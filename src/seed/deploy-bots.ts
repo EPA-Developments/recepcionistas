@@ -53,6 +53,8 @@ const BOTS: DefBot[] = [
   // Seguimiento GLP-1 (docs/glp1.md).
   { name: 'som-glp1-inscribir', source: 'src/bots/glp1-inscribir.ts', dist: 'dist/bots/glp1-inscribir.js', description: 'GLP-1 (Recepción): inscribe al paciente en el seguimiento; deja la indicación pendiente al equipo médico.' },
   { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
+  // Mensajes (Recepción): borrador de respuesta con Claude; nada sale sin que una persona toque Enviar.
+  { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). Solo lectura: no escribe ni envía nada.' },
   // Plan Bienestar · 100 días (portal: tarjeta de progreso).
   { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 de 100 días que lee el portal.' },
 ];

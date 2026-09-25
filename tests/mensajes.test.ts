@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Communication, Patient, Resource } from '@medplum/fhirtypes';
-import { SYSTEM } from '../src/fhir/identifiers.js';
+import { EXT, SYSTEM } from '../src/fhir/identifiers.js';
 import {
   cambiarEstado,
   cargarConversaciones,
@@ -8,6 +8,7 @@ import {
   contarSinLeer,
   marcarLeidos,
   motivoDe,
+  nuevaConversacion,
   responder,
 } from '../src/lib/mensajes.js';
 import { fakeMedplum } from './fake-medplum.js';
@@ -177,5 +178,48 @@ describe('bandeja de Mensajes', () => {
     expect((await cargarConversaciones(medplum, 'cerradas')).map((c) => c.topic.id)).toEqual(['c-turnos', 'c-vieja']);
     await cambiarEstado(medplum, turnos.topic, 'abiertas');
     expect((await cargarConversaciones(medplum, 'abiertas')).map((c) => c.topic.id)).toContain('c-turnos');
+  });
+
+  it('una respuesta que partió de "Sugerir" queda marcada: tal cual o editada', async () => {
+    const { medplum } = escenario();
+    const turnos = (await cargarConversaciones(medplum, 'abiertas'))[0]!;
+    const previos = await cargarMensajes(medplum, turnos.topic);
+    const tal = await responder(medplum, RECEPCION, turnos.topic, 'Listo.', previos, 'Listo.');
+    expect(tal.mensaje.extension).toEqual([{ url: EXT.borradorUsado, valueCode: 'sin-editar' }]);
+    const editada = await responder(medplum, RECEPCION, turnos.topic, 'Listo, te esperamos.', previos, 'Listo.');
+    expect(editada.mensaje.extension).toEqual([{ url: EXT.borradorUsado, valueCode: 'editado' }]);
+    const aMano = await responder(medplum, RECEPCION, turnos.topic, 'Hola', previos);
+    expect(aMano.mensaje.extension).toBeUndefined();
+  });
+
+  it('Recepción abre una conversación: motivo + primer mensaje + aviso en la campanita', async () => {
+    const { medplum, todos } = escenario();
+    const topic = await nuevaConversacion(
+      medplum,
+      RECEPCION,
+      'Patient/beto',
+      'estudios',
+      '  Te falta subir el laboratorio.  ',
+    );
+    expect(topic).toMatchObject({
+      status: 'in-progress',
+      subject: { reference: 'Patient/beto' },
+      sender: RECEPCION,
+      topic: { coding: [{ system: SYSTEM.motivoMensaje, code: 'estudios' }], text: 'Estudios y resultados' },
+    });
+    const [primero] = await cargarMensajes(medplum, topic);
+    expect(primero).toMatchObject({
+      sender: RECEPCION,
+      payload: [{ contentString: 'Te falta subir el laboratorio.' }],
+    });
+    const avisos = todos<Communication>('Communication').filter(
+      (c) => c.about?.[0]?.reference === `Communication/${topic.id}`,
+    );
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]?.category?.[0]?.coding?.[0]?.code).toBe('mensaje-nuevo');
+    expect((await cargarConversaciones(medplum, 'abiertas')).map((c) => c.topic.id)).toContain(topic.id);
+
+    await expect(nuevaConversacion(medplum, RECEPCION, 'Patient/beto', 'inventado', 'Hola')).rejects.toThrow(/motivo/);
+    await expect(nuevaConversacion(medplum, RECEPCION, 'Patient/beto', 'turnos', '  ')).rejects.toThrow(/mensaje/);
   });
 });
