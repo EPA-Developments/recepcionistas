@@ -29,6 +29,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `bot-som-report` | **Interno (SOM):** PREVENT → `RiskAssessment`, informe con Claude → `DiagnosticReport` + PDF, `ServiceRequest` → `completed`, aviso al paciente. Sin consentimiento no llama a Claude. | `Subscription` sobre `ServiceRequest?status=active&code=…som-cardiology` (la crea `deploy:bots`). |
 | `som-procesar-laboratorio` | **Interno (SOM):** transcribe el PDF de laboratorio que manda el paciente (Claude) a `Observation` + `DiagnosticReport` y lo liga al documento; si no puede, avisa al paciente y deja un `Task` `revisar-laboratorio`. | `Subscription` (solo *create*) sobre `DocumentReference?category=…/documento\|resultado-laboratorio` (la crea `deploy:bots`). |
 | `som-bienestar-inscribir` | **Plan Bienestar (Recepción):** crea el `CarePlan` `plan-bienestar-100` (100 días) que lee el portal. Idempotente. No cobra. | `executeBot` (Atender → Plan Bienestar). |
+| `som-borrador-respuesta` | **Mensajes (Recepción) — "Sugerir":** con la conversación y el contexto operativo del paciente (nombre, motivo, próximo turno, programas, consentimiento; nunca historia clínica) redacta con Claude el **borrador** de la respuesta. Solo lectura: no escribe ni envía nada; la recepcionista lo revisa y toca Enviar (la respuesta queda marcada `borrador-usado` = `sin-editar`/`editado`). Si es clínico o una posible urgencia, no redacta y lo dice. | `executeBot` (Mensajes → Sugerir). |
 | `som-glp1-plan` | **GLP-1 (equipo médico):** con la indicación (molécula, esquema de titulación, fecha de inicio) arma o recalcula el programa: `CarePlan`, `Goal`, pedidos de laboratorio y tareas de agenda de Recepción. **Recepción no puede ejecutarlo.** | `executeBot` / app de Medplum (input JSON). Ver [`glp1.md`](glp1.md). |
 
 ## Deploy
@@ -57,7 +58,7 @@ Además asegura (idempotente) las `Subscription` de los bots internos SOM:
 `bot-som-report` (solicitud activa) y `som-procesar-laboratorio` (solo al crear el
 documento, con la extensión `subscription-supported-interaction=create`).
 
-> Los bots que llaman a Claude (`bot-som-report`, `som-procesar-laboratorio`)
+> Los bots que llaman a Claude (`bot-som-report`, `som-procesar-laboratorio`, `som-borrador-respuesta`)
 > pueden tardar más que el timeout por defecto del Bot: subir `Bot.timeout` en
 > Medplum si el log muestra cortes.
 
@@ -83,7 +84,7 @@ MercadoPago usan las credenciales propias de SOM.
 | `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
 | `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
 | `EMAIL_FROM` | `som-invitar-paciente` (remitente con marca) | opcional |
-| `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe), `som-procesar-laboratorio` (transcripción del PDF) | opcional (sin él: informe mínimo / el PDF pasa al equipo) |
+| `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe), `som-procesar-laboratorio` (transcripción del PDF), `som-borrador-respuesta` ("Sugerir" en Mensajes) | opcional (sin él: informe mínimo / el PDF pasa al equipo / "Sugerir" avisa que está desactivado) |
 
 **Regla de oro:** los helpers (`enviarWhatsApp` / `enviarEmail` en
 `src/bots/_shared.ts`) **siempre** registran la `Communication`, pero **solo

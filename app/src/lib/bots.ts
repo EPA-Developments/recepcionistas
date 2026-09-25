@@ -211,3 +211,20 @@ export async function inscribirBienestar(pacienteRef: string): Promise<Resultado
   const id = await botIdPorNombre('som-bienestar-inscribir');
   return (await medplum.executeBot(id, { pacienteRef })) as ResultadoInscripcionBienestar;
 }
+
+export interface ResultadoBorradorBot {
+  /** Texto sugerido para responder. Ausente si conviene que lo escriba una persona. */
+  borrador?: string;
+  /** Por qué no hay borrador (tema clínico, nada pendiente, API caída…). */
+  motivo?: string;
+}
+
+/**
+ * Pide el borrador de la próxima respuesta de una conversación de Mensajes
+ * (som-borrador-respuesta). Solo SUGIERE: el texto cae en el campo de respuesta y la
+ * recepcionista decide si lo manda, lo corrige o lo descarta.
+ */
+export async function borradorRespuesta(hiloId: string): Promise<ResultadoBorradorBot> {
+  const id = await botIdPorNombre('som-borrador-respuesta');
+  return (await medplum.executeBot(id, { hiloId })) as ResultadoBorradorBot;
+}

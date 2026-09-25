@@ -7,9 +7,11 @@ import {
   Grid,
   Group,
   Loader,
+  Modal,
   Paper,
   ScrollArea,
   SegmentedControl,
+  Select,
   Stack,
   Text,
   Textarea,
@@ -17,21 +19,33 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconLock, IconLockOpen, IconMessages, IconRefresh, IconSend, IconUserHeart } from '@tabler/icons-react';
-import { useMedplum, useMedplumProfile } from '@medplum/react';
+import {
+  IconLock,
+  IconLockOpen,
+  IconMessages,
+  IconPlus,
+  IconRefresh,
+  IconSend,
+  IconSparkles,
+  IconUserHeart,
+} from '@tabler/icons-react';
+import { ResourceInput, useMedplum, useMedplumProfile } from '@medplum/react';
 import { createReference } from '@medplum/core';
-import type { Communication } from '@medplum/fhirtypes';
+import type { Communication, Patient } from '@medplum/fhirtypes';
 import {
   cambiarEstado,
   cargarConversaciones,
   cargarMensajes,
   esDelPaciente,
   marcarLeidos,
+  MOTIVOS_MENSAJE,
+  nuevaConversacion,
   responder,
   textoMensaje,
   type ConversacionResumen,
   type EstadoBandeja,
 } from '@som/lib/mensajes';
+import { borradorRespuesta, mensajeError } from '../lib/bots';
 
 /**
  * Mensajes: las conversaciones que abren los pacientes desde el portal ("Mensajes",
@@ -88,6 +102,11 @@ export function Mensajes({ onAtender }: { onAtender: (pacienteId: string) => voi
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [cambiando, setCambiando] = useState(false);
+  // El borrador tal como lo sugirió "Sugerir": al enviar se compara con lo que sale, así
+  // se mide cuántos se mandan sin editar (el dato para decidir si automatizar más).
+  const [borradorSugerido, setBorradorSugerido] = useState<string>();
+  const [sugiriendo, setSugiriendo] = useState(false);
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
   const fondo = useRef<HTMLDivElement>(null);
 
   const elegida = lista?.find((c) => c.topic.id === elegidaId);
@@ -133,7 +152,9 @@ export function Mensajes({ onAtender }: { onAtender: (pacienteId: string) => voi
 
   useEffect(() => {
     setMensajes(undefined);
+    // Al cambiar de conversación no puede quedar tipeada la respuesta de la anterior.
     setTexto('');
+    setBorradorSugerido(undefined);
     cargarConversacion(lista?.find((c) => c.topic.id === elegidaId));
     // Solo al cambiar de conversación (el refresco periódico va aparte).
   }, [elegidaId]);
@@ -151,14 +172,48 @@ export function Mensajes({ onAtender }: { onAtender: (pacienteId: string) => voi
     }
     setEnviando(true);
     try {
-      const { mensaje } = await responder(medplum, createReference(profile), elegida.topic, texto, mensajes ?? []);
+      const { mensaje } = await responder(
+        medplum,
+        createReference(profile),
+        elegida.topic,
+        texto,
+        mensajes ?? [],
+        borradorSugerido,
+      );
       setMensajes((ms) => [...(ms ?? []), mensaje]);
       setTexto('');
+      setBorradorSugerido(undefined);
       cargarLista();
     } catch (err) {
       error('No se pudo enviar', err);
     } finally {
       setEnviando(false);
+    }
+  };
+
+  /** Pide el borrador y lo deja en el campo de respuesta. NO envía: la recepcionista decide. */
+  const sugerir = async (): Promise<void> => {
+    if (!elegida?.topic.id) {
+      return;
+    }
+    setSugiriendo(true);
+    try {
+      const r = await borradorRespuesta(elegida.topic.id);
+      if (r.borrador) {
+        setTexto(r.borrador);
+        setBorradorSugerido(r.borrador);
+      } else {
+        setBorradorSugerido(undefined);
+        notifications.show({
+          color: 'blue',
+          title: 'Mejor contestalo vos',
+          message: r.motivo ?? 'El asistente no sugirió una respuesta para este mensaje.',
+        });
+      }
+    } catch (err) {
+      notifications.show({ color: 'orange', title: 'No pude sugerir', message: mensajeError(err) });
+    } finally {
+      setSugiriendo(false);
     }
   };
 
@@ -203,6 +258,9 @@ export function Mensajes({ onAtender }: { onAtender: (pacienteId: string) => voi
           />
           <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={cargarLista}>
             Actualizar
+          </Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setNuevaAbierta(true)}>
+            Nueva conversación
           </Button>
         </Group>
       </Group>
@@ -349,6 +407,15 @@ export function Mensajes({ onAtender }: { onAtender: (pacienteId: string) => voi
                         }}
                       />
                       <Button
+                        variant="light"
+                        leftSection={<IconSparkles size={16} />}
+                        loading={sugiriendo}
+                        onClick={sugerir}
+                        title="Escribe un borrador con el contexto del paciente. Lo revisás y lo enviás vos."
+                      >
+                        Sugerir
+                      </Button>
+                      <Button
                         leftSection={<IconSend size={16} />}
                         loading={enviando}
                         disabled={!texto.trim()}
@@ -364,6 +431,82 @@ export function Mensajes({ onAtender }: { onAtender: (pacienteId: string) => voi
           </Card>
         </Grid.Col>
       </Grid>
+
+      <NuevaConversacion
+        abierta={nuevaAbierta}
+        onCerrar={() => setNuevaAbierta(false)}
+        onCreada={(id) => {
+          setNuevaAbierta(false);
+          setEstado('abiertas');
+          cargarLista();
+          setElegidaId(id);
+        }}
+      />
     </Stack>
+  );
+}
+
+/** Recepción le escribe primero a un paciente: paciente + motivo + mensaje. */
+function NuevaConversacion({
+  abierta,
+  onCerrar,
+  onCreada,
+}: {
+  abierta: boolean;
+  onCerrar: () => void;
+  onCreada: (conversacionId: string) => void;
+}): JSX.Element {
+  const medplum = useMedplum();
+  const profile = useMedplumProfile();
+  const [paciente, setPaciente] = useState<Patient>();
+  const [motivo, setMotivo] = useState<string | null>(null);
+  const [texto, setTexto] = useState('');
+  const [creando, setCreando] = useState(false);
+
+  const crear = async (): Promise<void> => {
+    if (!paciente?.id || !profile || !motivo || !texto.trim()) {
+      return;
+    }
+    setCreando(true);
+    try {
+      const topic = await nuevaConversacion(medplum, createReference(profile), `Patient/${paciente.id}`, motivo, texto);
+      setPaciente(undefined);
+      setMotivo(null);
+      setTexto('');
+      onCreada(topic.id as string);
+    } catch (err) {
+      error('No se pudo crear la conversación', err);
+    } finally {
+      setCreando(false);
+    }
+  };
+
+  return (
+    <Modal opened={abierta} onClose={onCerrar} title="Nueva conversación" radius="md">
+      <Stack gap="sm">
+        <ResourceInput<Patient> resourceType="Patient" name="paciente" label="Paciente" onChange={setPaciente} />
+        <Select
+          label="Motivo"
+          placeholder="Elegí el motivo"
+          data={Object.entries(MOTIVOS_MENSAJE).map(([value, label]) => ({ value, label }))}
+          value={motivo}
+          onChange={setMotivo}
+        />
+        <Textarea
+          label="Mensaje"
+          autosize
+          minRows={3}
+          value={texto}
+          onChange={(e) => setTexto(e.currentTarget.value)}
+          required
+        />
+        <Text size="xs" c="dimmed">
+          El paciente lo ve en "Mensajes" del portal y le llega un aviso a la campanita.
+        </Text>
+        <Button loading={creando} disabled={!paciente || !motivo || !texto.trim()} onClick={crear}>
+          Enviar
+        </Button>
+      </Stack>
+    </Modal>
   );
 }

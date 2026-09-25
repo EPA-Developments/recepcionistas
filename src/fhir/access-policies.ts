@@ -8,7 +8,7 @@
  * (Flag), nunca el detalle clínico.
  */
 import type { AccessPolicy } from '@medplum/fhirtypes';
-import { BOT_BIENESTAR_INSCRIBIR, BOT_GLP1_INSCRIBIR, EXT } from './identifiers.js';
+import { BOT_BIENESTAR_INSCRIBIR, BOT_BORRADOR_RESPUESTA, BOT_GLP1_INSCRIBIR, EXT } from './identifiers.js';
 
 /**
  * Bots que Recepción puede ejecutar (los que usa la app de recepción, más la
@@ -28,6 +28,7 @@ export const BOTS_RECEPCION = [
   'som-invitar-paciente',
   BOT_GLP1_INSCRIBIR,
   BOT_BIENESTAR_INSCRIBIR,
+  BOT_BORRADOR_RESPUESTA,
 ] as const;
 
 /** Recepcionista — acceso Operativo: agenda, check-in/out, pagos, comunicación, CRM. */

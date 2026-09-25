@@ -49,6 +49,11 @@ export const EXT = {
   // Communication
   canal: `${BASE}/StructureDefinition/canal`,
   templateUsado: `${BASE}/StructureDefinition/template-usado`,
+  /**
+   * Respuesta de Mensajes que partió de un borrador de "Sugerir": `sin-editar` | `editado`.
+   * Es el dato que dice si se puede automatizar más (qué porcentaje sale tal cual).
+   */
+  borradorUsado: `${BASE}/StructureDefinition/borrador-usado`,
   // Onboarding / invitación al portal
   /** Canal elegido para invitar al paciente al portal (whatsapp / email / qr). */
   canalInvitacion: `${BASE}/StructureDefinition/canal-invitacion`,
@@ -194,6 +199,13 @@ export const BOT_SOM_SOLICITAR = 'som-solicitar';
 export const BOT_SOM_REPORT = 'bot-som-report';
 /** Interno: procesa el PDF de laboratorio que manda el paciente (lo dispara una Subscription). */
 export const BOT_SOM_LABORATORIO = 'som-procesar-laboratorio';
+/** Borrador de respuesta para la bandeja de Mensajes de Recepción ("Sugerir"). */
+export const BOT_BORRADOR_RESPUESTA = 'som-borrador-respuesta';
+/**
+ * Modelo del borrador de Mensajes: el más capaz de la línea Opus, con esfuerzo bajo
+ * (un mensaje corto de atención) y respaldo del servidor ante una negativa.
+ */
+export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5';
 /** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
 export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
 
