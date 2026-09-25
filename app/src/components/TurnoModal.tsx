@@ -113,7 +113,27 @@ export function TurnoModal({
             <Badge color={colorEstado(turno.estado)} variant="filled">
               {labelEstado(turno.estado)}
             </Badge>
+            {turno.teleconsulta && (
+              <Badge color="grape" variant="light">
+                Teleconsulta
+              </Badge>
+            )}
           </Group>
+
+          {turno.teleconsulta && (
+            <Text size="sm">
+              {turno.teleconsultaUrl ? (
+                <>
+                  Videollamada:{' '}
+                  <Anchor href={turno.teleconsultaUrl} target="_blank" rel="noreferrer">
+                    {turno.teleconsultaUrl}
+                  </Anchor>
+                </>
+              ) : (
+                'Sin link de videollamada (falta configurar el Jitsi de SOM).'
+              )}
+            </Text>
+          )}
 
           {error && (
             <Alert color="orange" variant="light">

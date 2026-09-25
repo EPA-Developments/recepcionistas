@@ -10,7 +10,7 @@ import type { BotEvent, MedplumClient } from '@medplum/core';
 import { APP_BASE_URL_DEFAULT, urlBase } from '../config/urls.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import { EXT } from '../fhir/identifiers.js';
-import { leerTcVigente } from './_shared.js';
+import { esIncluidoEnPlan, leerTcVigente, MENSAJE_SIN_SENA } from './_shared.js';
 
 export interface EntradaLinkMP {
   appointmentId: string;
@@ -30,6 +30,9 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaLin
   const itemCodigo = appt.extension?.find((e) => e.url === EXT.itemCodigo)?.valueString;
   if (!itemTipo || !itemCodigo) {
     return { ok: false, mensaje: 'El turno no tiene ítem asociado para calcular la seña.' };
+  }
+  if (esIncluidoEnPlan(itemCodigo)) {
+    return { ok: false, mensaje: MENSAJE_SIN_SENA };
   }
 
   const tc = event.input.tc ?? (await leerTcVigente(medplum));

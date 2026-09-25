@@ -7,7 +7,7 @@ import type { StructureDefinition, ElementDefinition } from '@medplum/fhirtypes'
 import { EXT } from './identifiers.js';
 
 /** Tipo de valor permitido en value[x] de la extensión. */
-type TipoValor = 'string' | 'boolean' | 'decimal' | 'integer' | 'code' | 'dateTime' | 'Money';
+type TipoValor = 'string' | 'boolean' | 'decimal' | 'integer' | 'code' | 'dateTime' | 'Money' | 'Coding' | 'url';
 
 interface SpecExtension {
   url: string;
@@ -32,6 +32,8 @@ const SPECS: SpecExtension[] = [
   { url: EXT.recursoFisico, nombre: 'recurso-fisico', contexto: ['Schedule', 'Slot'], tipoValor: 'string', descripcion: 'Código del recurso físico al que pertenece la franja.' },
   // Appointment
   { url: EXT.ocupantes, nombre: 'ocupantes', contexto: ['Appointment'], tipoValor: 'integer', descripcion: 'Cantidad de ocupantes.' },
+  { url: EXT.modalidad, nombre: 'modalidad', contexto: ['Appointment', 'Task'], tipoValor: 'Coding', descripcion: 'Modalidad de atención (R-21): v3-ActCode AMB (presencial) | VR (teleconsulta), el mismo código que va en Encounter.class.' },
+  { url: EXT.teleconsultaUrl, nombre: 'teleconsulta-url', contexto: ['Appointment'], tipoValor: 'url', descripcion: 'Link de la videollamada (Jitsi) de la teleconsulta.' },
   // ActivityDefinition (catálogo)
   { url: EXT.precioUsd, nombre: 'precio-usd', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en USD.' },
   { url: EXT.reglaPricingRecurso, nombre: 'regla-pricing-recurso', contexto: ['ActivityDefinition'], tipoValor: 'code', descripcion: 'Regla de pricing del recurso.' },

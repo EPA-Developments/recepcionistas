@@ -1,4 +1,6 @@
 import type { Invoice } from '@medplum/fhirtypes';
+import type { Modalidad } from '@som/domain/types';
+import type { ConsultaPlanVista } from '@som/lib/plan-bienestar';
 import { medplum } from '../medplum';
 
 /**
@@ -54,8 +56,10 @@ export interface ReservaInput {
   ocupantes?: number;
   /** Si es false, solo valida (no crea). */
   confirmar?: boolean;
-  /** Tarea de Recepción que resuelve el turno (control del programa GLP-1). */
+  /** Tarea de Recepción que resuelve el turno (control GLP-1 o consulta del Plan Bienestar). */
   tareaId?: string;
+  /** Presencial o teleconsulta (R-21); tiene que coincidir con el recurso. */
+  modalidad?: Modalidad;
 }
 
 export interface IssueValidacion {
@@ -71,6 +75,11 @@ export interface ResultadoReserva {
   creado: boolean;
   appointmentId?: string;
   slotId?: string;
+  modalidad?: Modalidad;
+  /** Link de la videollamada (teleconsulta). */
+  teleconsultaUrl?: string;
+  /** Incluida en el Plan Bienestar: confirmada, sin seña. */
+  incluida?: boolean;
 }
 
 /** Llama al bot de reserva: valida y (si confirma) crea el turno + Slot ocupado. */
@@ -201,11 +210,16 @@ export interface ResultadoInscripcionBienestar {
   /** Día 1 y fin del plan (AAAA-MM-DD), calculados por el bot. */
   inicio?: string;
   fin?: string;
+  /** Tareas de consulta creadas en esta llamada. */
+  tareasCreadas?: number;
+  /** Las tres consultas programadas del plan, con su estado. */
+  consultas?: ConsultaPlanVista[];
 }
 
 /**
- * Inscribe al paciente en el Plan Bienestar de 100 días (idempotente). El bot arma
- * el plan que ve el paciente en el portal; Recepción no calcula fechas.
+ * Inscribe al paciente en el Plan Bienestar 100 Días® (idempotente). El bot arma el
+ * plan que ve el paciente en el portal y las tres consultas a agendar; Recepción no
+ * calcula fechas.
  */
 export async function inscribirBienestar(pacienteRef: string): Promise<ResultadoInscripcionBienestar> {
   const id = await botIdPorNombre('som-bienestar-inscribir');

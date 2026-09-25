@@ -52,11 +52,11 @@ funcione end-to-end:
 
 | Vista | Componente | Qué hace |
 |---|---|---|
-| **Agenda** | `AgendaDelDia` | Línea de tiempo del día por consultorio/sala, franjas libres clickeables para reservar y próximos turnos. |
+| **Agenda** | `AgendaDelDia` | Línea de tiempo del día por consultorio/sala y la agenda de teleconsultas, franjas libres clickeables para reservar (en la fila de teleconsultas, solo los servicios que se ofrecen por videollamada) y próximos turnos. El turno muestra si es teleconsulta y su link. |
 | **Solicitudes** | `Solicitudes` | Cola de solicitudes de turno del portal del paciente, para confirmar. |
 | **Mensajes** | `Mensajes` | Bandeja de las conversaciones que abren los pacientes desde "Mensajes" del portal (con motivo obligatorio). *Abiertas / Cerradas*, paciente + motivo + último mensaje + sin leer; a la derecha la conversación y la respuesta (Enter envía, Shift+Enter salto de línea). Abrirla marca leído lo del paciente; responder le deja una Novedad `mensaje-nuevo` en la campanita del portal (una por tanda). **"Sugerir"** pide al bot `som-borrador-respuesta` un borrador (Claude) que cae en el campo de respuesta; nada sale sin tocar Enviar. **"Nueva conversación"**: Recepción le escribe primero a un paciente (paciente + motivo + mensaje; también le llega el aviso). "Ver paciente" abre `Atender`; "Cerrar conversación" / "Reabrir". Se refresca cada 20 s; la pestaña muestra los mensajes sin leer (cada 60 s). Lógica en `src/lib/mensajes.ts`. |
 | **GLP-1** | `ControlesGlp1` | Controles del seguimiento GLP-1 por agendar (todos los pacientes), ordenados por ventana y filtrables (*En ventana / Vencidos / Próximos*), con aviso de "traer laboratorio" y la lista de inscriptos que esperan la indicación médica. "Agendar" abre `AgendarControlModal` (consultorio, día y hora; el resto lo pone la tarea). Ver [`glp1.md`](glp1.md). |
-| **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (consulta de segunda opinión), seguimiento GLP-1 (inscribir / agendar controles) y cobro. |
+| **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (**Teleconsulta / Presencial** y consulta por especialidad), **Plan Bienestar 100 Días®** (inscribir y agendar sus tres consultas con `AgendarConsultaPlanModal`: modalidad, dónde, día y hora dentro de la ventana; ver [`plan-bienestar.md`](plan-bienestar.md)), seguimiento GLP-1 (inscribir / agendar controles) y cobro. |
 | **Reportes** | `Reportes` | Indicadores de gestión. |
 
 El botón **"Atender"** de Solicitudes (**"Ficha"** de GLP-1 y **"Ver paciente"** de Mensajes) abre `Atender`

@@ -28,7 +28,8 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
 | SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |
-| Plan Bienestar · 100 días (inscripción) | ✅ bot `som-bienestar-inscribir` (sin cobro: precio PENDIENTE) |
+| Plan Bienestar 100 Días® (inscripción + 3 consultas programadas con ventana, avisos) | ✅ bots `som-bienestar-inscribir` / `som-reservar-turno` / `som-recordatorios` ([`docs/plan-bienestar.md`](docs/plan-bienestar.md)); precio del plan PENDIENTE |
+| Catálogo por especialidad, presencial y teleconsulta (Jitsi + consentimiento) | ✅ R-21; precios y profesionales PENDIENTES; portal: [`docs/handoff-app-pb100d.md`](docs/handoff-app-pb100d.md) |
 | Biomarcadores del portal (ObservationDefinition: lípidos y glucemia) | ✅ en el seed, solo rangos convencionales (AHA/ACC, NCEP, ADA) |
 | CKM según la Guía AHA/ACC/ADA/ASN 2026 (estadío, plan de seguimiento y evaluaciones, potenciadores) en el informe SOM | ✅ `src/lib/ckm.ts` / `ckm-guia.ts`; umbrales pendientes de firma médica |
 | PREVENT (ECV total, ASCVD, IC a 10 y 30 años) | ✅ coeficientes verificados contra la implementación de referencia |
@@ -136,6 +137,7 @@ Pantallas del esqueleto:
 - [`docs/portal-integracion.md`](docs/portal-integracion.md) — integración con el portal del paciente
 - [`docs/crm.md`](docs/crm.md) — CRM: embudo de redes sociales, segmentos y campañas
 - [`docs/glp1.md`](docs/glp1.md) — seguimiento de tratamiento GLP-1: flujo, calendario, recursos FHIR y contrato con la app del paciente
+- [`docs/plan-bienestar.md`](docs/plan-bienestar.md) — Plan Bienestar 100 Días®: consultas programadas, especialidades, teleconsulta (Jitsi, consentimiento) y recursos FHIR
 - [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md) — decisiones abiertas
 - [`CLAUDE.md`](CLAUDE.md) — convenciones y guía para el desarrollo
 

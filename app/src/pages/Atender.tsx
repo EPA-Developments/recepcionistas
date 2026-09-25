@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -8,6 +9,7 @@ import {
   List,
   Loader,
   NumberFormatter,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -31,13 +33,14 @@ import { InvitarPortal } from '../components/InvitarPortal';
 import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
 import { SeguimientoGlp1 } from '../components/SeguimientoGlp1';
 import { PlanBienestar } from '../components/PlanBienestar';
-import { SERVICIOS } from '@som/config/catalogo';
-import { recursosParaCategoria } from '@som/config/recursos';
+import type { Modalidad } from '@som/domain/types';
+import { SERVICIOS, nombreSegunModalidad, ofreceModalidad } from '@som/config/catalogo';
+import { recursosPara } from '@som/config/recursos';
 import { generarSlots } from '@som/lib/slots';
 import { HORARIO_SEMANAL } from '@som/config/horario';
 import { seAgendaSinTarea } from '@som/lib/glp1-plan';
 
-/** Lo que se reserva libre (el control GLP-1 se agenda desde su tarea, R-19). */
+/** Lo que se reserva libre (los de programa se agendan desde su tarea: R-19 GLP-1, R-20 Plan Bienestar). */
 const SERVICIOS_RESERVA = SERVICIOS.filter((s) => seAgendaSinTarea(s.codigo));
 
 export function Atender({
@@ -202,6 +205,8 @@ function BannerSeguridad({ pacienteId }: { pacienteId: string }): JSX.Element {
 /** Reserva de turno: el front arma la propuesta y el bot valida + crea. */
 function PanelReserva({ paciente }: { paciente: Patient }): JSX.Element {
   const hoy = new Date().toISOString().slice(0, 10);
+  // La teleconsulta es el camino más usado (R-21): arranca seleccionada.
+  const [modalidad, setModalidad] = useState<Modalidad>('teleconsulta');
   const [servicioCodigo, setServicioCodigo] = useState<string | null>(null);
   const [recursoCodigo, setRecursoCodigo] = useState<string | null>(null);
   const [fecha, setFecha] = useState(hoy);
@@ -210,8 +215,9 @@ function PanelReserva({ paciente }: { paciente: Patient }): JSX.Element {
   const [reservando, setReservando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const servicio = servicioCodigo ? SERVICIOS.find((s) => s.codigo === servicioCodigo) : undefined;
-  const salas = servicio ? recursosParaCategoria(servicio.categoria) : [];
+  const servicios = SERVICIOS_RESERVA.filter((s) => ofreceModalidad(s, modalidad));
+  const servicio = servicioCodigo ? servicios.find((s) => s.codigo === servicioCodigo) : undefined;
+  const salas = servicio ? recursosPara(servicio, modalidad) : [];
 
   const horas = useMemo(() => {
     const desde = new Date(`${fecha}T00:00:00-03:00`);
@@ -238,6 +244,7 @@ function PanelReserva({ paciente }: { paciente: Patient }): JSX.Element {
         servicioCodigo,
         recursoCodigo,
         inicio,
+        modalidad,
         confirmar: true,
       });
       setResultado(r);
@@ -256,22 +263,36 @@ function PanelReserva({ paciente }: { paciente: Patient }): JSX.Element {
       </Group>
 
       <Stack gap="sm">
+        <SegmentedControl
+          value={modalidad}
+          onChange={(v) => {
+            setModalidad(v as Modalidad);
+            setServicioCodigo(null);
+            setRecursoCodigo(null);
+            limpiar();
+          }}
+          data={[
+            { value: 'teleconsulta', label: 'Teleconsulta' },
+            { value: 'presencial', label: 'Presencial' },
+          ]}
+        />
         <Group grow align="flex-end">
           <Select
             label="Servicio"
             placeholder="Elegí qué reservar"
-            data={SERVICIOS_RESERVA.map((s) => ({ value: s.codigo, label: s.nombre }))}
+            data={servicios.map((s) => ({ value: s.codigo, label: nombreSegunModalidad(s, modalidad) }))}
             value={servicioCodigo}
             onChange={(v) => {
               setServicioCodigo(v);
-              setRecursoCodigo(null);
+              const opciones = v ? recursosPara(SERVICIOS.find((s) => s.codigo === v)!, modalidad) : [];
+              setRecursoCodigo(opciones.length === 1 ? opciones[0]!.codigo : null);
               limpiar();
             }}
             searchable
           />
           <Select
-            label="Consultorio / sala"
-            placeholder={servicio ? 'Elegí el consultorio' : 'Primero el servicio'}
+            label={modalidad === 'teleconsulta' ? 'Agenda' : 'Consultorio / sala'}
+            placeholder={servicio ? 'Elegí dónde' : 'Primero el servicio'}
             data={salas.map((r) => ({ value: r.codigo, label: r.nombre }))}
             value={recursoCodigo}
             onChange={setRecursoCodigo}
@@ -308,7 +329,23 @@ function PanelReserva({ paciente }: { paciente: Patient }): JSX.Element {
 
         {resultado?.creado && (
           <Alert color="somAzul" title="Turno reservado ✓">
-            El consultorio queda ocupado en la agenda. Tentativo hasta cobrar la seña del 50%.
+            {resultado.modalidad === 'teleconsulta'
+              ? 'Queda en la agenda de teleconsultas.'
+              : 'El consultorio queda ocupado en la agenda.'}{' '}
+            Tentativo hasta cobrar la seña del 50%.
+            {resultado.teleconsultaUrl && (
+              <Text size="sm" mt={4}>
+                Videollamada:{' '}
+                <Anchor href={resultado.teleconsultaUrl} target="_blank" rel="noreferrer">
+                  {resultado.teleconsultaUrl}
+                </Anchor>
+              </Text>
+            )}
+            {resultado.advertencias.map((a, i) => (
+              <Text key={i} size="sm" c="orange" mt={4}>
+                [{a.regla}] {a.mensaje}
+              </Text>
+            ))}
           </Alert>
         )}
         {resultado && !resultado.creado && (

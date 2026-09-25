@@ -6,22 +6,24 @@ frenan una parte del avance; el resto se resuelve en paralelo.
 ## Catálogo Segunda Opinión Médica — ⚠️ BLOQUEANTE para cobrar
 
 **Se arma de cero con los profesionales de SOM** (decisión del Dr. Alejandro
-Barbagelata y el Dr. Alejandro Sergio D'Alessandro). Mientras tanto,
-`src/config/catalogo.ts` tiene 6 consultas de ejemplo (cardiología +
-subespecialidades) y el control del seguimiento GLP-1, sin precio, y
-`src/config/medicos.ts` está **vacío** (los
-profesionales anteriores se retiraron). El catálogo anterior, ajeno a SOM
-(servicios/combos/paquetes/membresías/contraindicaciones y sus bots/UI), **se
-retiró del código**.
+Barbagelata y el Dr. Alejandro Sergio D'Alessandro). Las **especialidades ya están
+definidas** (`src/config/catalogo.ts`: DBT / Endocrino, Nutrición, Cardiología,
+Cardiología con especialidad —Insuficiencia Cardíaca, Hemodinamia, Electrofisiología,
+Medicina Nuclear, Prevención CV, Rehabilitación CV—, Tisioneumonología, Neurología y
+Ginecología; cada una presencial y por teleconsulta), más la consulta del Plan
+Bienestar 100 Días® y el control GLP-1. Faltan los **precios** y los
+**profesionales**: `src/config/medicos.ts` sigue **vacío**. El catálogo anterior,
+ajeno a SOM (servicios/combos/paquetes/membresías/contraindicaciones y sus bots/UI),
+**se retiró del código**.
 
 | # | Pendiente | Detalle |
 |---|---|---|
-| 1 | **Lista de precios oficial** | Todas las consultas están con `precioARS: 0` (nota "Precio PENDIENTE"). No se inventan precios: cargar los valores reales cuando estén. |
-| 2 | **Duración de cada consulta** | Provisional 45 min. Confirmar con la operación (¿varía por subespecialidad? ¿telemedicina?). |
-| 3 | **Consultorios / salas reales** | `src/config/recursos.ts` tiene una lista PROVISIONAL (2 consultorios + telemedicina + sala de rehabilitación). Confirmar la lista real. |
+| 1 | **Lista de precios oficial** | Todas las consultas por especialidad están con `precioARS: 0` (nota "Precio PENDIENTE"); la del Plan Bienestar va en 0 porque está incluida. No se inventan precios: los arman el Dr. D'Alessandro y el Dr. Barbagelata (¿distinto presencial y teleconsulta?). |
+| 2 | **Duración de cada consulta** | Provisional 45 min. Confirmar con la operación (¿varía por especialidad? ¿la teleconsulta dura distinto?). |
+| 3 | **Consultorios / salas reales** | `src/config/recursos.ts` tiene una lista PROVISIONAL (2 consultorios + agenda de teleconsultas + sala de rehabilitación). Confirmar la lista real. |
 | 4 | **Honorarios profesionales (split)** | Hoy todo es `SOM_100`. Definir cómo se reparte el honorario del especialista por consulta. |
 | 5 | **¿Paquetes / seguimiento?** | ¿Existe algo como "paquete de seguimiento" con el mismo especialista, o cada segunda opinión es un evento único? Si existe, se modela con sus reglas oficiales (no se reutiliza el modelo anterior). El primer programa de seguimiento ya modelado es el **GLP-1** (ver abajo). |
-| 6 | **Profesionales de SOM** | `src/config/medicos.ts` está vacío: cargar los profesionales de SOM (especialidad, consultas que atiende, modalidad, idiomas). |
+| 6 | **Profesionales de SOM** | `src/config/medicos.ts` está vacío: cargar los profesionales de SOM (especialidad, consultas que atiende, modalidad, horario). Las consultas del Plan Bienestar hoy las atienden el Dr. Barbagelata, la Dra. Gold y el Dr. D'Alessandro. La lista la están armando el Dr. D'Alessandro y el Dr. Barbagelata. |
 | 7 | **Contraindicaciones clínicas** | La tabla de contraindicaciones del catálogo anterior se retiró. Si el flujo de segunda opinión necesita señales clínicas de seguridad, las define el equipo médico. El banner verde/rojo (Flags) sigue operativo. |
 
 ## Seguimiento GLP-1
@@ -53,9 +55,24 @@ Implementado (ver [`som.md`](som.md)); queda para confirmar:
 | 2 | **Umbrales CKM (Guía AHA/ACC/ADA/ASN 2026) y biomarcadores** | Estadificación según la Tabla 4 (triglicéridos ≥ 150, CAC ≥ 100, PREVENT-CVD 10a ≥ 20 %) y plan según Tabla 8 / Figura 3. Confirmar: índice tobillo-brazo bajo ≤ 0,90 (la guía no fija valor), ApoB < 130 mg/dL y Lp(a) < 125 nmol/L (AHA/ACC 2018). | A confirmar |
 | 2b | **Rangos funcionales ya cargados en el servidor** | Correr `npm run biomarcadores:convencional` (dry-run) y, revisado el listado, `-- --apply`. Las definiciones que queden sin rango convencional (p. ej. HOMA-IR) se decide si se retiran. El portal (`EPA-Developments/app`) todavía muestra rangos funcionales en su catálogo local: cambiarlo allá. | Pendiente |
 | 3 | **`performer` de la solicitud SOM** | El contrato pide el `Practitioner` del Dr. Barbagelata "si está disponible": falta cargar los profesionales de SOM. | Bloqueado por catálogo |
-| 4 | **Precio del Plan Bienestar** | `som-bienestar-inscribir` inscribe sin cobrar. ¿Es membresía paga? ¿Quién inscribe (Recepción, el paciente, al pagar)? | A definir |
+| 4 | **Precio del Plan Bienestar** | Definido: las tres consultas programadas están incluidas en el plan (sin seña) y las de especialidad se cobran aparte. Falta el precio del plan y cuándo se cobra: `som-bienestar-inscribir` inscribe sin cobrar. | Precio en curso |
 | 5 | **Modelo del bot de laboratorio** | `som-procesar-laboratorio` usa `claude-opus-5` (el contrato no lo fija; el informe sigue en `claude-sonnet-4-6` por contrato). Cambiar en `MODELO_CLAUDE_LABORATORIO`. | A confirmar |
 | 6 | **Aplicar en el servidor** | `npm run seed` (policy + lípidos) y `npm run deploy:bots` (bots + Subscriptions) contra `7ce5e559-…`; Project Secret `ANTHROPIC_API_KEY`; revisar `Bot.timeout` de los bots con Claude. | Pendiente (credenciales) |
+
+## Plan Bienestar 100 Días® y teleconsulta
+
+Hecho (ver [`plan-bienestar.md`](plan-bienestar.md)): catálogo con modalidad, las tres
+consultas del plan con sus ventanas (R-20), teleconsulta con Jitsi y consentimiento
+(R-21), avisos del plan y la vista de Recepción. Queda:
+
+| # | Tema | Detalle | Estado |
+|---|---|---|---|
+| 1 | **Calendario: agendas por profesional** | Propuesta: una agenda (`Schedule`) por profesional (`PractitionerRole`) y otra por consultorio para lo presencial; los "calendarios" del Plan Bienestar (presencial / virtual) y de Especialidades son **vistas** de esas agendas, no agendas separadas (así no se da dos veces la misma hora). Retira la agenda virtual transitoria `R_TELEMEDICINA` (capacidad 1). | Próximo slice (necesita la lista de profesionales) |
+| 2 | **Jitsi** | Cargar el Project Secret `JITSI_BASE_URL` (https). Si el Jitsi de SOM usa autenticación por token (JWT), sumar la firma del link (`JITSI_APP_ID` / `JITSI_APP_SECRET`). | A confirmar |
+| 3 | **Texto del consentimiento de teleconsulta** | Genérico, uno por paciente; lo muestra y lo registra el portal (`Consent`). Lo redactan los médicos de SOM / legales. | A definir |
+| 4 | **Portal del paciente** | "Pedir un turno" con los dos caminos, el consentimiento, el link en "Mis turnos" y el espejo de la policy (`ActivityDefinition` de solo lectura). Prompt listo: [`handoff-app-pb100d.md`](handoff-app-pb100d.md). | Próximo slice (portal) |
+| 5 | **Horario de los avisos del plan** | Provisional de 9 a 20 h (`HORARIO_AVISOS_PROGRAMA`). | A confirmar |
+| 6 | **Consulta inicial sin agendar** | No tiene ventana, así que el cron no avisa: la sigue Recepción desde la ficha. ¿Hace falta un recordatorio (p. ej. a los N días de la inscripción)? | A definir |
 
 ## Agenda
 

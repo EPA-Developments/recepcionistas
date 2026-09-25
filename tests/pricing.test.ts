@@ -77,15 +77,22 @@ describe('Integridad del catálogo', () => {
     }
   });
 
-  it('Son las 6 consultas de cardiología + subespecialidades y el control GLP-1', () => {
+  it('Son las consultas por especialidad, la consulta del Plan Bienestar y el control GLP-1', () => {
     expect(SERVICIOS.map((s) => s.codigo).sort()).toEqual([
       'CARDIOLOGIA',
+      'CONSULTA_PB100D',
       'CONTROL_GLP1',
+      'DIABETOLOGIA_ENDOCRINOLOGIA',
       'ELECTROFISIOLOGIA',
+      'GINECOLOGIA',
       'HEMODINAMIA',
+      'INSUFICIENCIA_CARDIACA',
       'MEDICINA_NUCLEAR',
+      'NEUROLOGIA',
+      'NUTRICION',
       'PREVENCION_CV',
       'REHABILITACION_CV',
+      'TISIONEUMONOLOGIA',
     ]);
   });
 });

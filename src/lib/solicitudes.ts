@@ -8,7 +8,14 @@
  *
  * Lógica pura (sin FHIR ni red): valida la solicitud y arma los textos. El bot
  * `som-solicitar-turno` orquesta (crea el `Task` y avisa a Recepción).
+ *
+ * Modalidad (R-21): el paciente puede pedir la consulta presencial o por teleconsulta.
+ * La teleconsulta exige el consentimiento de teleconsulta firmado (lo verifica el bot).
  */
+import type { Modalidad } from '../domain/types.js';
+import { CODIGO_CONSULTA_PB100D, SERVICIOS_POR_CODIGO, ofreceModalidad } from '../config/catalogo.js';
+import { esModalidad } from './teleconsulta.js';
+
 export interface SolicitudTurno {
   /** Paciente que pide, ej. "Patient/123". */
   pacienteRef: string;
@@ -26,6 +33,8 @@ export interface SolicitudTurno {
   preferenciaTexto?: string;
   /** Nota libre del paciente. */
   nota?: string;
+  /** Presencial o teleconsulta (R-21). Opcional: sin ella, la define Recepción. */
+  modalidad?: Modalidad;
 }
 
 export interface SolicitudValidacion {
@@ -54,8 +63,18 @@ export const SERVICIOS_SOLICITABLES = [
   { codigo: 'LABORATORIO_CARDIO', label: 'Laboratorio cardiometabólico' },
 ] as const;
 
+/**
+ * Del catálogo, el paciente puede pedir las consultas por especialidad y la consulta
+ * del Plan Bienestar 100 Días® (Recepción la agenda desde el plan). El portal puede
+ * leer el catálogo (`ActivityDefinition`) en vez de tener la lista escrita a mano.
+ */
+export function esCodigoCatalogoSolicitable(codigo: string): boolean {
+  const s = SERVICIOS_POR_CODIGO.get(codigo);
+  return Boolean(s && (s.grupo || s.codigo === CODIGO_CONSULTA_PB100D));
+}
+
 export function esServicioSolicitable(codigo: string): boolean {
-  return SERVICIOS_SOLICITABLES.some((s) => s.codigo === codigo);
+  return SERVICIOS_SOLICITABLES.some((s) => s.codigo === codigo) || esCodigoCatalogoSolicitable(codigo);
 }
 
 const RE_PATIENT_REF = /^Patient\/[A-Za-z0-9\-.]+$/;
@@ -86,6 +105,13 @@ export function validarSolicitud(s: SolicitudTurno): SolicitudValidacion {
   const codigo = s.servicioCodigo?.trim();
   if (codigo && !esServicioSolicitable(codigo)) {
     return { ok: false, error: 'Ese servicio no está disponible para pedir desde el portal.' };
+  }
+  if (s.modalidad !== undefined && !esModalidad(s.modalidad)) {
+    return { ok: false, error: 'La modalidad es "presencial" o "teleconsulta".' };
+  }
+  const delCatalogo = codigo ? SERVICIOS_POR_CODIGO.get(codigo) : undefined;
+  if (delCatalogo && s.modalidad && !ofreceModalidad(delCatalogo, s.modalidad)) {
+    return { ok: false, error: `Esa consulta no se ofrece por ${s.modalidad === 'teleconsulta' ? 'teleconsulta' : 'atención presencial'}.` };
   }
   if (s.preferenciaInicio && Number.isNaN(new Date(s.preferenciaInicio).getTime())) {
     return { ok: false, error: 'La fecha/hora preferida no es válida.' };
@@ -120,6 +146,9 @@ export function preferenciaLegible(s: SolicitudTurno): string | undefined {
 /** Resumen humano para `Task.description` (lo lee Recepción). */
 export function resumenSolicitud(s: SolicitudTurno): string {
   const partes = [`Solicitud de turno: ${servicioPedido(s)}`];
+  if (s.modalidad) {
+    partes.push(`Modalidad: ${s.modalidad}`);
+  }
   const pref = preferenciaLegible(s);
   if (pref) {
     partes.push(`Preferencia: ${pref}`);
@@ -136,6 +165,7 @@ export function mensajeWhatsAppRecepcion(s: SolicitudTurno, nombrePaciente?: str
   const pref = preferenciaLegible(s);
   return (
     `Segunda Opinión Médica · Nueva solicitud de turno.\n${quien} pidió: ${servicioPedido(s)}` +
+    (s.modalidad ? ` (${s.modalidad})` : '') +
     (pref ? `.\nPreferencia: ${pref}` : '') +
     (s.nota?.trim() ? `.\nNota: ${s.nota.trim()}` : '') +
     `.\nConfirmala desde la app de Recepción (Solicitudes).`

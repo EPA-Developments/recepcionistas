@@ -23,11 +23,13 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   `CareTeam`, `Condition` con los SNOMED del plan); **lee** su compartimento
   clínico/financiero (`Appointment`, `Coverage`, `Invoice`, `DiagnosticReport`,
   `CarePlan`, `MedicationRequest`, `Immunization`, `Task`, `ServiceRequest`,
-  `RiskAssessment`) más `PlanDefinition`, catálogo y agenda
+  `RiskAssessment`) más `PlanDefinition`, catálogo (`ActivityDefinition`) y agenda
   (`Schedule`/`Slot`/`HealthcareService`/`Practitioner`/…).
-  Sincronizada con el espejo en `EPA-Developments/app@091e20f`; `tests/seed.test.ts`
-  la compara entera con la copia en `tests/fixtures/`, porque `npm run seed` pisa la
-  del servidor.
+  Sincronizada con el espejo en `EPA-Developments/app@091e20f`, más
+  `ActivityDefinition` de solo lectura (el catálogo con modalidades, para "Pedir un
+  turno"): **sumarlo al espejo del portal** ([`handoff-app-pb100d.md`](handoff-app-pb100d.md),
+  tarea 4). `tests/seed.test.ts` la compara entera con la copia en `tests/fixtures/`,
+  porque `npm run seed` pisa la del servidor.
 - **Reserva por *solicitud*.** El paciente pide desde el portal y se crea un
   `Task` (`code=solicitud-turno`) vía el bot **`som-solicitar-turno`** (lógica pura
   en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
@@ -49,8 +51,14 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
 - **Biomarcadores.** El seed publica las `ObservationDefinition` del panel
   Cardiometabólico (lípidos; `src/config/biomarcadores.ts`), que el portal usa como
   catálogo y rangos.
-- **Plan Bienestar · 100 días.** `som-bienestar-inscribir` (Recepción) crea el
-  `CarePlan` `care-plans|plan-bienestar-100` que muestra la tarjeta de progreso.
+- **Plan Bienestar 100 Días®.** `som-bienestar-inscribir` (Recepción) crea el
+  `CarePlan` `care-plans|plan-bienestar-100` que muestra la tarjeta de progreso, con
+  sus tres consultas programadas (`Task` `agendar-consulta-pb100d`, legibles por el
+  paciente). Ver [`plan-bienestar.md`](plan-bienestar.md).
+- **Teleconsulta.** Las consultas se piden presenciales o por teleconsulta
+  (`modalidad` en `som-solicitar-turno`). La teleconsulta exige el consentimiento de
+  teleconsulta (un `Consent` que registra el portal) y el turno trae el link de Jitsi.
+  Contrato y tareas del portal: [`handoff-app-pb100d.md`](handoff-app-pb100d.md).
 - **Seguimiento GLP-1.** El programa del paciente (`CarePlan` + `Goal`), el estado
   de cada control (`Task` `agendar-control-glp1`, con su turno en `output`) y los
   estudios de cada semana (`ServiceRequest` con `basedOn` el `CarePlan`). Es lo

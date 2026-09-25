@@ -16,8 +16,8 @@ import type { Patient } from '@medplum/fhirtypes';
 import { getDisplayString } from '@medplum/core';
 import { medplum } from '../medplum';
 import { reservarTurno, mensajeError, type ResultadoReserva } from '../lib/bots';
-import { SERVICIOS } from '@som/config/catalogo';
-import { RECURSOS_POR_CODIGO, recursosParaCategoria } from '@som/config/recursos';
+import { SERVICIOS, nombreSegunModalidad } from '@som/config/catalogo';
+import { RECURSOS_POR_CODIGO, modalidadDeRecurso, recursosPara } from '@som/config/recursos';
 import { generarSlots } from '@som/lib/slots';
 import { HORARIO_SEMANAL } from '@som/config/horario';
 import { seAgendaSinTarea } from '@som/lib/glp1-plan';
@@ -53,18 +53,19 @@ export function ReservaModal({
   const [error, setError] = useState<string | null>(null);
 
   const recurso = preset ? RECURSOS_POR_CODIGO.get(preset.recursoCodigo) : undefined;
+  // La modalidad la da el recurso: la agenda virtual es teleconsulta (R-21).
+  const modalidad = recurso ? modalidadDeRecurso(recurso) : 'presencial';
 
-  // Servicios que se pueden hacer en esta sala (el control GLP-1 se agenda desde su tarea, R-19).
+  // Servicios que se pueden hacer en este recurso y modalidad (los de programa se
+  // agendan desde su tarea: R-19 GLP-1, R-20 Plan Bienestar).
   const serviciosCompatibles = useMemo(
     () =>
       preset
         ? SERVICIOS.filter(
-            (s) =>
-              seAgendaSinTarea(s.codigo) &&
-              recursosParaCategoria(s.categoria).some((r) => r.codigo === preset.recursoCodigo),
+            (s) => seAgendaSinTarea(s.codigo) && recursosPara(s, modalidad).some((r) => r.codigo === preset.recursoCodigo),
           )
         : [],
-    [preset],
+    [preset, modalidad],
   );
 
   // Al abrir, precargar hora + resetear el resto.
@@ -115,6 +116,7 @@ export function ReservaModal({
         servicioCodigo,
         recursoCodigo: preset.recursoCodigo,
         inicio: `${fecha}T${hora}:00-03:00`,
+        modalidad,
         confirmar: true,
       });
       setResultado(r);
@@ -139,6 +141,11 @@ export function ReservaModal({
           <Badge color="gray" size="lg" variant="light">
             {fecha} · {hora}
           </Badge>
+          {modalidad === 'teleconsulta' && (
+            <Badge color="grape" size="lg" variant="light">
+              Teleconsulta
+            </Badge>
+          )}
         </Group>
 
         {/* Paciente */}
@@ -182,7 +189,7 @@ export function ReservaModal({
           <Select
             label="Servicio"
             placeholder="Elegí un servicio"
-            data={serviciosCompatibles.map((s) => ({ value: s.codigo, label: s.nombre }))}
+            data={serviciosCompatibles.map((s) => ({ value: s.codigo, label: nombreSegunModalidad(s, modalidad) }))}
             value={servicioCodigo}
             onChange={setServicioCodigo}
             searchable

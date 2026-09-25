@@ -114,6 +114,10 @@
       "criteria": "Immunization?patient=%patient"
     },
     {
+      "resourceType": "ActivityDefinition",
+      "readonly": true
+    },
+    {
       "resourceType": "ObservationDefinition",
       "readonly": true
     },

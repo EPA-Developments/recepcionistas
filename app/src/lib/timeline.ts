@@ -4,6 +4,7 @@ import { medplum } from '../medplum';
 import { RECURSOS } from '@som/config/recursos';
 import { HORARIO_SEMANAL } from '@som/config/horario';
 import { EXT } from '@som/fhir/identifiers';
+import { modalidadDe, teleconsultaUrlDe } from '@som/lib/teleconsulta';
 
 export interface TurnoTimeline {
   appointmentId: string;
@@ -15,6 +16,10 @@ export interface TurnoTimeline {
   paciente: string;
   /** Estado del turno (Appointment.status): booked / arrived / checked-in / fulfilled / noshow. */
   estado: string;
+  /** Teleconsulta (R-21): el turno es por videollamada. */
+  teleconsulta?: boolean;
+  /** Link de la videollamada, si el turno lo tiene. */
+  teleconsultaUrl?: string;
 }
 
 export interface SalaFila {
@@ -122,6 +127,8 @@ export async function cargarTimeline(fecha: Date = new Date()): Promise<Timeline
       servicio: a.description ?? 'Turno',
       paciente: (pacienteId && nombrePaciente.get(pacienteId)) || '',
       estado: a.status ?? 'booked',
+      teleconsulta: modalidadDe(a) === 'teleconsulta',
+      teleconsultaUrl: teleconsultaUrlDe(a),
     });
   }
 
