@@ -127,30 +127,27 @@ const LOINC = 'http://loinc.org';
 const UCUM = 'http://unitsofmeasure.org';
 
 /**
- * ObservationDefinition de un biomarcador, con el shape exacto que parsea el portal
- * (`app/src/fhir/biomarkers.ts`): `code`, `category` panel-biomarcador,
- * `quantitativeDetails.unit` y `qualifiedInterval` con `tipo-rango` y `gender`.
- * Los rangos pendientes de revisión médica no se publican.
+ * ObservationDefinition de un biomarcador, con el shape que parsea el portal
+ * (`app/src/fhir/biomarkers.ts`): `code` LOINC, `category` panel-biomarcador,
+ * `quantitativeDetails.unit` (UCUM) y `qualifiedInterval` convencional (con `gender`
+ * si es por sexo). Solo rangos de salud convencional: nunca `funcional`.
  */
 export function buildObservationDefinition(b: Biomarcador): ObservationDefinition {
-  const system = b.sistema === 'loinc' ? LOINC : SYSTEM.biomarker;
   return {
     resourceType: 'ObservationDefinition',
-    code: { coding: [{ system, code: b.codigo, display: b.nombre }], text: b.nombre },
+    code: { coding: [{ system: LOINC, code: b.codigo, display: b.nombre }], text: b.nombre },
     category: [{ coding: [{ system: SYSTEM.panelBiomarcador, code: b.panel, display: PANEL_DISPLAY[b.panel] }] }],
     permittedDataType: ['Quantity'],
     quantitativeDetails: { unit: { coding: [{ system: UCUM, code: b.unidad }], text: b.unidad } },
-    qualifiedInterval: b.rangos
-      .filter((r) => !r.pendienteRevisionMedica)
-      .map((r) => ({
-        category: 'reference' as const,
-        context: { coding: [{ system: SYSTEM.tipoRango, code: r.tipo }] },
-        range: {
-          ...(r.bajo !== undefined ? { low: { value: r.bajo, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
-          ...(r.alto !== undefined ? { high: { value: r.alto, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
-        },
-        ...(r.sexo ? { gender: r.sexo } : {}),
-      })),
+    qualifiedInterval: b.rangos.map((r) => ({
+      category: 'reference' as const,
+      context: { coding: [{ system: SYSTEM.tipoRango, code: r.tipo }] },
+      range: {
+        ...(r.bajo !== undefined ? { low: { value: r.bajo, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
+        ...(r.alto !== undefined ? { high: { value: r.alto, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
+      },
+      ...(r.sexo ? { gender: r.sexo } : {}),
+    })),
   };
 }
 

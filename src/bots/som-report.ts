@@ -8,7 +8,8 @@
  * Pipeline:
  *  1) Lee la ServiceRequest y reúne el contexto clínico del paciente
  *     (Patient, Condition, Observation, MedicationRequest, DocumentReference).
- *  2) Calcula PREVENT (AHA 2023) → crea un `RiskAssessment`.
+ *  2) Calcula PREVENT (AHA 2023) y el estadío CKM (AHA 2023, Ndumele) → crea un
+ *     `RiskAssessment` (predicciones PREVENT + extensión `ckm-stage`).
  *  3) Llama a Claude (`claude-sonnet-4-6`, secret `ANTHROPIC_API_KEY`) para
  *     redactar las 6 secciones del informe — solo si el paciente firmó el
  *     consentimiento informado (sin él, ningún dato clínico sale hacia el LLM).
@@ -30,6 +31,8 @@ import type {
   ServiceRequest,
 } from '@medplum/fhirtypes';
 import { COD, LOINC_INFORME, MODELO_CLAUDE_SOM, SYSTEM } from '../fhir/identifiers.js';
+import { estadificarCkm, resumenCkm, type EntradaCkm } from '../lib/ckm.js';
+import { entradaCkmDesdeFhir, ultimoValor } from '../lib/ckm-fhir.js';
 import { calcularPrevent, type EntradaPrevent } from '../lib/prevent.js';
 import {
   SYSTEM_PROMPT,
@@ -40,6 +43,7 @@ import {
   construirRiskAssessment,
   parsearSecciones,
   resumenRiesgo,
+  riesgo10aDePrevent,
   type ContextoClinico,
   type Secciones,
 } from '../lib/som-report.js';
@@ -89,13 +93,15 @@ export async function handler(
   const medicacion = await medplum.searchResources('MedicationRequest', `subject=${pacienteRef}&_count=100`).catch(() => []);
   const estudios = await cargarEstudios(medplum, sr);
 
-  // 2) PREVENT → RiskAssessment.
-  const entrada = construirEntradaPrevent(paciente, condiciones, observaciones, medicacion);
+  // 2) PREVENT + estadío CKM (AHA) → RiskAssessment.
+  const datosCkm = entradaCkmDesdeFhir({ paciente, condiciones, observaciones, medicacion });
+  const entrada = construirEntradaPrevent(paciente, datosCkm, condiciones, observaciones, medicacion);
   const prevent = entrada
     ? calcularPrevent(entrada)
     : { predicciones: [], pendienteValidacion: true, faltantes: ['datos insuficientes para PREVENT'] };
+  const ckm = estadificarCkm({ ...datosCkm, riesgo10a: riesgo10aDePrevent(prevent) });
   const riskAssessment = await medplum.createResource(
-    construirRiskAssessment(prevent, { pacienteRef, serviceRequestRef: srRef }),
+    construirRiskAssessment(prevent, { pacienteRef, serviceRequestRef: srRef }, ckm),
   );
 
   // 3) Claude → secciones.
@@ -107,6 +113,7 @@ export async function handler(
     medicacion: medicacion.map(textoMedication),
     estudios,
     resumenRiesgo: resumenRiesgo(prevent),
+    resumenCkm: resumenCkm(ckm),
   };
   // Sin consentimiento informado firmado no se envía ningún dato clínico al LLM
   // (defensa en profundidad: `som-solicitar` ya lo exige al crear la solicitud).
@@ -180,27 +187,6 @@ function edadDe(p?: Patient): number | undefined {
   return Math.floor(ms / (365.25 * 24 * 3600 * 1000));
 }
 
-const LOINC = {
-  sbp: ['8480-6'],
-  colTotal: ['2093-3'],
-  hdl: ['2085-9'],
-  egfr: ['33914-3', '48642-3', '48643-1', '62238-1', '98979-8'],
-  imc: ['39156-5'],
-};
-
-function valorObs(obs: Observation[], codigos: string[]): number | undefined {
-  // El más reciente con valor numérico para alguno de los códigos LOINC.
-  const candidatos = obs
-    .filter((o) => o.code?.coding?.some((c) => c.system?.includes('loinc') && codigos.includes(c.code ?? '')))
-    .filter((o) => typeof o.valueQuantity?.value === 'number')
-    .sort((a, b) => (b.effectiveDateTime ?? '').localeCompare(a.effectiveDateTime ?? ''));
-  return candidatos[0]?.valueQuantity?.value;
-}
-
-function tieneDiabetes(condiciones: Condition[]): boolean {
-  return condiciones.some((c) => /diab/i.test(c.code?.text ?? c.code?.coding?.[0]?.display ?? ''));
-}
-
 function esFumador(condiciones: Condition[], obs: Observation[]): boolean {
   if (condiciones.some((c) => /fumad|tabaq|smok|tobacco/i.test(c.code?.text ?? c.code?.coding?.[0]?.display ?? ''))) {
     return true;
@@ -213,14 +199,6 @@ function esFumador(condiciones: Condition[], obs: Observation[]): boolean {
   );
 }
 
-function enTratamientoHta(medicacion: MedicationRequest[]): boolean {
-  return medicacion.some((m) =>
-    /enalapril|losart|valsart|amlodip|ramipril|hidroclorotiaz|atenolol|bisoprolol|telmisart|perindopril|antihipertensiv/i.test(
-      m.medicationCodeableConcept?.text ?? m.medicationCodeableConcept?.coding?.[0]?.display ?? '',
-    ),
-  );
-}
-
 function enEstatina(medicacion: MedicationRequest[]): boolean {
   return medicacion.some((m) =>
     /statina|atorvast|rosuvast|simvast|pravast|estatina/i.test(
@@ -229,25 +207,25 @@ function enEstatina(medicacion: MedicationRequest[]): boolean {
   );
 }
 
-/** Arma la entrada de PREVENT si hay datos base suficientes; si no, undefined. */
+/**
+ * Arma la entrada de PREVENT si hay datos base suficientes; si no, undefined. Usa
+ * los mismos datos (LOINC, UCUM, problemas codificados) que la estadificación CKM.
+ */
 function construirEntradaPrevent(
   paciente: Patient | undefined,
+  datos: EntradaCkm,
   condiciones: Condition[],
   obs: Observation[],
   medicacion: MedicationRequest[],
 ): EntradaPrevent | undefined {
   const edad = edadDe(paciente);
-  const sexoRaw = paciente?.gender;
-  const sexo = sexoRaw === 'female' || sexoRaw === 'male' ? sexoRaw : undefined;
-  const sbp = valorObs(obs, LOINC.sbp);
-  const colesterolTotalMgDl = valorObs(obs, LOINC.colTotal);
-  const hdlMgDl = valorObs(obs, LOINC.hdl);
-  const egfr = valorObs(obs, LOINC.egfr);
-  const imc = valorObs(obs, LOINC.imc);
+  const colesterolTotalMgDl = ultimoValor(obs, 'colesterolTotal');
+  const { sexo, pas: sbp, hdl: hdlMgDl, egfr, imc } = datos;
 
   if (!edad || !sexo || sbp == null || colesterolTotalMgDl == null || hdlMgDl == null || egfr == null) {
     return undefined;
   }
+  const diabetesPorValor = (datos.glucemiaAyunas ?? 0) >= 126 || (datos.hba1c ?? 0) >= 6.5;
   return {
     sexo,
     edad,
@@ -256,9 +234,9 @@ function construirEntradaPrevent(
     sbp,
     egfr,
     imc,
-    diabetes: tieneDiabetes(condiciones),
+    diabetes: datos.diabetes === true || diabetesPorValor,
     fumador: esFumador(condiciones, obs),
-    tratamientoHta: enTratamientoHta(medicacion),
+    tratamientoHta: datos.tratamientoHta === true,
     estatina: enEstatina(medicacion),
   };
 }
@@ -313,7 +291,7 @@ function seccionesFallback(contexto: ContextoClinico): Partial<Secciones> {
   return {
     'executive-summary':
       'Análisis automático no disponible en este momento. Un cardiólogo revisará la solicitud manualmente.',
-    'risk-assessment': contexto.resumenRiesgo,
+    'risk-assessment': [contexto.resumenRiesgo, contexto.resumenCkm].filter(Boolean).join('\n\n'),
     'pending-studies': 'Pendiente de revisión médica.',
   };
 }

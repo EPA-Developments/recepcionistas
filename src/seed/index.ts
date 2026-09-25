@@ -15,7 +15,6 @@ import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { ObservationDefinition, Resource } from '@medplum/fhirtypes';
 import { buildSeed, buildSlot, claveObservationDefinition } from './builders.js';
-import { rangosPendientes } from '../config/biomarcadores.js';
 import { conectarMedplum } from './conexion.js';
 import { HORARIO_ES_PLACEHOLDER, HORARIO_SEMANAL } from '../config/horario.js';
 import { RECURSOS } from '../config/recursos.js';
@@ -211,9 +210,6 @@ function imprimirAdvertencias(): void {
   }
   if (RECURSOS.some((r) => r.provisional)) {
     avisos.push('La lista de recursos físicos (consultorios/salas) es PROVISIONAL. Confirmar con la operación.');
-  }
-  for (const r of rangosPendientes()) {
-    avisos.push(`Rango NO publicado hasta la revisión médica: ${r.nombre}. ${r.motivo}`);
   }
   if (avisos.length) {
     console.log('\n⚠️  Pendientes (ver docs/decisiones-pendientes.md):');
