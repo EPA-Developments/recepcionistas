@@ -20,7 +20,7 @@ Las piezas SOM usan su propio namespace, acordado con el portal:
 | Bot | Quién lo ejecuta | Qué hace |
 |---|---|---|
 | `som-solicitar` | el paciente (whitelisteado en su AccessPolicy) | Crea una `ServiceRequest` (`status=active`, `code=som-services\|som-cardiology`) con `reasonCode.text=motivo`, `supportingInfo`=cuestionario+estudios y extensión `som-origin` (`valueCode` `self`\|`referral`). |
-| `bot-som-report` | interno (lo dispara una `Subscription`) | Reúne Patient/Condition/Observation/MedicationRequest + DocumentReference, calcula **PREVENT (AHA 2023)** → `RiskAssessment`, redacta el informe con **Claude `claude-sonnet-4-6`** (6 secciones en la extensión `som-sections`), genera el PDF → `DocumentReference` (LOINC `11488-4`, `context.related` = la solicitud), pasa la `ServiceRequest` a `completed` y notifica al paciente. |
+| `bot-som-report` | interno (lo dispara una `Subscription`) | Reúne Patient/Condition/Observation/MedicationRequest + DocumentReference, calcula **PREVENT** (AHA, 10 y 30 años) y el **estadío CKM con el plan de la Guía 2026** → `RiskAssessment`, redacta el informe con **Claude `claude-sonnet-4-6`** (6 secciones en la extensión `som-sections`), genera el PDF → `DocumentReference` (LOINC `11488-4`, `context.related` = la solicitud), pasa la `ServiceRequest` a `completed` y notifica al paciente. |
 | `som-procesar-laboratorio` | interno (lo dispara una `Subscription`, solo *create*) | Transcribe el PDF de laboratorio que manda el paciente ("Enviar estudios en PDF") → una `Observation` por analito + `DiagnosticReport` LAB; lo liga al documento (`context.related`). Ver abajo. |
 
 `npm run deploy:bots` crea/asegura (idempotente) las dos `Subscription`:
@@ -72,43 +72,88 @@ la compara con la copia en `tests/fixtures/`. Además de lo anterior, el pacient
 - `RiskAssessment.basedOn` = la `ServiceRequest` (el portal busca
   `RiskAssessment?subject=…` y filtra por `basedOn`).
 - `prediction[].probabilityDecimal` es una **probabilidad 0–1** (el portal la
-  multiplica por 100 para mostrar el %); `outcome.text` = "ASCVD a 10 años",
-  "Insuficiencia cardíaca a 10 años", "ECV total a 30 años" (el portal reconoce cada
-  desenlace por ese texto; lo fija un test).
+  multiplica por 100 para mostrar el %). Los 3 primeros lugares son los que lee el
+  portal: "ASCVD a 10 años", "Insuficiencia cardíaca a 10 años", "ECV total a 30 años"
+  (por texto y, si no, por posición; lo fija un test que copia su `extractPrevent`).
 - Secciones del informe (claves EXACTAS de `som-sections`): `executive-summary`,
   `risk-assessment`, `history-analysis`, `studies-analysis`, `conclusions`,
   `pending-studies` (ver `SOM_SECCIONES` en `identifiers.ts`).
 - Marco clínico del informe: cardiología **convencional** (AHA/ACC, KDIGO, ADA). El
   prompt de Claude le prohíbe usar parámetros o recomendaciones de medicina funcional.
 
-## Estadificación CKM (AHA 2023, Ndumele)
+## Estadificación CKM y PREVENT — Guía AHA/ACC/ADA/ASN 2026
 
-El informe estadifica el síndrome Cardiovascular-Renal-Metabólico según la
-Presidential Advisory de la AHA (Ndumele CE, et al. *Circulation* 2023;148:1606–1635):
+Base: *2026 AHA/ACC/ADA/ASN Guideline for the Prevention, Detection, Evaluation, and
+Management of Cardiovascular-Kidney-Metabolic Syndrome* (Ndumele CE, Rodriguez F, et
+al. *Circulation* 2026; doi:10.1161/CIR.0000000000001453), que reemplaza a la
+Presidential Advisory de 2023. Umbrales en `src/config/ckm.ts`; lógica pura en
+`src/lib/ckm.ts` (estadío), `src/lib/ckm-guia.ts` (plan) y `src/lib/prevent.ts`.
 
-| Estadío | Criterio (umbrales en `src/config/ckm.ts`) |
+### Estadíos (Tabla 4)
+
+| Estadío | Criterios |
 |---|---|
-| 0 | Sin factores CKM |
-| 1 | IMC ≥ 25, cintura ≥ 88 cm (M) / ≥ 102 cm (V), o prediabetes (glucemia 100–125, HbA1c 5,7–6,4 %) |
-| 2 | Triglicéridos ≥ 135, HTA (≥ 130/80 o tratamiento), diabetes, síndrome metabólico, o ERC de riesgo moderado/alto (KDIGO) |
-| 3 | ECV subclínica con sustrato CKM (calcio coronario > 0, NT-proBNP ≥ 125, troponina us ≥ 14/22 T o ≥ 10/12 I por sexo) o equivalentes de riesgo: ERC de muy alto riesgo (KDIGO) o riesgo PREVENT a 10 años ≥ 20 % |
-| 4a / 4b | ECV clínica (coronaria, IC, ACV, arterial periférica, FA) con sustrato CKM; 4b con falla renal (eGFR < 15 o diálisis) |
+| 0 | Sin factores de riesgo CKM |
+| 1 | IMC ≥ 25, cintura ≥ 88 cm (M) / ≥ 102 cm (V), o prediabetes (glucemia 100–125 mg/dL o HbA1c 5,7–6,4 %) |
+| 2 | HTA (≥ 130/80 o tratamiento), **triglicéridos ≥ 150**, síndrome metabólico (AHA/NHLBI, ≥ 3 de 5), DM2 (glucemia ≥ 126 o HbA1c ≥ 6,5 %) o ERC de riesgo moderado-alto (KDIGO: G1–G2 con A2–A3, G3a con A1–A2, G3b con A1) |
+| 3 | ECV subclínica con factores CKM — aterosclerosis: **calcio coronario ≥ 100**, aterosclerosis coronaria subclínica documentada o índice tobillo-brazo bajo sin claudicación; pre-IC: NT-proBNP ≥ 125, BNP ≥ 35, troponina T us ≥ 14 (M) / ≥ 22 (V), troponina I us ≥ 10 / ≥ 12 ng/L o ecocardiograma (Tabla 16) — o equivalentes de riesgo: ERC de muy alto riesgo (G3a-A3, G3b-A2/A3, G4–G5) o **PREVENT-CVD a 10 años ≥ 20 %** |
+| 4a / 4b | ECV clínica (coronaria, IC, ACV/AIT, arterial periférica, FA) con factores CKM; 4b con falla renal (eGFR < 15 o diálisis crónica) |
 
-- **Datos**: `src/lib/ckm-fhir.ts` los lee de la historia por LOINC (con los
-  componentes del panel de presión 85354-9 y unidades normalizadas a UCUM), los
-  problemas activos por ICD-10 / SNOMED CT (con respaldo por texto) y la medicación
-  antihipertensiva. El calcio coronario se reconoce por su nombre (no tiene un LOINC
-  de uso extendido).
+- **Pre-IC por ecocardiograma (Tabla 16)**: volumen auricular izquierdo indexado
+  ≥ 29 mL/m², masa del VI > 116 (V) / > 95 (M) g/m², espesor parietal relativo > 0,42,
+  espesor de pared ≥ 12 mm, FEVI < 50 %, strain longitudinal global < 16 %, e′ septal
+  < 7 cm/s, velocidad de IT > 2,8 m/s, PSAP > 35 mmHg, E/e′ ≥ 15.
 - **Datos incompletos**: no se adivina. El resultado es el estadío que los datos
-  demuestran; si faltan datos básicos, es "al menos Estadío X" con la lista de lo que
-  falta. NT-proBNP/troponina y calcio coronario se informan como "ECV subclínica no
-  evaluada" (no se piden a todos).
-- **Dónde queda**: en el MISMO `RiskAssessment` de PREVENT (el portal toma el primero
-  con `basedOn` = la solicitud): extensiones `ckm-stage` (`0`…`4b`) y
-  `ckm-stage-completo` (boolean), y una `note` con criterios y faltantes. También va
-  al prompt de Claude y a la sección `risk-assessment` del informe de respaldo.
-- Los mismos datos codificados alimentan PREVENT (la diabetes ya no se infiere de un
-  texto que diga "prediabetes").
+  demuestran; si faltan datos básicos es "al menos Estadío X" con la lista de lo que
+  falta. La UACR se exige desde el Estadío 2 (como la guía). La ECV subclínica sin
+  estudiar se informa aparte (no se pide a todos: ver el plan).
+- **Advertencias**: HTA por una sola lectura y ERC por un solo valor (la guía pide
+  ≥ 2 lecturas y ≥ 2 mediciones separadas ≥ 3 meses); péptidos natriuréticos con ERC.
+
+### PREVENT (modelo base, 10 y 30 años)
+
+- ECV total (PREVENT-CVD), ASCVD e IC a 10 y 30 años. Coeficientes **generados** desde
+  la tabla de la implementación de referencia `preventr` (CRAN) — no transcriptos a
+  mano — y verificados en `tests/prevent.test.ts` contra sus 12 valores de referencia
+  (mujer y varón, 10 y 30 años).
+- Rangos válidos como la calculadora de la AHA: 30–79 años (30 años: solo 30–59), CT
+  130–320 y HDL 20–100 mg/dL, PAS 90–180, eGFR 15–140, IMC 18,5–39,9 (IC). Fuera de
+  rango no se estima y se informa el motivo.
+- **No se usa con ECV clínica** (Estadío 4, Figura 4 de la guía).
+
+### Plan según la guía (`ckm-guia.ts`)
+
+- **Seguimiento (Figura 3)**: IMC, cintura y PA anual; lípidos, glucemia y eGFR cada
+  ≤ 5 años (Estadío 0), cada 2–3 años (Estadío 1; glucemia anual con prediabetes) y
+  anual con UACR desde el Estadío 2; ERC de muy alto riesgo cada 3–6 meses.
+- **Evaluaciones**: UACR desde el Estadío 2; pre-IC (NT-proBNP/BNP, troponina us en
+  obesidad) con PREVENT-HF 10a ≥ 5 %; calcio coronario con PREVENT-ASCVD 10a 3 % a
+  < 10 % si hay incertidumbre; completar los datos de PREVENT.
+- **Umbrales para decisiones del médico (Tabla 8 y secciones 5.5)**: PREVENT-CVD
+  ≥ 7,5 % con DM2 → priorizar SGLT2i / terapia GLP-1; PA ≥ 140/90, o ≥ 130/80 con DM2,
+  ERC o PREVENT-CVD ≥ 7,5 % → tratamiento farmacológico (meta < 130/80);
+  PREVENT-ASCVD ≥ 5 % → hipolipemiante (3 % a < 5 % o 30 años ≥ 10 %: considerar);
+  ERC con DM2 o albuminuria → RASi + SGLT2i. Es soporte a la decisión: el sistema no
+  prescribe.
+- **Potenciadores (Tabla 9)** detectados en la historia: enfermedades inflamatorias o
+  autoinmunes, apnea del sueño, depresión/ansiedad, menopausia prematura, resultados
+  adversos del embarazo, SOP, disfunción eréctil, antecedentes familiares de diabetes
+  o falla renal, PCR us ≥ 2 mg/L.
+
+### Datos y dónde queda
+
+- `src/lib/ckm-fhir.ts` lee la historia por LOINC (incluidos los componentes del panel
+  de PA 85354-9, BNP, FEVI), con unidades normalizadas a UCUM; problemas por ICD-10 /
+  SNOMED CT (AIT y revascularización coronaria incluidos) con respaldo por texto; el
+  calcio coronario, el índice tobillo-brazo y el ecocardiograma de la Tabla 16 por su
+  nombre.
+- Todo va en el MISMO `RiskAssessment` (el portal toma el primero con `basedOn` = la
+  solicitud): `prediction[]` con lugares fijos (ASCVD 10a, IC 10a, ECV total 30a, ECV
+  total 10a, ASCVD 30a, IC 30a; un desenlace no estimado ocupa su lugar sin
+  probabilidad y con `rationale`, para que el portal nunca muestre un valor ajeno),
+  extensiones `ckm-stage` / `ckm-stage-completo` y notas con el estadío y el plan.
+  También van al prompt de Claude y al informe de respaldo (`pending-studies` lista
+  las evaluaciones que sugiere la guía).
 
 ## Laboratorio en PDF (`som-procesar-laboratorio`)
 
@@ -176,19 +221,17 @@ conserva los convencionales; Medplum guarda el historial).
 
 ## ⚠️ Pendientes / a validar
 
-- **Coeficientes PREVENT (`src/lib/prevent.ts`) — validación clínica pendiente.**
-  Transcriptos del modelo base de Khan 2024 (Circulation) y marcados
-  `PENDIENTE_VALIDACION`: el `RiskAssessment` se emite `status=preliminary` con una
-  nota (el contrato pide `final`; el portal no filtra por estado). **No usar como
-  valor definitivo sin la firma del equipo médico.** Confirmar contra una
-  calculadora de referencia (ACC) antes de producción.
-- **Umbrales CKM y biomarcadores** (`src/config/ckm.ts`, `biomarcadores.ts`): citados
-  de las guías y marcados pendientes de firma médica. A confirmar: triglicéridos del
-  Estadío 2 (Ndumele ≥ 135 vs ≥ 150 de la guía CKM 2026), calcio coronario (> 0 vs
-  ≥ 100), y ApoB / Lp(a) con los umbrales AHA/ACC 2018 (antes 66–144 mg/dL y < 75 nmol/L).
-- **PREVENT de ECV total a 10 años** no se calcula todavía: para el equivalente de
-  riesgo del Estadío 3 se usan ASCVD e IC a 10 años (si alguno es ≥ 20 %, la ECV total
-  también lo es); si ambos son < 20 % queda como dato faltante.
+- **Firma médica (Gobernanza).** PREVENT (coeficientes ya verificados contra la
+  implementación de referencia) y los umbrales CKM de la Guía 2026 siguen marcados
+  `PENDIENTE_VALIDACION`: el `RiskAssessment` sale `status=preliminary` con una nota
+  hasta la firma del equipo médico (el contrato pide `final`; el portal no filtra por
+  estado).
+- **A confirmar**: índice tobillo-brazo "bajo" (la guía no fija el valor; se usa
+  ≤ 0,90); umbrales de ApoB (< 130 mg/dL) y Lp(a) (< 125 nmol/L) de los biomarcadores
+  (AHA/ACC 2018). Ascendencia asiática: no se aplican sus umbrales (la ficha no la
+  registra).
+- **Modelos PREVENT con UACR / HbA1c / SDI** (complementos del modelo base): no se
+  usan todavía.
 - **`performer` de la solicitud (Dr. Barbagelata)**: el contrato lo pide "si está
   disponible"; no hay profesionales cargados todavía (`src/config/medicos.ts`).
 - **Catálogo nuevo.** Se arma de cero con los profesionales de SOM: profesionales,
