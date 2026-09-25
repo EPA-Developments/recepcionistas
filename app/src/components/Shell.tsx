@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   AppShell,
+  Badge,
   Group,
   Title,
   SegmentedControl,
@@ -18,20 +19,23 @@ import {
   IconSun,
   IconMoon,
   IconInbox,
+  IconMessages,
   IconVaccine,
 } from '@tabler/icons-react';
 import { useMedplum, useMedplumProfile } from '@medplum/react';
 import { getDisplayString } from '@medplum/core';
 
-export type Vista = 'agenda' | 'solicitudes' | 'glp1' | 'atender' | 'reportes';
+export type Vista = 'agenda' | 'solicitudes' | 'mensajes' | 'glp1' | 'atender' | 'reportes';
 
 interface ShellProps {
   vista: Vista;
   onVista: (v: Vista) => void;
+  /** Mensajes de pacientes sin leer (contador de la pestaña "Mensajes"). */
+  mensajesSinLeer?: number;
   children: ReactNode;
 }
 
-export function Shell({ vista, onVista, children }: ShellProps): JSX.Element {
+export function Shell({ vista, onVista, mensajesSinLeer = 0, children }: ShellProps): JSX.Element {
   const medplum = useMedplum();
   const profile = useMedplumProfile();
   const { setColorScheme } = useMantineColorScheme();
@@ -58,6 +62,7 @@ export function Shell({ vista, onVista, children }: ShellProps): JSX.Element {
             data={[
               { value: 'agenda', label: segLabel(<IconCalendarEvent size={16} />, 'Agenda') },
               { value: 'solicitudes', label: segLabel(<IconInbox size={16} />, 'Solicitudes') },
+              { value: 'mensajes', label: segLabel(<IconMessages size={16} />, 'Mensajes', mensajesSinLeer) },
               { value: 'glp1', label: segLabel(<IconVaccine size={16} />, 'GLP-1') },
               { value: 'atender', label: segLabel(<IconUserHeart size={16} />, 'Atender paciente') },
               { value: 'reportes', label: segLabel(<IconChartBar size={16} />, 'Reportes') },
@@ -94,11 +99,16 @@ export function Shell({ vista, onVista, children }: ShellProps): JSX.Element {
   );
 }
 
-function segLabel(icon: ReactNode, label: string): ReactNode {
+function segLabel(icon: ReactNode, label: string, contador = 0): ReactNode {
   return (
     <Group gap={6} wrap="nowrap">
       {icon}
       <span>{label}</span>
+      {contador > 0 && (
+        <Badge size="sm" color="red" circle>
+          {contador > 99 ? '99+' : contador}
+        </Badge>
+      )}
     </Group>
   );
 }
