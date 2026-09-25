@@ -44,6 +44,9 @@ const SPECS: SpecExtension[] = [
   { url: EXT.templateUsado, nombre: 'template-usado', contexto: ['Communication'], tipoValor: 'string', descripcion: 'Template usado para el mensaje.' },
   // SOM — Segunda Opinión Médica
   { url: EXT.somOrigin, nombre: 'som-origin', contexto: ['ServiceRequest'], tipoValor: 'code', descripcion: 'Origen de la solicitud SOM: self (el paciente) | referral (derivación de un colega).' },
+  // Estadificación CKM (AHA 2023, Ndumele)
+  { url: EXT.ckmStage, nombre: 'ckm-stage', contexto: ['RiskAssessment'], tipoValor: 'code', descripcion: 'Estadío CKM (AHA 2023, Ndumele): 0 | 1 | 2 | 3 | 4a | 4b.' },
+  { url: EXT.ckmStageCompleto, nombre: 'ckm-stage-completo', contexto: ['RiskAssessment'], tipoValor: 'boolean', descripcion: 'false si faltaban datos básicos: el estadío CKM es "al menos" el indicado.' },
   // Patient Journey del portal
   { url: EXT.patientOrigin, nombre: 'patient-origin', contexto: ['Patient'], tipoValor: 'code', descripcion: 'Origen del paciente: reception (invitado por Recepción) | referral (derivado por un colega). Ausente = auto-registrado.' },
   { url: EXT.onboardingCompleted, nombre: 'onboarding-completed', contexto: ['Patient'], tipoValor: 'dateTime', descripcion: 'Fecha en que el paciente completó la Bienvenida/Onboarding del portal (la escribe el portal).' },

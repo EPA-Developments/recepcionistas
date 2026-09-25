@@ -29,7 +29,8 @@ recepción. Backend **Medplum (FHIR R4)**.
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
 | SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |
 | Plan Bienestar · 100 días (inscripción) | ✅ bot `som-bienestar-inscribir` (sin cobro: precio PENDIENTE) |
-| Biomarcadores del portal (ObservationDefinition, lípidos) | ✅ en el seed |
+| Biomarcadores del portal (ObservationDefinition: lípidos y glucemia) | ✅ en el seed, solo rangos convencionales (AHA/ACC, NCEP, ADA) |
+| Estadificación CKM (AHA 2023, Ndumele) en el informe SOM | ✅ `src/lib/ckm.ts`; umbrales pendientes de firma médica |
 | Seguimiento de tratamiento GLP-1 (programa + controles a agendar) | ✅ slice 1: bots `som-glp1-inscribir` / `som-glp1-plan`, pestaña GLP-1 ([`docs/glp1.md`](docs/glp1.md)); app del paciente: slice 2 |
 | Harness de tests | ✅ |
 | CI (GitHub Actions) | ✅ |
@@ -68,6 +69,7 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 | `npm run seed -- --dry-run` | Construye todos los recursos sin servidor |
 | `npm run seed -- --with-slots [--dias=N]` | (Opcional) materializa `Slot` libres en Medplum. El front NO lo necesita. |
 | `npm run limpiar` | Lista Schedules ajenos/duplicados (dry-run); `-- --apply` los borra |
+| `npm run biomarcadores:convencional` | Lista ObservationDefinition del servidor con rangos de medicina funcional (dry-run); `-- --apply` los quita |
 | `npm run dev` | **Levanta el front de recepción en http://localhost:5173** |
 | `npm run build:app` | Build de producción del front |
 | `npm run bots:bundle` | Bundlea los Bots y muestra tamaños (sin conectarse) |

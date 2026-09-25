@@ -11,6 +11,7 @@
  */
 import type { DiagnosticReport, Extension, RiskAssessment } from '@medplum/fhirtypes';
 import { EXT, SOM_SECCIONES, type SomSeccion } from '../fhir/identifiers.js';
+import { resumenCkm, type EntradaCkm, type ResultadoCkm } from './ckm.js';
 import type { ResultadoPrevent } from './prevent.js';
 
 export type Secciones = Record<SomSeccion, string>;
@@ -44,7 +45,14 @@ export const NOTA_PENDIENTE_VALIDACION =
 export function construirRiskAssessment(
   prevent: ResultadoPrevent,
   refs: { pacienteRef: string; serviceRequestRef: string },
+  ckm?: ResultadoCkm,
 ): RiskAssessment {
+  // El estadío CKM va en ESTE RiskAssessment (no en otro): el portal toma el primer
+  // RiskAssessment con basedOn = la solicitud para leer PREVENT.
+  const notas = [
+    ...(prevent.pendienteValidacion ? [{ text: NOTA_PENDIENTE_VALIDACION }] : []),
+    ...(ckm ? [{ text: resumenCkm(ckm) }] : []),
+  ];
   return {
     resourceType: 'RiskAssessment',
     status: prevent.pendienteValidacion ? 'preliminary' : 'final',
@@ -56,8 +64,22 @@ export function construirRiskAssessment(
       outcome: { text: p.etiqueta },
       probabilityDecimal: Math.round(p.probabilidad * 10000) / 10000,
     })),
-    ...(prevent.pendienteValidacion ? { note: [{ text: NOTA_PENDIENTE_VALIDACION }] } : {}),
+    ...(ckm
+      ? {
+          extension: [
+            { url: EXT.ckmStage, valueCode: ckm.estadio },
+            { url: EXT.ckmStageCompleto, valueBoolean: ckm.completo },
+          ],
+        }
+      : {}),
+    ...(notas.length ? { note: notas } : {}),
   };
+}
+
+/** Riesgo PREVENT a 10 años (0–1) para la estadificación CKM (equivalente de riesgo). */
+export function riesgo10aDePrevent(prevent: ResultadoPrevent): EntradaCkm['riesgo10a'] {
+  const p = (d: string) => prevent.predicciones.find((x) => x.desenlace === d && x.horizonte === 10)?.probabilidad;
+  return { ascvd: p('ascvd'), ic: p('heart-failure'), ecvTotal: p('total-cvd') };
 }
 
 /** Texto legible de las predicciones, para incrustar en el prompt y el PDF. */
@@ -119,13 +141,23 @@ export interface ContextoClinico {
   medicacion: string[];
   estudios: string[];
   resumenRiesgo: string;
+  /** Estadificación CKM (AHA 2023) con sus criterios y faltantes. */
+  resumenCkm?: string;
 }
 
-/** Instrucción de sistema para Claude (rol y formato de salida). */
+/** Instrucción de sistema para Claude (rol, marco clínico y formato de salida). */
 export const SYSTEM_PROMPT =
   'Sos un cardiólogo que redacta una segunda opinión médica para Segunda Opinión ' +
-  'Médica (Dr. Barbagelata). Analizá la información del paciente y devolvé EXCLUSIVAMENTE ' +
-  'un JSON válido con estas claves exactas (strings, en español, claras y prudentes): ' +
+  'Médica (Dr. Barbagelata). Trabajás con cardiología CONVENCIONAL basada en guías: ' +
+  'American Heart Association / American College of Cardiology (riesgo PREVENT, ' +
+  'estadificación del síndrome cardiovascular-renal-metabólico CKM de la AHA 2023 — ' +
+  'Ndumele —, metas de presión arterial, lípidos y glucemia de las guías), KDIGO para ' +
+  'la función renal y ADA para la glucemia. NO uses parámetros, rangos "óptimos" ni ' +
+  'recomendaciones de medicina funcional o integrativa. Usá el estadío CKM y el riesgo ' +
+  'PREVENT que te damos (son estimaciones del sistema pendientes de validación médica; ' +
+  'no los recalcules) en "risk-assessment". Analizá la información del paciente y ' +
+  'devolvé EXCLUSIVAMENTE un JSON válido con estas claves exactas (strings, en español, ' +
+  'claras y prudentes): ' +
   SOM_SECCIONES.map((s) => `"${s}"`).join(', ') +
   '. No agregues texto fuera del JSON. No inventes datos que no estén en la entrada; ' +
   'si faltan estudios, listalos en "pending-studies".';
@@ -142,6 +174,7 @@ export function construirPromptUsuario(c: ContextoClinico): string {
     bloque('Medicación', c.medicacion),
     bloque('Estudios adjuntos', c.estudios),
     `Riesgo PREVENT (AHA 2023, pendiente de validación):\n${c.resumenRiesgo}`,
+    ...(c.resumenCkm ? [c.resumenCkm] : []),
   ].join('\n\n');
 }
 

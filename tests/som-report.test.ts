@@ -221,7 +221,15 @@ describe('Bot bot-som-report — consentimiento y Claude', () => {
     const texto = Object.fromEntries(SOM_SECCIONES.map((s) => [s, `Texto de ${s}`]));
     const fetchMock = vi.fn(async (..._a: unknown[]) => respuestaClaude(texto));
     vi.stubGlobal('fetch', fetchMock);
-    const { medplum, todos } = fakeMedplum([paciente, sr, consentimiento]);
+    const trigliceridos = {
+      resourceType: 'Observation' as const,
+      status: 'final' as const,
+      code: { coding: [{ system: 'http://loinc.org', code: '2571-8' }] },
+      subject: { reference: 'Patient/p1' },
+      effectiveDateTime: '2026-09-01',
+      valueQuantity: { value: 140, unit: 'mg/dL' },
+    };
+    const { medplum, todos } = fakeMedplum([paciente, sr, consentimiento, trigliceridos]);
 
     const r = await somReportHandler(medplum, { input: sr, secrets: secretos } as unknown as BotEvent<ServiceRequest>);
 
@@ -236,8 +244,18 @@ describe('Bot bot-som-report — consentimiento y Claude', () => {
     expect(dr.basedOn?.[0]?.reference).toBe('ServiceRequest/sr1');
     const conclusiones = dr.extension?.[0]?.extension?.find((e) => e.url === 'conclusions')?.valueString;
     expect(conclusiones).toBe('Texto de conclusions');
-    // El RiskAssessment queda ligado a la solicitud (así lo encuentra el portal).
-    expect(todos<RiskAssessment>('RiskAssessment')[0]?.basedOn?.reference).toBe('ServiceRequest/sr1');
+    // El marco clínico es AHA/convencional (sin medicina funcional) y va el estadío CKM.
+    expect(body.system).toMatch(/American Heart Association/);
+    expect(body.system).toMatch(/NO uses parámetros.*medicina funcional/);
+    expect(body.messages[0].content).toMatch(/Estadificación CKM \(AHA 2023\)/);
+    // El RiskAssessment queda ligado a la solicitud (así lo encuentra el portal) y
+    // lleva el estadío CKM en el mismo recurso (un solo RiskAssessment por solicitud).
+    const [ra, ...otros] = todos<RiskAssessment>('RiskAssessment');
+    expect(otros).toHaveLength(0);
+    expect(ra?.basedOn?.reference).toBe('ServiceRequest/sr1');
+    expect(ra?.extension?.find((x) => x.url === EXT.ckmStage)?.valueCode).toBe('2');
+    expect(ra?.extension?.find((x) => x.url === EXT.ckmStageCompleto)?.valueBoolean).toBe(false);
+    expect(ra?.note?.map((n) => n.text).join('\n')).toMatch(/al menos Estadío 2/);
     expect(todos<ServiceRequest>('ServiceRequest')[0]?.status).toBe('completed');
     // PDF del informe ligado a la solicitud (DocumentReference?related=ServiceRequest/<id>).
     const pdf = todos<DocumentReference>('DocumentReference').find((d) => d.type?.coding?.[0]?.code === '11488-4');

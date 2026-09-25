@@ -22,7 +22,7 @@ const refs = { pacienteRef: 'Patient/p1', documentoRef: 'DocumentReference/lab1'
 describe('Laboratorio — catálogo y normalización', () => {
   it('el catálogo sale de las ObservationDefinition del servidor (system|code + unidad)', () => {
     expect(catalogo.find((c) => c.clave === LDL)).toMatchObject({ code: '13457-7', unidad: 'mg/dL' });
-    expect(catalogo.some((c) => c.clave === `${SYSTEM.biomarker}|ldl-p`)).toBe(true);
+    expect(catalogo.find((c) => c.clave === 'http://loinc.org|4548-4')).toMatchObject({ unidad: '%' });
   });
 
   it('descarta códigos que no están en el catálogo y analitos sin resultado; valida la fecha', () => {

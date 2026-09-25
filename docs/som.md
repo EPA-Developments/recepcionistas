@@ -78,6 +78,37 @@ la compara con la copia en `tests/fixtures/`. Además de lo anterior, el pacient
 - Secciones del informe (claves EXACTAS de `som-sections`): `executive-summary`,
   `risk-assessment`, `history-analysis`, `studies-analysis`, `conclusions`,
   `pending-studies` (ver `SOM_SECCIONES` en `identifiers.ts`).
+- Marco clínico del informe: cardiología **convencional** (AHA/ACC, KDIGO, ADA). El
+  prompt de Claude le prohíbe usar parámetros o recomendaciones de medicina funcional.
+
+## Estadificación CKM (AHA 2023, Ndumele)
+
+El informe estadifica el síndrome Cardiovascular-Renal-Metabólico según la
+Presidential Advisory de la AHA (Ndumele CE, et al. *Circulation* 2023;148:1606–1635):
+
+| Estadío | Criterio (umbrales en `src/config/ckm.ts`) |
+|---|---|
+| 0 | Sin factores CKM |
+| 1 | IMC ≥ 25, cintura ≥ 88 cm (M) / ≥ 102 cm (V), o prediabetes (glucemia 100–125, HbA1c 5,7–6,4 %) |
+| 2 | Triglicéridos ≥ 135, HTA (≥ 130/80 o tratamiento), diabetes, síndrome metabólico, o ERC de riesgo moderado/alto (KDIGO) |
+| 3 | ECV subclínica con sustrato CKM (calcio coronario > 0, NT-proBNP ≥ 125, troponina us ≥ 14/22 T o ≥ 10/12 I por sexo) o equivalentes de riesgo: ERC de muy alto riesgo (KDIGO) o riesgo PREVENT a 10 años ≥ 20 % |
+| 4a / 4b | ECV clínica (coronaria, IC, ACV, arterial periférica, FA) con sustrato CKM; 4b con falla renal (eGFR < 15 o diálisis) |
+
+- **Datos**: `src/lib/ckm-fhir.ts` los lee de la historia por LOINC (con los
+  componentes del panel de presión 85354-9 y unidades normalizadas a UCUM), los
+  problemas activos por ICD-10 / SNOMED CT (con respaldo por texto) y la medicación
+  antihipertensiva. El calcio coronario se reconoce por su nombre (no tiene un LOINC
+  de uso extendido).
+- **Datos incompletos**: no se adivina. El resultado es el estadío que los datos
+  demuestran; si faltan datos básicos, es "al menos Estadío X" con la lista de lo que
+  falta. NT-proBNP/troponina y calcio coronario se informan como "ECV subclínica no
+  evaluada" (no se piden a todos).
+- **Dónde queda**: en el MISMO `RiskAssessment` de PREVENT (el portal toma el primero
+  con `basedOn` = la solicitud): extensiones `ckm-stage` (`0`…`4b`) y
+  `ckm-stage-completo` (boolean), y una `note` con criterios y faltantes. También va
+  al prompt de Claude y a la sección `risk-assessment` del informe de respaldo.
+- Los mismos datos codificados alimentan PREVENT (la diabetes ya no se infiere de un
+  texto que diga "prediabetes").
 
 ## Laboratorio en PDF (`som-procesar-laboratorio`)
 
@@ -120,13 +151,28 @@ preferenciaInicio?, preferenciaTexto?, nota }` y solo acepta los `servicioCodigo
 `LABORATORIO_CARDIO`). El contrato anterior (`terapia`/`terapiaCodigo`) se sigue
 aceptando para portales viejos.
 
-## Biomarcadores (panel Cardiometabólico)
+## Biomarcadores (panel Cardiometabólico) — solo rangos convencionales
 
-Las `ObservationDefinition` de lípidos (Colesterol total, HDL, LDL, ApoB, Lp(a),
-LDL-P, Triglicéridos; panel `metabolico`) viven en `src/config/biomarcadores.ts` y
-las carga `npm run seed` (upsert por `system|code`: R4 no define search params para
-`ObservationDefinition`, así que no duplica y reusa las que se hayan cargado a mano
-con el Batch del portal). Unidades UCUM.
+Las `ObservationDefinition` viven en `src/config/biomarcadores.ts` y las carga
+`npm run seed` (upsert por `system|code`: R4 no define search params para
+`ObservationDefinition`, así que no duplica y reusa las que ya estén en el servidor).
+LOINC + UCUM, **solo rangos convencionales** con la guía citada:
+
+| Biomarcador | Umbral | Fuente |
+|---|---|---|
+| Colesterol total | < 200 mg/dL | NCEP ATP III |
+| HDL | ≥ 40 (V) / ≥ 50 (M) mg/dL | AHA/NHLBI (síndrome metabólico) |
+| LDL | < 100 mg/dL (la meta depende del riesgo) | NCEP ATP III |
+| Triglicéridos | < 150 mg/dL | NCEP ATP III |
+| ApoB | < 130 mg/dL | AHA/ACC 2018 (factor que aumenta el riesgo) |
+| Lp(a) | < 125 nmol/L | AHA/ACC 2018 (factor que aumenta el riesgo) |
+| Glucemia en ayunas | 70–100 mg/dL | ADA |
+| HbA1c | < 5,7 % | ADA |
+
+Sin rangos `funcional` y sin LDL-P (no está en las guías). Para limpiar las
+definiciones que ya estaban en el servidor con rangos funcionales:
+`npm run biomarcadores:convencional` (lista, dry-run) y `-- --apply` (los quita,
+conserva los convencionales; Medplum guarda el historial).
 
 ## ⚠️ Pendientes / a validar
 
@@ -136,8 +182,13 @@ con el Batch del portal). Unidades UCUM.
   nota (el contrato pide `final`; el portal no filtra por estado). **No usar como
   valor definitivo sin la firma del equipo médico.** Confirmar contra una
   calculadora de referencia (ACC) antes de producción.
-- **Colesterol total funcional (< 100 mg/dL)**: no se publica hasta que lo confirme
-  el Dr. Barbagelata (¿errata por el objetivo de LDL?). El seed lo avisa.
+- **Umbrales CKM y biomarcadores** (`src/config/ckm.ts`, `biomarcadores.ts`): citados
+  de las guías y marcados pendientes de firma médica. A confirmar: triglicéridos del
+  Estadío 2 (Ndumele ≥ 135 vs ≥ 150 de la guía CKM 2026), calcio coronario (> 0 vs
+  ≥ 100), y ApoB / Lp(a) con los umbrales AHA/ACC 2018 (antes 66–144 mg/dL y < 75 nmol/L).
+- **PREVENT de ECV total a 10 años** no se calcula todavía: para el equivalente de
+  riesgo del Estadío 3 se usan ASCVD e IC a 10 años (si alguno es ≥ 20 %, la ECV total
+  también lo es); si ambos son < 20 % queda como dato faltante.
 - **`performer` de la solicitud (Dr. Barbagelata)**: el contrato lo pide "si está
   disponible"; no hay profesionales cargados todavía (`src/config/medicos.ts`).
 - **Catálogo nuevo.** Se arma de cero con los profesionales de SOM: profesionales,

@@ -65,6 +65,11 @@ export const EXT = {
   patientOrigin: `${SOM_BASE}/StructureDefinition/patient-origin`,
   /** Fecha en que el paciente completó la Bienvenida/Onboarding. La escribe el PORTAL: el backend no la toca. */
   onboardingCompleted: `${SOM_BASE}/StructureDefinition/onboarding-completed`,
+  // Estadificación CKM (AHA 2023, Ndumele) — en el RiskAssessment del informe SOM.
+  /** Estadío CKM: `0` | `1` | `2` | `3` | `4a` | `4b`. */
+  ckmStage: `${SOM_BASE}/StructureDefinition/ckm-stage`,
+  /** false si faltaban datos básicos: el estadío es "al menos" el indicado. */
+  ckmStageCompleto: `${SOM_BASE}/StructureDefinition/ckm-stage-completo`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */
@@ -106,11 +111,14 @@ export const SYSTEM = {
   /** Estudios por slug del catálogo de biomarcadores (ServiceRequest.code). */
   biomarcador: `${BASE}/CodeSystem/biomarcador`,
   // Biomarcadores del portal (ObservationDefinition; `app/src/fhir/biomarkers.ts`).
-  /** Biomarcadores sin código LOINC (p. ej. `ldl-p`). No es el `biomarcador` del GLP-1. */
+  /** Biomarcadores sin código LOINC del catálogo del portal. No es el `biomarcador` del GLP-1. */
   biomarker: `${SOM_BASE}/CodeSystem/biomarker`,
   /** Panel del portal al que pertenece cada ObservationDefinition (p. ej. `metabolico`). */
   panelBiomarcador: `${SOM_BASE}/CodeSystem/panel-biomarcador`,
-  /** Tipo de rango de referencia de la ObservationDefinition: `convencional` | `funcional`. */
+  /**
+   * Tipo de rango de referencia de la ObservationDefinition. Este backend publica
+   * solo `convencional` (salud convencional: AHA/ACC, ADA, KDIGO); nunca `funcional`.
+   */
   tipoRango: `${SOM_BASE}/CodeSystem/tipo-rango`,
   // Documentos y consentimientos que manda el paciente desde el portal.
   /** DocumentReference.category de lo que sube el paciente (p. ej. `resultado-laboratorio`). */

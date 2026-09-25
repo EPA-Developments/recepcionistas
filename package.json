@@ -19,6 +19,7 @@
     "seed:prueba-recordatorios": "tsx src/seed/prueba-recordatorios.ts",
     "datos-demo": "tsx src/seed/datos-demo.ts",
     "limpiar": "tsx src/seed/limpiar.ts",
+    "biomarcadores:convencional": "tsx src/seed/rangos-convencionales.ts",
     "bots:bundle": "tsx src/seed/deploy-bots.ts --dry-run",
     "deploy:bots": "tsx src/seed/deploy-bots.ts",
     "email:test": "tsx src/seed/diagnostico-email.ts",

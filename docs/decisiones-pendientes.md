@@ -50,7 +50,8 @@ Implementado (ver [`som.md`](som.md)); queda para confirmar:
 | # | Tema | Detalle | Estado |
 |---|---|---|---|
 | 1 | **PREVENT: validación clínica** | Coeficientes transcriptos (`src/lib/prevent.ts`); el `RiskAssessment` sale `preliminary` hasta la firma del equipo médico (el contrato del portal pide `final`). | A validar |
-| 2 | **Colesterol total funcional** | El rango funcional < 100 mg/dL de la tabla institucional parece errata (¿objetivo de LDL?). **No se publica** hasta que lo confirme el Dr. Barbagelata (`src/config/biomarcadores.ts`). | A confirmar |
+| 2 | **Umbrales CKM (Ndumele 2023) y biomarcadores convencionales** | Salud convencional, sin medicina funcional. Confirmar: triglicéridos del Estadío 2 (≥ 135 Ndumele vs ≥ 150 guía CKM 2026), calcio coronario (> 0 vs ≥ 100), ApoB < 130 mg/dL y Lp(a) < 125 nmol/L (AHA/ACC 2018; reemplazan 66–144 y < 75). PREVENT de ECV total a 10 años todavía no se calcula. | A confirmar |
+| 2b | **Rangos funcionales ya cargados en el servidor** | Correr `npm run biomarcadores:convencional` (dry-run) y, revisado el listado, `-- --apply`. Las definiciones que queden sin rango convencional (p. ej. HOMA-IR) se decide si se retiran. El portal (`EPA-Developments/app`) todavía muestra rangos funcionales en su catálogo local: cambiarlo allá. | Pendiente |
 | 3 | **`performer` de la solicitud SOM** | El contrato pide el `Practitioner` del Dr. Barbagelata "si está disponible": falta cargar los profesionales de SOM. | Bloqueado por catálogo |
 | 4 | **Precio del Plan Bienestar** | `som-bienestar-inscribir` inscribe sin cobrar. ¿Es membresía paga? ¿Quién inscribe (Recepción, el paciente, al pagar)? | A definir |
 | 5 | **Modelo del bot de laboratorio** | `som-procesar-laboratorio` usa `claude-opus-5` (el contrato no lo fija; el informe sigue en `claude-sonnet-4-6` por contrato). Cambiar en `MODELO_CLAUDE_LABORATORIO`. | A confirmar |

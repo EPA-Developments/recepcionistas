@@ -17,6 +17,11 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 4. **Gobernanza.** Todo cambio de fondo en la arquitectura o en una regla de
    negocio *core* se consulta con el Dr. Alejandro Barbagelata y el Dr. Alejandro
    Sergio D'Alessandro antes de implementarlo.
+5. **Salud convencional, sin medicina funcional.** Los parámetros clínicos salen de
+   las guías habituales: American Heart Association / ACC (riesgo PREVENT,
+   estadificación CKM de Ndumele 2023), KDIGO (riñón) y ADA (glucemia). No se usan
+   rangos "funcionales" ni biomarcadores fuera de esas guías. Cada umbral cita su
+   fuente (`src/config/ckm.ts`, `src/config/biomarcadores.ts`).
 
 ## Arquitectura
 

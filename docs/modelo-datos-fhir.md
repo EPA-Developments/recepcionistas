@@ -20,9 +20,9 @@ Naming: **kebab-case**.
 | **Group** | Segmentos del CRM (identifier `segmento`; criterios en `characteristic`) | — |
 | **Location** | Recurso físico (consultorio/sala) | (identificado por `SYSTEM.recursoCodigo`) |
 | **Basic** | Configuración (TC vigente) | `tc-aplicado` |
-| **ServiceRequest / RiskAssessment / DiagnosticReport** | Contrato SOM con el portal (solicitud + informe; el `RiskAssessment` va con `basedOn` = la solicitud y probabilidades 0–1) | `som-origin` (`valueCode` `self`\|`referral`), `som-sections` |
+| **ServiceRequest / RiskAssessment / DiagnosticReport** | Contrato SOM con el portal (solicitud + informe; el `RiskAssessment` va con `basedOn` = la solicitud, probabilidades PREVENT 0–1 y el estadío CKM de la AHA) | `som-origin` (`valueCode` `self`\|`referral`), `som-sections`, `ckm-stage`, `ckm-stage-completo` |
 | **DocumentReference / Observation / DiagnosticReport** (laboratorio) | PDF de laboratorio que manda el paciente (category `CodeSystem/documento\|resultado-laboratorio`) → una `Observation` por analito (LOINC / `CodeSystem/biomarker`, UCUM) + informe LAB (LOINC 11502-2) ligado en `context.related` | — |
-| **ObservationDefinition** | Rangos de biomarcadores del portal (panel `CodeSystem/panel-biomarcador`, tipo `CodeSystem/tipo-rango`); fuente: `src/config/biomarcadores.ts` | — |
+| **ObservationDefinition** | Rangos de biomarcadores del portal (panel `CodeSystem/panel-biomarcador`), **solo convencionales** (`CodeSystem/tipo-rango\|convencional`; AHA/ACC, NCEP, ADA); fuente: `src/config/biomarcadores.ts` | — |
 | **CarePlan** (Plan Bienestar) | Inscripción al Plan Bienestar de 100 días (category `care-plans\|plan-bienestar-100`, `period` de 100 días) | — |
 | **PlanDefinition** | Plantilla del seguimiento GLP-1 (`PlanDefinition/seguimiento-glp1`) | — |
 | **CarePlan / Goal** | Programa GLP-1 del paciente y su meta de peso | (category `CodeSystem/care-plans`, compartido con la app del paciente) |
