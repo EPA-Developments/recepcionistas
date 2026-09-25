@@ -172,6 +172,9 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Immunization', readonly: true, criteria: 'Immunization?patient=%patient' },
 
     // Catálogo, agenda y profesionales — sólo lectura (para mostrar la oferta).
+    // ActivityDefinition: las consultas del catálogo con sus modalidades (presencial /
+    // teleconsulta) y especialidades, para armar "Pedir un turno" sin listas a mano.
+    { resourceType: 'ActivityDefinition', readonly: true },
     { resourceType: 'ObservationDefinition', readonly: true },
     { resourceType: 'Questionnaire', readonly: true },
     { resourceType: 'Schedule', readonly: true },

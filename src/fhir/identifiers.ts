@@ -75,6 +75,11 @@ export const EXT = {
   ckmStage: `${SOM_BASE}/StructureDefinition/ckm-stage`,
   /** false si faltaban datos básicos: el estadío es "al menos" el indicado. */
   ckmStageCompleto: `${SOM_BASE}/StructureDefinition/ckm-stage-completo`,
+  // Modalidad de atención (presencial / teleconsulta) — R-21.
+  /** Modalidad del turno o de la solicitud: `Coding` v3-ActCode `AMB` (presencial) | `VR` (teleconsulta). */
+  modalidad: `${BASE}/StructureDefinition/modalidad`,
+  /** Link de la videollamada (Jitsi) de una teleconsulta. */
+  teleconsultaUrl: `${BASE}/StructureDefinition/teleconsulta-url`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */
@@ -113,6 +118,12 @@ export const SYSTEM = {
   planCuidado: `${BASE}/CodeSystem/care-plans`,
   /** Identifier de los recursos de un programa GLP-1 (CarePlan, Goal, pedidos, tareas). */
   programaGlp1: `${BASE}/Identifier/programa-glp1`,
+  /** Identifier de las tareas del Plan Bienestar 100 Días® (una por consulta programada). */
+  programaBienestar: `${BASE}/Identifier/programa-bienestar`,
+  /** Consultas programadas del Plan Bienestar 100 Días®: `inicial` | `mitad` | `final`. */
+  consultaPlanBienestar: `${BASE}/CodeSystem/consulta-plan-bienestar`,
+  /** Grupo de especialidad del catálogo, como lo agrupa el portal ("Cardiología con especialidad", …). */
+  grupoEspecialidad: `${BASE}/CodeSystem/grupo-especialidad`,
   /** Estudios por slug del catálogo de biomarcadores (ServiceRequest.code). */
   biomarcador: `${BASE}/CodeSystem/biomarcador`,
   // Biomarcadores del portal (ObservationDefinition; `app/src/fhir/biomarkers.ts`).
@@ -151,6 +162,10 @@ export const COD = {
   agendarControlGlp1: 'agendar-control-glp1',
   /** CarePlan.category del Plan Bienestar de 100 días (contrato con el portal). */
   planBienestar100: 'plan-bienestar-100',
+  /** Task de Recepción: agendar una consulta programada del Plan Bienestar 100 Días® (días 1, 50 y 100). */
+  agendarConsultaPb100d: 'agendar-consulta-pb100d',
+  /** Consent.policyRule (`CodeSystem/consentimiento`) del consentimiento de teleconsulta, genérico (R-21). */
+  consentimientoTeleconsulta: 'teleconsulta',
   /** DocumentReference.category del PDF de laboratorio que manda el paciente. */
   resultadoLaboratorio: 'resultado-laboratorio',
   /** Task del equipo: revisar a mano un PDF de laboratorio que no se pudo procesar. */
@@ -208,6 +223,15 @@ export const BOT_BORRADOR_RESPUESTA = 'som-borrador-respuesta';
 export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5';
 /** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
 export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
+
+/** URL canónica del `ActivityDefinition` de un servicio del catálogo. */
+export function urlServicio(codigo: string): string {
+  return `${BASE}/ActivityDefinition/${codigo}`;
+}
+
+/** Plan Bienestar 100 Días®: plantilla (PlanDefinition) con sus tres consultas programadas. */
+export const PLAN_BIENESTAR_URL = `${BASE}/PlanDefinition/plan-bienestar-100`;
+export const PLAN_BIENESTAR_VERSION = '1';
 
 /** Programa de seguimiento GLP-1: plantilla (PlanDefinition) y bots. */
 export const PLAN_GLP1_URL = `${BASE}/PlanDefinition/seguimiento-glp1`;

@@ -11,24 +11,24 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 |---|---|---|
 | `som-calcular-cobro` | Calcula el cobro (USD→ARS al TC, splits) y emite `Invoice`. | `executeBot` desde el front (pantalla Atender). |
 | `som-validar-turno` | Valida un turno (capacidad de recursos, ventana de reserva). | `executeBot` al reservar/confirmar. |
-| `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). Con `tareaId` agenda un control GLP-1: valida su ventana (R-19) y completa la tarea. | `executeBot` desde el front (Reservar turno / Agendar control). |
-| `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` y libera la sala al completar/cancelar. | `executeBot` desde el front (clic en el turno). |
+| `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). La **modalidad** la da el recurso (la agenda virtual es teleconsulta): la teleconsulta exige el consentimiento firmado y lleva el link de Jitsi (R-21). Con `tareaId` agenda un control GLP-1 (ventana, R-19) o una consulta del **Plan Bienestar 100 Días®** (ventana, R-20; la inicial fija el día 1; incluida → confirmada sin seña) y completa la tarea. | `executeBot` desde el front (Reservar turno / Agendar control / Agendar consulta del plan). |
+| `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` (`class` AMB/VR según la modalidad) y libera la sala al completar/cancelar. En una consulta del Plan Bienestar marca la actividad del plan; si se cancela, la tarea vuelve a quedar por agendar. | `executeBot` desde el front (clic en el turno). |
 | `som-pagar-sena` | Registra la seña (50%), confirma el turno (pending→booked) y envía WhatsApp de confirmación. | `executeBot` (clic en turno tentativo). |
 | `som-link-mercadopago` | Genera un link de MercadoPago por el monto de la seña (si está configurado el token). | `executeBot` (botón en turno tentativo). |
 | `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública que llama MercadoPago. |
-| `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp. | `cronTimer` del Bot (cada ~30 min). |
+| `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp (en teleconsulta, con el link) y manda los avisos de las consultas del **Plan Bienestar** (se abrió la ventana; a mitad de ventana, segundo aviso + alerta a Recepción). | `cronTimer` del Bot (cada ~30 min). |
 | `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono). | `executeBot` (Atender → Nuevo paciente). |
 | `som-invitar-paciente` | Invita al paciente al **portal** (invite de Medplum) y entrega el link por WhatsApp/email/QR. **Requiere admin.** | `executeBot` (Atender → Invitar al portal). |
 | `som-limpiar-demo` | **Cron:** borra los datos demo (tag `demo`) con más de 48 h. | `cronTimer` del Bot (cada ~1 h). |
 | `som-enviar-whatsapp` | Envía WhatsApp (Twilio) y registra `Communication`. | `executeBot` por evento o manual. |
-| `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
+| `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente, presencial o teleconsulta (`modalidad`; la teleconsulta exige el consentimiento de teleconsulta, R-21), y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
 | `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
 | `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
 | `som-glp1-inscribir` | **GLP-1 (Recepción):** inscribe al paciente en el seguimiento: deja un `Task` `indicacion-glp1` al equipo médico (idempotente; si ya está activo, devuelve cuántos controles faltan agendar). | `executeBot` (Atender → Seguimiento GLP-1 → Inscribir). Ver [`glp1.md`](glp1.md). |
 | `som-solicitar` | **Portal (SOM):** crea la `ServiceRequest` de segunda opinión. Valida consentimiento firmado (LOINC 59284-0), que quien ejecuta sea el mismo paciente y que los adjuntos sean suyos. `runAsUser` **desactivado**. | `executeBot` desde el **portal** (whitelisteado en la policy del paciente). Ver [`som.md`](som.md). |
 | `bot-som-report` | **Interno (SOM):** PREVENT → `RiskAssessment`, informe con Claude → `DiagnosticReport` + PDF, `ServiceRequest` → `completed`, aviso al paciente. Sin consentimiento no llama a Claude. | `Subscription` sobre `ServiceRequest?status=active&code=…som-cardiology` (la crea `deploy:bots`). |
 | `som-procesar-laboratorio` | **Interno (SOM):** transcribe el PDF de laboratorio que manda el paciente (Claude) a `Observation` + `DiagnosticReport` y lo liga al documento; si no puede, avisa al paciente y deja un `Task` `revisar-laboratorio`. | `Subscription` (solo *create*) sobre `DocumentReference?category=…/documento\|resultado-laboratorio` (la crea `deploy:bots`). |
-| `som-bienestar-inscribir` | **Plan Bienestar (Recepción):** crea el `CarePlan` `plan-bienestar-100` (100 días) que lee el portal. Idempotente. No cobra. | `executeBot` (Atender → Plan Bienestar). |
+| `som-bienestar-inscribir` | **Plan Bienestar 100 Días® (Recepción):** crea el `CarePlan` `plan-bienestar-100` (100 días) que lee el portal, con sus tres consultas programadas, y una `Task` `agendar-consulta-pb100d` por consulta. Idempotente (a un plan viejo le suma las tareas que falten). No cobra. | `executeBot` (Atender → Plan Bienestar 100 Días®). Ver [`plan-bienestar.md`](plan-bienestar.md). |
 | `som-borrador-respuesta` | **Mensajes (Recepción) — "Sugerir":** con la conversación y el contexto operativo del paciente (nombre, motivo, próximo turno, programas, consentimiento; nunca historia clínica) redacta con Claude el **borrador** de la respuesta. Solo lectura: no escribe ni envía nada; la recepcionista lo revisa y toca Enviar (la respuesta queda marcada `borrador-usado` = `sin-editar`/`editado`). Si es clínico o una posible urgencia, no redacta y lo dice. | `executeBot` (Mensajes → Sugerir). |
 | `som-glp1-plan` | **GLP-1 (equipo médico):** con la indicación (molécula, esquema de titulación, fecha de inicio) arma o recalcula el programa: `CarePlan`, `Goal`, pedidos de laboratorio y tareas de agenda de Recepción. **Recepción no puede ejecutarlo.** | `executeBot` / app de Medplum (input JSON). Ver [`glp1.md`](glp1.md). |
 
@@ -78,7 +78,8 @@ MercadoPago usan las credenciales propias de SOM.
 |---|---|---|
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | todos los envíos de WhatsApp | para enviar WhatsApp |
 | `TWILIO_WHATSAPP_FROM` | ídem (número de la WABA de EPA Bienestar IA, `whatsapp:+54...`) | para enviar WhatsApp |
-| `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas) | opcional |
+| `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar) | opcional |
+| `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago` | para cobrar por MP |
 | `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`) | opcional |
 | `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
@@ -192,6 +193,13 @@ una corrida del cron se saltea, el siguiente tick lo manda igual.
 - **Idempotente:** cada recordatorio queda como `Communication` con identifier
   `recordatorio-{tipo}-{turno}`. Antes de enviar, el bot busca ese identifier; si
   existe, no reenvía. Por eso es seguro correrlo cada pocos minutos.
+- **Teleconsulta:** el recordatorio lleva el link de la videollamada (Jitsi).
+- **Plan Bienestar 100 Días®** (R-20, [`plan-bienestar.md`](plan-bienestar.md)): para
+  cada consulta del plan todavía sin agendar (la del día 50 y la final, una vez
+  agendada la inicial), un aviso al paciente cuando se abre su ventana y, si a mitad
+  de ventana sigue sin agendar, otro aviso + la tarea pasa a urgente + WhatsApp a
+  Recepción (`RECEPCION_WHATSAPP_TO`). Solo de 9 a 20 h (Argentina); identifier
+  `pb100d-{aviso}-{tarea}`.
 
 ### Cron de `som-recordatorios`
 

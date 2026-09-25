@@ -31,3 +31,17 @@ export const RECORDATORIO_HORAS = [48, 2] as const;
  * interpretable desde esa semana); el basal, en los días previos al inicio.
  */
 export const VENTANA_CONTROL_GLP1_DIAS = 7;
+
+/**
+ * Consultas programadas del Plan Bienestar 100 Días® (R-20): la del día 50 y la final
+ * se agendan dentro de ± estos días de su fecha (definido por el Dr. D'Alessandro y el
+ * Dr. Barbagelata). Antes de la ventana: bloqueo; después: advertencia (como R-19).
+ */
+export const TOLERANCIA_CONSULTA_PB100D_DIAS = 7;
+
+/**
+ * Horario en que salen los avisos de los programas (se abrió la ventana de una
+ * consulta, sigue sin agendar a mitad de ventana). El cron corre todo el día; estos
+ * avisos no salen de noche. Hora de Argentina, [desde, hasta). PROVISIONAL.
+ */
+export const HORARIO_AVISOS_PROGRAMA = { desde: 9, hasta: 20 } as const;

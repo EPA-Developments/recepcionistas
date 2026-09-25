@@ -32,17 +32,17 @@ interface DefBot {
 const BOTS: DefBot[] = [
   { name: 'som-calcular-cobro', source: 'src/bots/calcular-cobro.ts', dist: 'dist/bots/calcular-cobro.js', description: 'Calcula el cobro (USD→ARS, splits) y emite Invoice.' },
   { name: 'som-validar-turno', source: 'src/bots/validar-turno.ts', dist: 'dist/bots/validar-turno.js', description: 'Valida un turno (capacidad de recursos, ventana de reserva).' },
-  { name: 'som-reservar-turno', source: 'src/bots/reservar-turno.ts', dist: 'dist/bots/reservar-turno.js', description: 'Valida y crea un turno (Appointment + Slot ocupado).' },
-  { name: 'som-estado-turno', source: 'src/bots/estado-turno.ts', dist: 'dist/bots/estado-turno.js', description: 'Cambia el estado del turno (check-in/out), gestiona Encounter y libera la sala.' },
+  { name: 'som-reservar-turno', source: 'src/bots/reservar-turno.ts', dist: 'dist/bots/reservar-turno.js', description: 'Valida y crea un turno (Appointment + Slot ocupado): capacidad, ventana, modalidad presencial/teleconsulta (link de Jitsi, consentimiento) y consultas del Plan Bienestar 100 Días® (sin seña).' },
+  { name: 'som-estado-turno', source: 'src/bots/estado-turno.ts', dist: 'dist/bots/estado-turno.js', description: 'Cambia el estado del turno (check-in/out), gestiona el Encounter (clase AMB/VR según la modalidad), libera la sala y actualiza las consultas del Plan Bienestar.' },
   { name: 'som-pagar-sena', source: 'src/bots/pagar-sena.ts', dist: 'dist/bots/pagar-sena.js', description: 'Registra la seña (50%), confirma el turno y envía WhatsApp.' },
   { name: 'som-link-mercadopago', source: 'src/bots/link-mercadopago.ts', dist: 'dist/bots/link-mercadopago.js', description: 'Genera link de MercadoPago para pagar la seña.' },
   { name: 'som-webhook-mercadopago', source: 'src/bots/webhook-mercadopago.ts', dist: 'dist/bots/webhook-mercadopago.js', description: 'Webhook de MercadoPago: confirma el turno al acreditarse el pago.' },
-  { name: 'som-recordatorios', source: 'src/bots/recordatorios.ts', dist: 'dist/bots/recordatorios.js', description: 'Cron: envía recordatorios de turnos confirmados a 48 h y 2 h (WhatsApp).' },
+  { name: 'som-recordatorios', source: 'src/bots/recordatorios.ts', dist: 'dist/bots/recordatorios.js', description: 'Cron: recordatorios de turnos confirmados a 48 h y 2 h (con el link en teleconsulta) y avisos de las consultas del Plan Bienestar 100 Días® (WhatsApp).' },
   { name: 'som-alta-paciente', source: 'src/bots/alta-paciente.ts', dist: 'dist/bots/alta-paciente.js', description: 'Alta de paciente (Patient) con dedupe por DNI/email/teléfono.' },
   { name: 'som-invitar-paciente', source: 'src/bots/invitar-paciente.ts', dist: 'dist/bots/invitar-paciente.js', description: 'Invita al paciente al portal (invite Medplum) y entrega el link por WhatsApp/email/QR. Requiere admin.' },
   { name: 'som-limpiar-demo', source: 'src/bots/limpiar-demo.ts', dist: 'dist/bots/limpiar-demo.js', description: 'Cron: borra los datos demo (tag demo) con más de 48 h.' },
   { name: 'som-enviar-whatsapp', source: 'src/bots/enviar-whatsapp.ts', dist: 'dist/bots/enviar-whatsapp.js', description: 'Envía WhatsApp (Twilio) y registra Communication.' },
-  { name: 'som-solicitar-turno', source: 'src/bots/solicitar-turno.ts', dist: 'dist/bots/solicitar-turno.js', description: 'Crea una solicitud de turno (Task) desde el portal del paciente y avisa a Recepción por WhatsApp.' },
+  { name: 'som-solicitar-turno', source: 'src/bots/solicitar-turno.ts', dist: 'dist/bots/solicitar-turno.js', description: 'Crea una solicitud de turno (Task) desde el portal del paciente, presencial o teleconsulta (exige el consentimiento de teleconsulta), y avisa a Recepción por WhatsApp.' },
   // CRM — embudo de captación (redes sociales) → segmentos → campañas (docs/crm.md).
   { name: 'som-recomputar-segmentos', source: 'src/bots/recomputar-segmentos.ts', dist: 'dist/bots/recomputar-segmentos.js', description: 'CRM: recalcula los miembros de los segmentos (origen del lead/red social, perfil, ciclo de vida, biomarcadores).' },
   { name: 'som-enviar-campana', source: 'src/bots/enviar-campana.ts', dist: 'dist/bots/enviar-campana.js', description: 'CRM: envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla aprobada) y registra una Communication por destinatario.' },
@@ -55,8 +55,8 @@ const BOTS: DefBot[] = [
   { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
   // Mensajes (Recepción): borrador de respuesta con Claude; nada sale sin que una persona toque Enviar.
   { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). Solo lectura: no escribe ni envía nada.' },
-  // Plan Bienestar · 100 días (portal: tarjeta de progreso).
-  { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 de 100 días que lee el portal.' },
+  // Plan Bienestar 100 Días® (portal: tarjeta de progreso; Recepción: sus tres consultas).
+  { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar 100 Días® (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 (100 días, lo lee el portal) con sus tres consultas y las tareas para agendarlas.' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */

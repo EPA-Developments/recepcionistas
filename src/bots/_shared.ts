@@ -4,9 +4,13 @@
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Appointment, Communication, Flag, Invoice } from '@medplum/fhirtypes';
 import { CONFIG_TC_ID, EXT, LOINC_CONSENTIMIENTO, SYSTEM } from '../fhir/identifiers.js';
+import { SERVICIOS_POR_CODIGO } from '../config/catalogo.js';
+import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { resolverTC } from '../config/tipo-cambio.js';
+import { avisoConfirmacion } from '../lib/avisos.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
+import { esConsentimientoTeleconsulta, modalidadDe, teleconsultaUrlDe } from '../lib/teleconsulta.js';
 
 type Secrets = BotEvent['secrets'];
 
@@ -69,6 +73,24 @@ export async function tieneConsentimiento(medplum: MedplumClient, pacienteRef: s
   );
   return Boolean(doc);
 }
+
+/**
+ * ¿El paciente firmó el consentimiento de teleconsulta? (R-21). Un `Consent` suyo,
+ * activo, con `policyRule` `CodeSystem/consentimiento|teleconsulta` (lo registra el
+ * portal; es genérico: uno por paciente). La verificación que vale es la del servidor.
+ */
+export async function tieneConsentimientoTeleconsulta(medplum: MedplumClient, pacienteRef: string): Promise<boolean> {
+  const consentimientos = await medplum.searchResources('Consent', `patient=${pacienteRef}&status=active&_count=50`);
+  return consentimientos.some((c) => esConsentimientoTeleconsulta(c));
+}
+
+/** ¿El turno es de un servicio incluido en el plan (sin seña)? */
+export function esIncluidoEnPlan(itemCodigo: string | undefined): boolean {
+  return Boolean(itemCodigo && SERVICIOS_POR_CODIGO.get(itemCodigo)?.incluidaEnPlan);
+}
+
+/** Mensaje cuando se intenta cobrar la seña de una consulta incluida en el plan. */
+export const MENSAJE_SIN_SENA = `La consulta está incluida en el ${NOMBRE_PLAN_BIENESTAR}: no lleva seña.`;
 
 /** Project id del proyecto Medplum (vía el recurso Basic de configuración). */
 export async function resolverProjectId(medplum: MedplumClient): Promise<string> {
@@ -287,6 +309,9 @@ export async function confirmarReserva(
   if (!itemTipo || !itemCodigo) {
     throw new Error('El turno no tiene ítem asociado para calcular la seña.');
   }
+  if (esIncluidoEnPlan(itemCodigo)) {
+    throw new Error(MENSAJE_SIN_SENA);
+  }
 
   const tc = opts.tc ?? (await leerTcVigente(medplum));
   const { totalARS, senaARS } = calcularSenaARS([{ tipo: itemTipo as ItemCobro['tipo'], codigo: itemCodigo }], { tc });
@@ -328,7 +353,12 @@ export async function confirmarReserva(
   await enviarWhatsApp(medplum, secrets, {
     template: 'turno-confirmado',
     pacienteRef,
-    body: `Segunda Opinión Médica: ¡tu turno quedó confirmado! ${appt.description ?? ''}. Recibimos la seña de $${senaARS.toLocaleString('es-AR')}. ¡Te esperamos! 💙`,
+    body: avisoConfirmacion({
+      descripcion: appt.description ?? '',
+      senaARS,
+      modalidad: modalidadDe(appt),
+      teleconsultaUrl: teleconsultaUrlDe(appt),
+    }),
   });
 
   return { totalARS, senaARS, invoiceId: invoice.id, confirmados, yaConfirmado: false };

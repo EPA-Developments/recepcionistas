@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildSeed } from '../src/seed/builders.js';
-import { BOT_GLP1_INSCRIBIR, BOT_GLP1_PLAN, EXT, PLAN_GLP1_URL } from '../src/fhir/identifiers.js';
+import { BOT_GLP1_INSCRIBIR, BOT_GLP1_PLAN, EXT, PLAN_BIENESTAR_URL, PLAN_GLP1_URL } from '../src/fhir/identifiers.js';
 import { BOTS_RECEPCION } from '../src/fhir/access-policies.js';
 import { MEDICOS } from '../src/config/medicos.js';
 
@@ -16,9 +16,10 @@ describe('Seed — composición', () => {
       'Director Médico — Clínico completo',
       'Paciente SOM — Portal',
     ]);
-    expect(seed.activityDefinitions.length).toBe(7); // cardiología + 5 subespecialidades + control GLP-1
-    expect(seed.planDefinitions.map((p) => p.url)).toEqual([PLAN_GLP1_URL]);
-    expect(seed.locations.length).toBe(4); // consultorios + sala de rehabilitación
+    // 12 consultas por especialidad + consulta del Plan Bienestar + control GLP-1.
+    expect(seed.activityDefinitions.length).toBe(14);
+    expect(seed.planDefinitions.map((p) => p.url)).toEqual([PLAN_GLP1_URL, PLAN_BIENESTAR_URL]);
+    expect(seed.locations.length).toBe(4); // 2 consultorios + agenda de teleconsulta + sala de rehabilitación
     expect(seed.schedules.length).toBe(4);
     // Profesionales: uno por médico de config (el catálogo nuevo de SOM los carga).
     expect(seed.practitioners.length).toBe(MEDICOS.length);

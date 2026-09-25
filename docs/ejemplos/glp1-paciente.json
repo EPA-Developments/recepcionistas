@@ -2152,6 +2152,18 @@
         "resourceType": "Appointment",
         "status": "pending",
         "description": "Seguimiento de tratamiento GLP-1 — Control",
+        "serviceType": [
+          {
+            "coding": [
+              {
+                "system": "https://segundaopinionmedica.org/fhir/CodeSystem/servicio",
+                "code": "CONTROL_GLP1",
+                "display": "Seguimiento de tratamiento GLP-1 — Control"
+              }
+            ],
+            "text": "Seguimiento de tratamiento GLP-1 — Control"
+          }
+        ],
         "start": "2026-09-30T13:00:00.000Z",
         "end": "2026-09-30T13:45:00.000Z",
         "slot": [
@@ -2183,6 +2195,14 @@
           {
             "url": "https://segundaopinionmedica.org/fhir/StructureDefinition/item-codigo",
             "valueString": "CONTROL_GLP1"
+          },
+          {
+            "url": "https://segundaopinionmedica.org/fhir/StructureDefinition/modalidad",
+            "valueCoding": {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+              "code": "AMB",
+              "display": "ambulatory"
+            }
           }
         ],
         "id": "appointment-38"

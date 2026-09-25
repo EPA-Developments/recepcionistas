@@ -7,6 +7,7 @@ import {
   mensajeWhatsAppRecepcion,
   servicioPedido,
   SERVICIOS_SOLICITABLES,
+  esServicioSolicitable,
   type SolicitudTurno,
 } from '../src/lib/solicitudes.js';
 
@@ -94,5 +95,28 @@ describe('Bot som-solicitar-turno con el payload del portal', () => {
       ['servicio-codigo', 'CONSULTA_CARDIO'],
       ['nota', 'por la tarde'],
     ]);
+  });
+});
+
+describe('Solicitudes con el catálogo nuevo y modalidad (R-21)', () => {
+  const base = { pacienteRef: 'Patient/p1', servicio: 'Consulta' };
+
+  it('se pueden pedir las consultas por especialidad y la del Plan Bienestar, además de los códigos de siempre', () => {
+    for (const codigo of ['NEUROLOGIA', 'INSUFICIENCIA_CARDIACA', 'NUTRICION', 'CONSULTA_PB100D', 'CONSULTA_CARDIO', 'TELECONSULTA']) {
+      expect(esServicioSolicitable(codigo)).toBe(true);
+    }
+    expect(esServicioSolicitable('CONTROL_GLP1')).toBe(false);
+  });
+
+  it('valida la modalidad contra el catálogo', () => {
+    expect(validarSolicitud({ ...base, servicioCodigo: 'GINECOLOGIA', modalidad: 'teleconsulta' }).ok).toBe(true);
+    expect(validarSolicitud({ ...base, servicioCodigo: 'GINECOLOGIA', modalidad: 'domicilio' as never }).ok).toBe(false);
+    expect(validarSolicitud({ ...base, servicioCodigo: 'ECG', modalidad: 'teleconsulta' }).ok).toBe(true); // código anterior: decide Recepción
+  });
+
+  it('la modalidad aparece en el resumen y en el aviso a Recepción', () => {
+    const s = { ...base, servicio: 'Teleconsulta de Cardiología', servicioCodigo: 'CARDIOLOGIA', modalidad: 'teleconsulta' as const };
+    expect(resumenSolicitud(s)).toBe('Solicitud de turno: Teleconsulta de Cardiología. Modalidad: teleconsulta.');
+    expect(mensajeWhatsAppRecepcion(s, 'Ana')).toContain('Ana pidió: Teleconsulta de Cardiología (teleconsulta)');
   });
 });

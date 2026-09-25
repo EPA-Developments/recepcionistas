@@ -31,7 +31,10 @@ function cumple(r: Registro, param: string, valor: string): boolean {
     case 'subject':
       return (r.subject as { reference?: string } | undefined)?.reference === valor;
     case 'patient': {
-      const ref = (r.for as { reference?: string } | undefined)?.reference ?? (r.subject as { reference?: string } | undefined)?.reference;
+      const ref =
+        (r.for as { reference?: string } | undefined)?.reference ??
+        (r.subject as { reference?: string } | undefined)?.reference ??
+        (r.patient as { reference?: string } | undefined)?.reference;
       return ref === valor;
     }
     case 'status':

@@ -6,6 +6,9 @@
  * WhatsApp. El bot NO reserva: la confirmación la hace Recepción con los bots de
  * reserva (que aplican las reglas). Toda la decisión vive en recepción.
  *
+ * Teleconsulta (R-21): si la pide por videollamada, el paciente tiene que haber
+ * firmado el consentimiento de teleconsulta (se verifica acá, del lado del servidor).
+ *
  * Seguridad: el paciente solo puede ejecutar ESTE bot (su AccessPolicy acota
  * `Bot?name=som-solicitar-turno`) y solo puede leer sus propios `Task`. Para que el
  * `requester` no se pueda falsificar, conviene crear el Bot con `runAsUser` en
@@ -23,7 +26,8 @@ import {
   validarSolicitud,
   type SolicitudTurno,
 } from '../lib/solicitudes.js';
-import { enviarWhatsApp } from './_shared.js';
+import { codingModalidad } from '../lib/teleconsulta.js';
+import { enviarWhatsApp, tieneConsentimientoTeleconsulta } from './_shared.js';
 
 export interface ResultadoSolicitud {
   ok: boolean;
@@ -38,6 +42,12 @@ export async function handler(medplum: MedplumClient, event: BotEvent<SolicitudT
   const v = validarSolicitud(e);
   if (!v.ok) {
     return { ok: false, mensaje: v.error };
+  }
+  if (e.modalidad === 'teleconsulta' && !(await tieneConsentimientoTeleconsulta(medplum, e.pacienteRef))) {
+    return {
+      ok: false,
+      mensaje: 'Para pedir una teleconsulta, primero aceptá el consentimiento de teleconsulta (se firma una sola vez).',
+    };
   }
 
   // Nombre del paciente (best-effort, para el aviso a Recepción).
@@ -58,6 +68,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent<SolicitudT
     ...(e.preferenciaInicio ? [{ type: { text: 'preferencia-inicio' }, valueDateTime: e.preferenciaInicio }] : []),
     ...(e.preferenciaTexto?.trim() ? [{ type: { text: 'preferencia-texto' }, valueString: e.preferenciaTexto.trim() }] : []),
     ...(e.nota?.trim() ? [{ type: { text: 'nota' }, valueString: e.nota.trim() }] : []),
+    ...(e.modalidad ? [{ type: { text: 'modalidad' }, valueCoding: codingModalidad(e.modalidad) }] : []),
   ];
 
   const task = await medplum.createResource<Task>({

@@ -1,11 +1,12 @@
 /**
  * Builders FHIR del seed: traducen el catálogo de dominio a recursos FHIR R4
- * (ActivityDefinition, Basic, Location, Schedule, ObservationDefinition). Funciones puras: no hacen
- * IO. El runner (index.ts) los persiste en Medplum.
+ * (ActivityDefinition, PlanDefinition, Basic, Location, Schedule, ObservationDefinition).
+ * Funciones puras: no hacen IO. El runner (index.ts) los persiste en Medplum.
  */
 import type {
   ActivityDefinition,
   Basic,
+  CodeableConcept,
   Extension,
   Location,
   ObservationDefinition,
@@ -14,24 +15,69 @@ import type {
   Schedule,
   Slot,
   StructureDefinition,
+  UsageContext,
 } from '@medplum/fhirtypes';
 import type { Servicio } from '../domain/types.js';
 import { MEDICOS } from '../config/medicos.js';
 import { BIOMARCADORES, PANEL_DISPLAY, type Biomarcador } from '../config/biomarcadores.js';
-import { CODIGO_CONTROL_GLP1, SERVICIOS } from '../config/catalogo.js';
+import { CODIGO_CONTROL_GLP1, GRUPOS_ESPECIALIDAD, SERVICIOS } from '../config/catalogo.js';
+import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { RECURSOS } from '../config/recursos.js';
 import { TC_DEFAULT } from '../config/tipo-cambio.js';
 import type { SlotDescriptor } from '../lib/slots.js';
 import { EXTENSIONES } from '../fhir/extensions.js';
 import { ACCESS_POLICIES } from '../fhir/access-policies.js';
-import { CONFIG_TC_ID, EXT, SYSTEM } from '../fhir/identifiers.js';
+import { COD, CONFIG_TC_ID, EXT, SYSTEM, urlServicio } from '../fhir/identifiers.js';
+import { construirPlanDefinitionBienestar } from '../lib/plan-bienestar.js';
+import { ETIQUETA_MODALIDAD, codingModalidad } from '../lib/teleconsulta.js';
+
+const SNOMED = 'http://snomed.info/sct';
+const USAGE_CONTEXT_TYPE = 'http://terminology.hl7.org/CodeSystem/usage-context-type';
+
+/**
+ * Temas del servicio (`ActivityDefinition.topic`, buscable): la especialidad (SNOMED CT
+ * c80-practice-codes, si tiene) y el grupo en que la muestra el portal.
+ */
+function temasDe(s: Servicio): CodeableConcept[] {
+  const temas: CodeableConcept[] = [];
+  if (s.especialidad) {
+    temas.push({
+      ...(s.especialidad.snomed
+        ? { coding: [{ system: SNOMED, code: s.especialidad.snomed, display: s.especialidad.snomedDisplay }] }
+        : {}),
+      text: s.especialidad.nombre,
+    });
+  }
+  const grupo = GRUPOS_ESPECIALIDAD.find((g) => g.codigo === s.grupo);
+  if (grupo) {
+    temas.push({ coding: [{ system: SYSTEM.grupoEspecialidad, code: grupo.codigo, display: grupo.nombre }], text: grupo.nombre });
+  }
+  return temas.length ? temas : [{ text: s.categoria }];
+}
+
+/**
+ * Contextos de uso (`ActivityDefinition.useContext`, buscable con `context`): cada
+ * modalidad en que se ofrece (tipo `workflow`, v3-ActCode AMB / VR; R-21) y, si está
+ * incluida en un programa, el programa (tipo `program`).
+ */
+function contextosDe(s: Servicio): UsageContext[] {
+  const contextos: UsageContext[] = s.modalidades.map((m) => ({
+    code: { system: USAGE_CONTEXT_TYPE, code: 'workflow' },
+    valueCodeableConcept: { coding: [codingModalidad(m)], text: ETIQUETA_MODALIDAD[m] },
+  }));
+  if (s.incluidaEnPlan) {
+    contextos.push({
+      code: { system: USAGE_CONTEXT_TYPE, code: 'program' },
+      valueCodeableConcept: {
+        coding: [{ system: SYSTEM.planCuidado, code: COD.planBienestar100, display: NOMBRE_PLAN_BIENESTAR }],
+        text: NOMBRE_PLAN_BIENESTAR,
+      },
+    });
+  }
+  return contextos;
+}
 import { construirPlanDefinitionGlp1 } from '../lib/glp1-plan.js';
 
-const BASE = 'https://segundaopinionmedica.org/fhir';
-
-function canonical(tipo: string, codigo: string): string {
-  return `${BASE}/${tipo}/${codigo}`;
-}
 
 export function buildActivityDefinition(s: Servicio): ActivityDefinition {
   const ext: Extension[] = [
@@ -44,13 +90,14 @@ export function buildActivityDefinition(s: Servicio): ActivityDefinition {
   }
   const ad: ActivityDefinition = {
     resourceType: 'ActivityDefinition',
-    url: canonical('ActivityDefinition', s.codigo),
+    url: urlServicio(s.codigo),
     name: s.codigo,
     title: s.nombre,
     status: 'active',
     kind: 'ServiceRequest',
     identifier: [{ system: SYSTEM.servicioCodigo, value: s.codigo }],
-    topic: [{ text: s.categoria }],
+    topic: temasDe(s),
+    useContext: contextosDe(s),
     extension: ext,
   };
   if (s.duracionMin > 0) {
@@ -118,9 +165,14 @@ export function buildPractitioner(codigo: string): Practitioner {
   };
 }
 
+/** Plan Bienestar 100 Días® (plantilla con sus tres consultas programadas). */
+export function buildPlanDefinitionBienestar(): PlanDefinition {
+  return construirPlanDefinitionBienestar();
+}
+
 /** Programa de seguimiento GLP-1 (plantilla del catálogo; sus visitas usan el control GLP-1). */
 export function buildPlanDefinitionGlp1(): PlanDefinition {
-  return construirPlanDefinitionGlp1(canonical('ActivityDefinition', CODIGO_CONTROL_GLP1));
+  return construirPlanDefinitionGlp1(urlServicio(CODIGO_CONTROL_GLP1));
 }
 
 const LOINC = 'http://loinc.org';
@@ -180,7 +232,7 @@ export function buildSeed(): RecursosSeed {
     accessPolicies: ACCESS_POLICIES,
     tcConfig: buildTcConfig(),
     activityDefinitions: SERVICIOS.map(buildActivityDefinition),
-    planDefinitions: [buildPlanDefinitionGlp1()],
+    planDefinitions: [buildPlanDefinitionGlp1(), buildPlanDefinitionBienestar()],
     locations: RECURSOS.map((r) => buildLocation(r.codigo)),
     schedules: RECURSOS.map((r) => buildSchedule(r.codigo)),
     practitioners: MEDICOS.map((m) => buildPractitioner(m.codigo)),

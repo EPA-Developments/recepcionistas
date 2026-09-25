@@ -182,18 +182,24 @@ Presidential Advisory de 2023. Umbrales en `src/config/ckm.ts`; lógica pura en
   (`valueCode` `reception`, o `referral` si Recepción tilda "Lo derivó un colega").
   Sin la extensión, el portal lo trata como auto-registrado. `onboarding-completed`
   lo escribe el portal: el backend no lo toca.
-- **Plan Bienestar · 100 días**: `som-bienestar-inscribir` (Recepción) crea el
+- **Plan Bienestar 100 Días®**: `som-bienestar-inscribir` (Recepción) crea el
   `CarePlan` `care-plans|plan-bienestar-100`, `status=active`, `period.start` = día 1
-  y `period.end` = inicio + 100 días. Hitos y racha los calcula el portal.
+  y `period.end` = inicio + 100 días (hitos y racha los calcula el portal), con sus
+  tres consultas programadas incluidas (inicial = día 1, día 50 y final; ± 7 días) y
+  una tarea por consulta para Recepción. Presenciales o por teleconsulta. Ver
+  [`plan-bienestar.md`](plan-bienestar.md).
 
 ## Turnos (solicitud desde el portal)
 
 `som-solicitar-turno` recibe `{ pacienteRef, servicio, servicioCodigo,
-preferenciaInicio?, preferenciaTexto?, nota }` y solo acepta los `servicioCodigo` de
-`SERVICIOS` del portal (`SERVICIOS_SOLICITABLES` en `src/lib/solicitudes.ts`:
-`CONSULTA_CARDIO`, `EVALUACION_INICIAL`, `TELECONSULTA`, `ECG`, `ECOCARDIOGRAMA`,
-`ERGOMETRIA`, `HOLTER`, `MAPA`, `MONITOREO_REMOTO`, `REHABILITACION_CV`,
-`LABORATORIO_CARDIO`). El contrato anterior (`terapia`/`terapiaCodigo`) se sigue
+modalidad?, preferenciaInicio?, preferenciaTexto?, nota }` y acepta los
+`servicioCodigo` de `SERVICIOS` del portal (`SERVICIOS_SOLICITABLES` en
+`src/lib/solicitudes.ts`: `CONSULTA_CARDIO`, `EVALUACION_INICIAL`, `TELECONSULTA`,
+`ECG`, `ECOCARDIOGRAMA`, `ERGOMETRIA`, `HOLTER`, `MAPA`, `MONITOREO_REMOTO`,
+`REHABILITACION_CV`, `LABORATORIO_CARDIO`) y los del catálogo: las consultas por
+especialidad y la del Plan Bienestar (`CONSULTA_PB100D`). `modalidad` es
+`presencial` | `teleconsulta` (R-21): la teleconsulta exige el consentimiento de
+teleconsulta firmado. El contrato anterior (`terapia`/`terapiaCodigo`) se sigue
 aceptando para portales viejos.
 
 ## Biomarcadores (panel Cardiometabólico) — solo rangos convencionales
@@ -234,9 +240,10 @@ conserva los convencionales; Medplum guarda el historial).
   usan todavía.
 - **`performer` de la solicitud (Dr. Barbagelata)**: el contrato lo pide "si está
   disponible"; no hay profesionales cargados todavía (`src/config/medicos.ts`).
-- **Catálogo nuevo.** Se arma de cero con los profesionales de SOM: profesionales,
-  consultas, precios, duraciones, consultorios/salas y horario. No se inventan
-  precios ni reglas (tampoco el precio del Plan Bienestar).
+- **Catálogo nuevo.** Las especialidades ya están definidas (ver
+  [`plan-bienestar.md`](plan-bienestar.md)); faltan profesionales, precios,
+  duraciones, consultorios/salas y horario. No se inventan precios ni reglas
+  (tampoco el precio del Plan Bienestar).
 - **En el servidor** (requiere credenciales del proyecto SOM): `npm run seed`
   (policy + lípidos), `npm run deploy:bots` (bots + Subscriptions), Project Secret
   `ANTHROPIC_API_KEY`, y confirmar que el `ClientApplication` y las

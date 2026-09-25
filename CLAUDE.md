@@ -30,7 +30,9 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 - `src/config` — catálogo (consultas de segunda opinión), médicos, recursos
   (consultorios/salas), horario, TC, constantes de reglas.
 - `src/lib` — **lógica pura** (sin red): `money`, `pricing`, `reglas-turno`,
-  `glp1-plan` (armado FHIR del seguimiento GLP-1). Es lo que se testea
+  `glp1-plan` (armado FHIR del seguimiento GLP-1), `plan-bienestar` (Plan
+  Bienestar 100 Días®), `teleconsulta` (modalidad, consentimiento, Jitsi) y
+  `programas` (ventanas y sincronización comunes). Es lo que se testea
   exhaustivamente. `src/lib/glp1/` es el calendario GLP-1 **compartido con la
   plataforma CKM**: se mantiene igual al original (solo imports), sin lógica de SOM.
 - `src/fhir` — identificadores/URLs, extensiones (`StructureDefinition`),
@@ -97,10 +99,12 @@ Ver [`docs/decisiones-pendientes.md`](docs/decisiones-pendientes.md).
 
 El catálogo de wellness spa de BioWellness (servicios, combos, membresías,
 paquetes, contraindicaciones) **se retiró del dominio** — Segunda Opinión Médica
-no vende esos servicios. El catálogo vigente son las consultas de segunda
-opinión que se arman de cero con los profesionales de SOM (profesionales,
-precios, duraciones, consultorios y horario **PENDIENTES**: bloqueante para cobrar
-de verdad y para la agenda real).
+no vende esos servicios. El catálogo vigente son las consultas por especialidad
+(presenciales o por teleconsulta) y las consultas del **Plan Bienestar 100 Días®**
+(marca registrada del Dr. D'Alessandro; ver `docs/plan-bienestar.md`). Las
+especialidades están definidas; profesionales, precios, duraciones, consultorios y
+horario siguen **PENDIENTES** (bloqueante para cobrar de verdad y para la agenda
+real).
 
 Lo demás **no frena el desarrollo**: cargar los Project Secrets de Twilio/SES en
 Medplum (para que confirmaciones y recordatorios **envíen** de verdad; sin ellos
