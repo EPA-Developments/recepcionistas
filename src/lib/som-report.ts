@@ -12,7 +12,8 @@
 import type { DiagnosticReport, Extension, RiskAssessment } from '@medplum/fhirtypes';
 import { EXT, SOM_SECCIONES, type SomSeccion } from '../fhir/identifiers.js';
 import { resumenCkm, type EntradaCkm, type ResultadoCkm } from './ckm.js';
-import type { ResultadoPrevent } from './prevent.js';
+import { resumenPlanCkm, type PlanCkm, type RiesgosPrevent } from './ckm-guia.js';
+import { ORDEN_PREVENT, riesgoPrevent, type ResultadoPrevent } from './prevent.js';
 
 export type Secciones = Record<SomSeccion, string>;
 
@@ -26,44 +27,65 @@ export const TITULOS_SECCION: Record<SomSeccion, string> = {
   'pending-studies': 'Estudios pendientes',
 };
 
-/** Nota que estampa que PREVENT está pendiente de validación clínica. */
+/** Nota que estampa que PREVENT está pendiente de la firma médica. */
 export const NOTA_PENDIENTE_VALIDACION =
-  'Riesgo estimado con las ecuaciones PREVENT (AHA 2023, modelo base). ' +
-  'Coeficientes pendientes de validación clínica: no usar como valor definitivo sin revisión médica.';
+  'Riesgo estimado con las ecuaciones PREVENT de la AHA (modelo base; coeficientes verificados ' +
+  'contra la implementación de referencia). Estimación preliminar: no usar como valor definitivo ' +
+  'sin revisión del equipo médico.';
+
+const UCUM = 'http://unitsofmeasure.org';
 
 /**
- * RiskAssessment a partir del resultado PREVENT.
+ * RiskAssessment a partir del resultado PREVENT (y del estadío CKM y el plan de la guía).
  *
  * Contrato con el portal (`EPA-Developments/app`, `src/fhir/som.ts`):
  *  - `basedOn` = la ServiceRequest: el portal busca `RiskAssessment?subject=…` y
  *    filtra por `basedOn` (R4 no tiene search param `based-on` en RiskAssessment).
  *  - `probabilityDecimal` es una **probabilidad 0–1** (el portal la multiplica por
  *    100 para mostrar el %). Cumple igual la invariante ras-2 de R4 (≤ 100).
- *  - `outcome.text` lleva "ASCVD" / "Insuficiencia" / "total … 30": el portal
- *    reconoce cada desenlace por ese texto.
+ *  - El portal lee ASCVD 10a, IC 10a y ECV total 30a por el texto del desenlace y, si
+ *    no, por POSICIÓN (0, 1, 2). Por eso `prediction[]` tiene lugares fijos en el
+ *    orden de `ORDEN_PREVENT`: esos 3 primero, después ECV total 10a, ASCVD 30a e IC
+ *    30a. Un desenlace no estimado ocupa su lugar sin probabilidad y con `rationale`
+ *    (el motivo): así nunca se corre otro valor a un lugar ajeno.
  */
 export function construirRiskAssessment(
   prevent: ResultadoPrevent,
   refs: { pacienteRef: string; serviceRequestRef: string },
   ckm?: ResultadoCkm,
+  plan?: PlanCkm,
 ): RiskAssessment {
   // El estadío CKM va en ESTE RiskAssessment (no en otro): el portal toma el primer
   // RiskAssessment con basedOn = la solicitud para leer PREVENT.
   const notas = [
-    ...(prevent.pendienteValidacion ? [{ text: NOTA_PENDIENTE_VALIDACION }] : []),
+    ...(prevent.pendienteValidacion && prevent.predicciones.length > 0 ? [{ text: NOTA_PENDIENTE_VALIDACION }] : []),
+    ...(prevent.predicciones.length === 0 && prevent.faltantes.length > 0
+      ? [{ text: `PREVENT no estimado: ${[...new Set(prevent.noEstimadas.map((n) => n.motivo))].join('; ')}.` }]
+      : []),
     ...(ckm ? [{ text: resumenCkm(ckm) }] : []),
+    ...(plan ? [{ text: resumenPlanCkm(plan) }] : []),
   ];
+  const prediction =
+    prevent.predicciones.length === 0
+      ? []
+      : ORDEN_PREVENT.map(({ desenlace, horizonte }) => {
+          const p = prevent.predicciones.find((x) => x.desenlace === desenlace && x.horizonte === horizonte);
+          const n = prevent.noEstimadas.find((x) => x.desenlace === desenlace && x.horizonte === horizonte);
+          return {
+            outcome: { text: p?.etiqueta ?? n?.etiqueta ?? `${desenlace} ${horizonte}` },
+            ...(p ? { probabilityDecimal: Math.round(p.probabilidad * 10000) / 10000 } : {}),
+            whenRange: { high: { value: horizonte, unit: 'años', system: UCUM, code: 'a' } },
+            ...(n ? { rationale: `No estimado: ${n.motivo}.` } : {}),
+          };
+        });
   return {
     resourceType: 'RiskAssessment',
     status: prevent.pendienteValidacion ? 'preliminary' : 'final',
     subject: { reference: refs.pacienteRef },
     basedOn: { reference: refs.serviceRequestRef },
-    method: { text: 'AHA PREVENT 2023 (modelo base)' },
+    method: { text: 'AHA PREVENT (modelo base) y estadificación CKM (Guía AHA/ACC/ADA/ASN 2026)' },
     occurrenceDateTime: new Date().toISOString(),
-    prediction: prevent.predicciones.map((p) => ({
-      outcome: { text: p.etiqueta },
-      probabilityDecimal: Math.round(p.probabilidad * 10000) / 10000,
-    })),
+    ...(prediction.length ? { prediction } : {}),
     ...(ckm
       ? {
           extension: [
@@ -76,20 +98,35 @@ export function construirRiskAssessment(
   };
 }
 
-/** Riesgo PREVENT a 10 años (0–1) para la estadificación CKM (equivalente de riesgo). */
+/** Riesgo PREVENT a 10 años (0–1) para la estadificación CKM (PREVENT-CVD = equivalente de riesgo). */
 export function riesgo10aDePrevent(prevent: ResultadoPrevent): EntradaCkm['riesgo10a'] {
-  const p = (d: string) => prevent.predicciones.find((x) => x.desenlace === d && x.horizonte === 10)?.probabilidad;
-  return { ascvd: p('ascvd'), ic: p('heart-failure'), ecvTotal: p('total-cvd') };
+  return {
+    ecvTotal: riesgoPrevent(prevent, 'total-cvd', 10),
+    ascvd: riesgoPrevent(prevent, 'ascvd', 10),
+    ic: riesgoPrevent(prevent, 'heart-failure', 10),
+  };
+}
+
+/** Riesgos PREVENT que usa el plan de la guía (Tabla 8). */
+export function riesgosDePrevent(prevent: ResultadoPrevent): RiesgosPrevent {
+  return {
+    ecv10: riesgoPrevent(prevent, 'total-cvd', 10),
+    ascvd10: riesgoPrevent(prevent, 'ascvd', 10),
+    ic10: riesgoPrevent(prevent, 'heart-failure', 10),
+    ascvd30: riesgoPrevent(prevent, 'ascvd', 30),
+  };
 }
 
 /** Texto legible de las predicciones, para incrustar en el prompt y el PDF. */
 export function resumenRiesgo(prevent: ResultadoPrevent): string {
   if (prevent.predicciones.length === 0) {
-    return 'Sin estimación de riesgo PREVENT disponible (faltan datos).';
+    const motivos = [...new Set(prevent.noEstimadas.map((n) => n.motivo))];
+    return `Sin estimación de riesgo PREVENT${motivos.length ? ` (${motivos.join('; ')})` : ' (faltan datos)'}.`;
   }
-  const lineas = prevent.predicciones.map(
-    (p) => `- ${p.etiqueta}: ${(p.probabilidad * 100).toFixed(1)}%`,
-  );
+  const lineas = prevent.predicciones.map((p) => `- ${p.etiqueta}: ${(p.probabilidad * 100).toFixed(1)}%`);
+  for (const n of prevent.noEstimadas) {
+    lineas.push(`- ${n.etiqueta}: no estimado (${n.motivo})`);
+  }
   return lineas.join('\n');
 }
 
@@ -141,21 +178,25 @@ export interface ContextoClinico {
   medicacion: string[];
   estudios: string[];
   resumenRiesgo: string;
-  /** Estadificación CKM (AHA 2023) con sus criterios y faltantes. */
+  /** Estadificación CKM (Guía 2026) con sus criterios y faltantes. */
   resumenCkm?: string;
+  /** Plan de la guía: seguimiento, evaluaciones, umbrales y potenciadores. */
+  resumenPlan?: string;
+  /** Evaluaciones que sugiere la guía (para "pending-studies" si Claude no está). */
+  evaluacionesSugeridas?: string[];
 }
 
 /** Instrucción de sistema para Claude (rol, marco clínico y formato de salida). */
 export const SYSTEM_PROMPT =
   'Sos un cardiólogo que redacta una segunda opinión médica para Segunda Opinión ' +
   'Médica (Dr. Barbagelata). Trabajás con cardiología CONVENCIONAL basada en guías: ' +
-  'American Heart Association / American College of Cardiology (riesgo PREVENT, ' +
-  'estadificación del síndrome cardiovascular-renal-metabólico CKM de la AHA 2023 — ' +
-  'Ndumele —, metas de presión arterial, lípidos y glucemia de las guías), KDIGO para ' +
-  'la función renal y ADA para la glucemia. NO uses parámetros, rangos "óptimos" ni ' +
-  'recomendaciones de medicina funcional o integrativa. Usá el estadío CKM y el riesgo ' +
-  'PREVENT que te damos (son estimaciones del sistema pendientes de validación médica; ' +
-  'no los recalcules) en "risk-assessment". Analizá la información del paciente y ' +
+  'la Guía 2026 AHA/ACC/ADA/ASN del síndrome cardiovascular-renal-metabólico (CKM, ' +
+  'Ndumele) con las ecuaciones PREVENT de la AHA, y las guías AHA/ACC de presión arterial ' +
+  'y lípidos, KDIGO para la función renal y ADA para la glucemia. NO uses parámetros, ' +
+  'rangos "óptimos" ni recomendaciones de medicina funcional o integrativa. Usá el estadío ' +
+  'CKM, el riesgo PREVENT y el plan de la guía que te damos (son estimaciones del sistema ' +
+  'pendientes de validación médica; no los recalcules) en "risk-assessment", y las ' +
+  'evaluaciones sugeridas en "pending-studies". Analizá la información del paciente y ' +
   'devolvé EXCLUSIVAMENTE un JSON válido con estas claves exactas (strings, en español, ' +
   'claras y prudentes): ' +
   SOM_SECCIONES.map((s) => `"${s}"`).join(', ') +
@@ -173,8 +214,9 @@ export function construirPromptUsuario(c: ContextoClinico): string {
     bloque('Observaciones / laboratorio / signos', c.observaciones),
     bloque('Medicación', c.medicacion),
     bloque('Estudios adjuntos', c.estudios),
-    `Riesgo PREVENT (AHA 2023, pendiente de validación):\n${c.resumenRiesgo}`,
+    `Riesgo PREVENT (AHA, modelo base; pendiente de validación médica):\n${c.resumenRiesgo}`,
     ...(c.resumenCkm ? [c.resumenCkm] : []),
+    ...(c.resumenPlan ? [c.resumenPlan] : []),
   ].join('\n\n');
 }
 

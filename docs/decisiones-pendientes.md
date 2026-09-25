@@ -49,8 +49,8 @@ Implementado (ver [`som.md`](som.md)); queda para confirmar:
 
 | # | Tema | Detalle | Estado |
 |---|---|---|---|
-| 1 | **PREVENT: validación clínica** | Coeficientes transcriptos (`src/lib/prevent.ts`); el `RiskAssessment` sale `preliminary` hasta la firma del equipo médico (el contrato del portal pide `final`). | A validar |
-| 2 | **Umbrales CKM (Ndumele 2023) y biomarcadores convencionales** | Salud convencional, sin medicina funcional. Confirmar: triglicéridos del Estadío 2 (≥ 135 Ndumele vs ≥ 150 guía CKM 2026), calcio coronario (> 0 vs ≥ 100), ApoB < 130 mg/dL y Lp(a) < 125 nmol/L (AHA/ACC 2018; reemplazan 66–144 y < 75). PREVENT de ECV total a 10 años todavía no se calcula. | A confirmar |
+| 1 | **PREVENT: firma médica** | Coeficientes del modelo base generados desde `preventr` y verificados contra sus 12 valores de referencia; el `RiskAssessment` sale `preliminary` hasta la firma del equipo médico (el contrato del portal pide `final`). | A firmar |
+| 2 | **Umbrales CKM (Guía AHA/ACC/ADA/ASN 2026) y biomarcadores** | Estadificación según la Tabla 4 (triglicéridos ≥ 150, CAC ≥ 100, PREVENT-CVD 10a ≥ 20 %) y plan según Tabla 8 / Figura 3. Confirmar: índice tobillo-brazo bajo ≤ 0,90 (la guía no fija valor), ApoB < 130 mg/dL y Lp(a) < 125 nmol/L (AHA/ACC 2018). | A confirmar |
 | 2b | **Rangos funcionales ya cargados en el servidor** | Correr `npm run biomarcadores:convencional` (dry-run) y, revisado el listado, `-- --apply`. Las definiciones que queden sin rango convencional (p. ej. HOMA-IR) se decide si se retiran. El portal (`EPA-Developments/app`) todavía muestra rangos funcionales en su catálogo local: cambiarlo allá. | Pendiente |
 | 3 | **`performer` de la solicitud SOM** | El contrato pide el `Practitioner` del Dr. Barbagelata "si está disponible": falta cargar los profesionales de SOM. | Bloqueado por catálogo |
 | 4 | **Precio del Plan Bienestar** | `som-bienestar-inscribir` inscribe sin cobrar. ¿Es membresía paga? ¿Quién inscribe (Recepción, el paciente, al pagar)? | A definir |

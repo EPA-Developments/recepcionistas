@@ -30,7 +30,8 @@ recepción. Backend **Medplum (FHIR R4)**.
 | SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |
 | Plan Bienestar · 100 días (inscripción) | ✅ bot `som-bienestar-inscribir` (sin cobro: precio PENDIENTE) |
 | Biomarcadores del portal (ObservationDefinition: lípidos y glucemia) | ✅ en el seed, solo rangos convencionales (AHA/ACC, NCEP, ADA) |
-| Estadificación CKM (AHA 2023, Ndumele) en el informe SOM | ✅ `src/lib/ckm.ts`; umbrales pendientes de firma médica |
+| CKM según la Guía AHA/ACC/ADA/ASN 2026 (estadío, plan de seguimiento y evaluaciones, potenciadores) en el informe SOM | ✅ `src/lib/ckm.ts` / `ckm-guia.ts`; umbrales pendientes de firma médica |
+| PREVENT (ECV total, ASCVD, IC a 10 y 30 años) | ✅ coeficientes verificados contra la implementación de referencia |
 | Seguimiento de tratamiento GLP-1 (programa + controles a agendar) | ✅ slice 1: bots `som-glp1-inscribir` / `som-glp1-plan`, pestaña GLP-1 ([`docs/glp1.md`](docs/glp1.md)); app del paciente: slice 2 |
 | Harness de tests | ✅ |
 | CI (GitHub Actions) | ✅ |

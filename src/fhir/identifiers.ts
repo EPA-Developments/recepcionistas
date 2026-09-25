@@ -65,7 +65,7 @@ export const EXT = {
   patientOrigin: `${SOM_BASE}/StructureDefinition/patient-origin`,
   /** Fecha en que el paciente completó la Bienvenida/Onboarding. La escribe el PORTAL: el backend no la toca. */
   onboardingCompleted: `${SOM_BASE}/StructureDefinition/onboarding-completed`,
-  // Estadificación CKM (AHA 2023, Ndumele) — en el RiskAssessment del informe SOM.
+  // Estadificación CKM (Guía AHA/ACC/ADA/ASN 2026) — en el RiskAssessment del informe SOM.
   /** Estadío CKM: `0` | `1` | `2` | `3` | `4a` | `4b`. */
   ckmStage: `${SOM_BASE}/StructureDefinition/ckm-stage`,
   /** false si faltaban datos básicos: el estadío es "al menos" el indicado. */

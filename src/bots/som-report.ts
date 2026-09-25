@@ -8,8 +8,10 @@
  * Pipeline:
  *  1) Lee la ServiceRequest y reúne el contexto clínico del paciente
  *     (Patient, Condition, Observation, MedicationRequest, DocumentReference).
- *  2) Calcula PREVENT (AHA 2023) y el estadío CKM (AHA 2023, Ndumele) → crea un
- *     `RiskAssessment` (predicciones PREVENT + extensión `ckm-stage`).
+ *  2) Calcula PREVENT (AHA, modelo base: ECV total, ASCVD e IC a 10 y 30 años; no se
+ *     usa con ECV clínica), el estadío CKM y el plan de la Guía AHA/ACC/ADA/ASN 2026
+ *     (seguimiento, evaluaciones, umbrales de la Tabla 8, potenciadores) → crea un
+ *     `RiskAssessment` (predicciones PREVENT + extensión `ckm-stage` + notas).
  *  3) Llama a Claude (`claude-sonnet-4-6`, secret `ANTHROPIC_API_KEY`) para
  *     redactar las 6 secciones del informe — solo si el paciente firmó el
  *     consentimiento informado (sin él, ningún dato clínico sale hacia el LLM).
@@ -27,13 +29,14 @@ import type {
   DocumentReference,
   MedicationRequest,
   Observation,
-  Patient,
   ServiceRequest,
 } from '@medplum/fhirtypes';
 import { COD, LOINC_INFORME, MODELO_CLAUDE_SOM, SYSTEM } from '../fhir/identifiers.js';
+import { UMBRALES_PREVENT_GUIA } from '../config/ckm.js';
 import { estadificarCkm, resumenCkm, type EntradaCkm } from '../lib/ckm.js';
-import { entradaCkmDesdeFhir, ultimoValor } from '../lib/ckm-fhir.js';
-import { calcularPrevent, type EntradaPrevent } from '../lib/prevent.js';
+import { entradaCkmDesdeFhir, potenciadoresCkm, ultimoValor } from '../lib/ckm-fhir.js';
+import { planCkm, resumenPlanCkm } from '../lib/ckm-guia.js';
+import { calcularPrevent, sinPrevent, type EntradaPrevent } from '../lib/prevent.js';
 import {
   SYSTEM_PROMPT,
   TITULOS_SECCION,
@@ -44,6 +47,7 @@ import {
   parsearSecciones,
   resumenRiesgo,
   riesgo10aDePrevent,
+  riesgosDePrevent,
   type ContextoClinico,
   type Secciones,
 } from '../lib/som-report.js';
@@ -93,27 +97,35 @@ export async function handler(
   const medicacion = await medplum.searchResources('MedicationRequest', `subject=${pacienteRef}&_count=100`).catch(() => []);
   const estudios = await cargarEstudios(medplum, sr);
 
-  // 2) PREVENT + estadío CKM (AHA) → RiskAssessment.
+  // 2) PREVENT + estadío CKM + plan de la Guía 2026 → RiskAssessment.
   const datosCkm = entradaCkmDesdeFhir({ paciente, condiciones, observaciones, medicacion });
-  const entrada = construirEntradaPrevent(paciente, datosCkm, condiciones, observaciones, medicacion);
-  const prevent = entrada
-    ? calcularPrevent(entrada)
-    : { predicciones: [], pendienteValidacion: true, faltantes: ['datos insuficientes para PREVENT'] };
+  const { entrada, faltan } = construirEntradaPrevent(datosCkm, condiciones, observaciones, medicacion);
+  // PREVENT es para prevención primaria: con ECV clínica (Estadío 4) no se usa (Figura 4).
+  const prevent =
+    (datosCkm.ecvClinica?.length ?? 0) > 0
+      ? sinPrevent('no se usa con ECV clínica (Estadío 4)')
+      : entrada
+        ? calcularPrevent(entrada)
+        : sinPrevent(`faltan datos: ${faltan.join(', ')}`);
   const ckm = estadificarCkm({ ...datosCkm, riesgo10a: riesgo10aDePrevent(prevent) });
+  const potenciadores = potenciadoresCkm(condiciones, observaciones, UMBRALES_PREVENT_GUIA.pcrUs);
+  const plan = planCkm(ckm, datosCkm, riesgosDePrevent(prevent), potenciadores, entrada ? [] : faltan);
   const riskAssessment = await medplum.createResource(
-    construirRiskAssessment(prevent, { pacienteRef, serviceRequestRef: srRef }, ckm),
+    construirRiskAssessment(prevent, { pacienteRef, serviceRequestRef: srRef }, ckm, plan),
   );
 
   // 3) Claude → secciones.
   const contexto: ContextoClinico = {
     motivo: sr.reasonCode?.[0]?.text,
-    paciente: { edad: edadDe(paciente), sexo: paciente?.gender },
+    paciente: { edad: datosCkm.edad, sexo: paciente?.gender },
     condiciones: condiciones.map(textoCondition),
     observaciones: observaciones.map(textoObservation),
     medicacion: medicacion.map(textoMedication),
     estudios,
     resumenRiesgo: resumenRiesgo(prevent),
     resumenCkm: resumenCkm(ckm),
+    resumenPlan: resumenPlanCkm(plan),
+    evaluacionesSugeridas: plan.evaluaciones.map((e) => `${e.texto} (${e.fuente})`),
   };
   // Sin consentimiento informado firmado no se envía ningún dato clínico al LLM
   // (defensa en profundidad: `som-solicitar` ya lo exige al crear la solicitud).
@@ -175,18 +187,6 @@ async function cargarEstudios(medplum: MedplumClient, sr: ServiceRequest): Promi
 
 // ───────────────────────────── extracción de datos ─────────────────────────────
 
-function edadDe(p?: Patient): number | undefined {
-  if (!p?.birthDate) {
-    return undefined;
-  }
-  const nac = new Date(p.birthDate);
-  if (Number.isNaN(nac.getTime())) {
-    return undefined;
-  }
-  const ms = Date.now() - nac.getTime();
-  return Math.floor(ms / (365.25 * 24 * 3600 * 1000));
-}
-
 function esFumador(condiciones: Condition[], obs: Observation[]): boolean {
   if (condiciones.some((c) => /fumad|tabaq|smok|tobacco/i.test(c.code?.text ?? c.code?.coding?.[0]?.display ?? ''))) {
     return true;
@@ -208,25 +208,30 @@ function enEstatina(medicacion: MedicationRequest[]): boolean {
 }
 
 /**
- * Arma la entrada de PREVENT si hay datos base suficientes; si no, undefined. Usa
- * los mismos datos (LOINC, UCUM, problemas codificados) que la estadificación CKM.
+ * Arma la entrada de PREVENT si están los datos base; si no, devuelve cuáles faltan.
+ * Usa los mismos datos (LOINC, UCUM, problemas codificados) que la estadificación CKM.
  */
 function construirEntradaPrevent(
-  paciente: Patient | undefined,
   datos: EntradaCkm,
   condiciones: Condition[],
   obs: Observation[],
   medicacion: MedicationRequest[],
-): EntradaPrevent | undefined {
-  const edad = edadDe(paciente);
+): { entrada?: EntradaPrevent; faltan: string[] } {
   const colesterolTotalMgDl = ultimoValor(obs, 'colesterolTotal');
-  const { sexo, pas: sbp, hdl: hdlMgDl, egfr, imc } = datos;
-
-  if (!edad || !sexo || sbp == null || colesterolTotalMgDl == null || hdlMgDl == null || egfr == null) {
-    return undefined;
+  const { sexo, edad, pas: sbp, hdl: hdlMgDl, egfr, imc } = datos;
+  const faltan = [
+    ...(edad === undefined ? ['edad'] : []),
+    ...(!sexo ? ['sexo'] : []),
+    ...(sbp === undefined ? ['presión sistólica'] : []),
+    ...(colesterolTotalMgDl === undefined ? ['colesterol total'] : []),
+    ...(hdlMgDl === undefined ? ['HDL'] : []),
+    ...(egfr === undefined ? ['eGFR'] : []),
+  ];
+  if (edad === undefined || !sexo || sbp === undefined || colesterolTotalMgDl === undefined || hdlMgDl === undefined || egfr === undefined) {
+    return { faltan };
   }
   const diabetesPorValor = (datos.glucemiaAyunas ?? 0) >= 126 || (datos.hba1c ?? 0) >= 6.5;
-  return {
+  const entrada: EntradaPrevent = {
     sexo,
     edad,
     colesterolTotalMgDl,
@@ -239,6 +244,7 @@ function construirEntradaPrevent(
     tratamientoHta: datos.tratamientoHta === true,
     estatina: enEstatina(medicacion),
   };
+  return { faltan, entrada };
 }
 
 function textoCondition(c: Condition): string {
@@ -292,7 +298,9 @@ function seccionesFallback(contexto: ContextoClinico): Partial<Secciones> {
     'executive-summary':
       'Análisis automático no disponible en este momento. Un cardiólogo revisará la solicitud manualmente.',
     'risk-assessment': [contexto.resumenRiesgo, contexto.resumenCkm].filter(Boolean).join('\n\n'),
-    'pending-studies': 'Pendiente de revisión médica.',
+    'pending-studies': contexto.evaluacionesSugeridas?.length
+      ? `Sugeridos por la guía CKM 2026 (a confirmar por el médico):\n${contexto.evaluacionesSugeridas.map((e) => `- ${e}`).join('\n')}`
+      : 'Pendiente de revisión médica.',
   };
 }
 
