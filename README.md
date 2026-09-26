@@ -13,7 +13,7 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Pieza | Estado |
 |---|---|
 | Andamiaje TypeScript + tooling | ✅ |
-| Catálogo | ⚠️ se arma de cero con los profesionales de SOM (hoy: consultas de ejemplo sin precio y sin profesionales) |
+| Catálogo | ✅ consultas por especialidad (ARS 150.000, 30 min) y consulta del plan incluida; ⚠️ profesionales PENDIENTES |
 | Motor de precios (USD→ARS, split SOM_100) | ✅ con tests |
 | Motor de reglas de agenda (R-07, R-13, R-14, R-19) | ✅ con tests |
 | Extensiones FHIR + AccessPolicies (recepción) | ✅ |
@@ -30,7 +30,7 @@ recepción. Backend **Medplum (FHIR R4)**.
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
 | SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |
 | Plan Bienestar 100 Días® (inscripción + 3 consultas programadas con ventana, avisos) | ✅ bots `som-bienestar-inscribir` / `som-reservar-turno` / `som-recordatorios` ([`docs/plan-bienestar.md`](docs/plan-bienestar.md)); precio del plan PENDIENTE |
-| Catálogo por especialidad, presencial y teleconsulta (Jitsi + consentimiento) | ✅ R-21; precios y profesionales PENDIENTES; portal: [`docs/handoff-app-pb100d.md`](docs/handoff-app-pb100d.md) |
+| Catálogo por especialidad, presencial y teleconsulta (Jitsi + consentimiento) | ✅ R-21 y precios (R-17); profesionales PENDIENTES; portal: [`docs/handoff-app-pb100d.md`](docs/handoff-app-pb100d.md) |
 | Biomarcadores del portal (ObservationDefinition: lípidos y glucemia) | ✅ en el seed, solo rangos convencionales (AHA/ACC, NCEP, ADA) |
 | CKM según la Guía AHA/ACC/ADA/ASN 2026 (estadío, plan de seguimiento y evaluaciones, potenciadores) en el informe SOM | ✅ `src/lib/ckm.ts` / `ckm-guia.ts`; umbrales pendientes de firma médica |
 | PREVENT (ECV total, ASCVD, IC a 10 y 30 años) | ✅ coeficientes verificados contra la implementación de referencia |

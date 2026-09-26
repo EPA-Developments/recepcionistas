@@ -16,7 +16,8 @@ En el backend de Recepción (EPA-Developments/recepcionistas) ya están:
 - El catálogo de consultas por especialidad, cada una PRESENCIAL y por TELECONSULTA:
   DBT / Endocrino, Nutrición, Cardiología, Cardiología con especialidad (Insuficiencia
   Cardíaca, Hemodinamia, Electrofisiología, Medicina Nuclear, Prevención CV, Rehabilitación
-  CV), Tisioneumonología, Neurología y Ginecología. Tienen cargo (precios PENDIENTES).
+  CV), Tisioneumonología, Neurología y Ginecología. Tienen cargo: ARS 150.000 (extensión
+  `precio-ars`), igual presencial y por teleconsulta.
 - El Plan Bienestar 100 Días® (marca registrada del Dr. Alejandro Sergio D'Alessandro): tres
   consultas programadas incluidas en el plan (inicial = día 1, día 50 y final = día 100; ± 7
   días), presenciales o por teleconsulta. Recepción las agenda; el paciente puede pedirlas.
@@ -48,8 +49,9 @@ especialidad. Todo sale de FHIR (data-driven): nada de listas de servicios escri
    - Las que NO tienen grupo no van en "Consultas por especialidad": la del Plan Bienestar
      (`CONSULTA_PB100D`, trae `useContext` `program` = `…/CodeSystem/care-plans|plan-bienestar-100`)
      y el control GLP-1.
-   - Precio: extensión `…/StructureDefinition/precio-ars`. Hoy es 0 (PENDIENTE): mostrá "con
-     cargo" sin monto hasta que sea > 0.
+   - Precio: extensión `…/StructureDefinition/precio-ars` (ARS 150.000 en las consultas por
+     especialidad). Si es 0 y hay `…/StructureDefinition/valor-referencia-ars`, es una consulta
+     incluida en el plan: mostrá "Incluida en tu plan"; si es 0 sin referencia, "con cargo" sin monto.
 2. PLAN BIENESTAR (lectura): el paciente está inscripto si tiene un `CarePlan` activo con
    category `…/CodeSystem/care-plans|plan-bienestar-100` (igual que hoy). Sus consultas son
    `Task?patient=Patient/{id}&code=…/CodeSystem/task-tipo|agendar-consulta-pb100d`:

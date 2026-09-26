@@ -88,6 +88,9 @@ export function buildActivityDefinition(s: Servicio): ActivityDefinition {
   if (s.precioARS != null) {
     ext.push({ url: EXT.precioArs, valueDecimal: s.precioARS });
   }
+  if (s.valorReferenciaARS != null) {
+    ext.push({ url: EXT.valorReferenciaArs, valueDecimal: s.valorReferenciaARS });
+  }
   const ad: ActivityDefinition = {
     resourceType: 'ActivityDefinition',
     url: urlServicio(s.codigo),

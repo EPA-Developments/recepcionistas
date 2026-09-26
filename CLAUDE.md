@@ -8,9 +8,10 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 1. **La recepción no calcula ni decide nada que el sistema pueda calcular o
    decidir.** Toda la lógica vive en el backend (`src/lib`, `src/bots`).
 2. **Fuente de verdad del catálogo/precios: la lista oficial de Segunda Opinión
-   Médica.** El catálogo se arma **de cero con los profesionales de SOM**; hasta
-   entonces quedan consultas de ejemplo sin precio y sin profesionales. No se
-   inventan precios, profesionales ni reglas: se cargan cuando estén definidos.
+   Médica.** Las especialidades, los precios (R-17: consulta por especialidad ARS
+   150.000, lista del 26/09/2026) y la duración (30 min) ya están cargados; los
+   **profesionales** siguen pendientes. No se inventan precios, profesionales ni
+   reglas: se cargan cuando estén definidos.
    (El Manual de Protocolos v9 era de BioWellness y ya no aplica.)
 3. **Privacidad por diseño.** La recepción nunca ve la historia clínica completa;
    solo la señal binaria del banner de seguridad.

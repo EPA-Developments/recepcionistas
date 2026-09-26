@@ -79,6 +79,11 @@ export interface Servicio {
   precioUSD: number;
   /** Precio fijo en ARS. Si está, el servicio se cobra en pesos sin convertir. */
   precioARS?: number;
+  /**
+   * Valor de referencia interno en ARS de una consulta incluida en un programa (lo que
+   * el programa presupuesta por ella). Informativo: no se cobra ni lleva seña.
+   */
+  valorReferenciaARS?: number;
   /** Para consultas: código del médico que atiende (ver src/config/medicos.ts). */
   practitionerCodigo?: string;
   /** Regla de cálculo de precio. */

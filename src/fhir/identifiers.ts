@@ -37,6 +37,8 @@ export const EXT = {
   // ActivityDefinition (catálogo)
   precioUsd: `${BASE}/StructureDefinition/precio-usd`,
   precioArs: `${BASE}/StructureDefinition/precio-ars`,
+  /** Valor de referencia interno (ARS) de una consulta incluida en un programa; no se cobra. */
+  valorReferenciaArs: `${BASE}/StructureDefinition/valor-referencia-ars`,
   reglaPricingRecurso: `${BASE}/StructureDefinition/regla-pricing-recurso`,
   splitSom: `${BASE}/StructureDefinition/split-som`,
   // Invoice / ChargeItem

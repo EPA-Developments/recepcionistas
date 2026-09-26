@@ -11,13 +11,17 @@ describe('Pricing — Splits', () => {
   });
 });
 
-describe('Consultas (precio en ARS, PENDIENTE de lista oficial)', () => {
-  it('Se cobran en pesos fijos, sin convertir por TC', () => {
+describe('Consultas (precio de lista en ARS, R-17)', () => {
+  it('Se cobran en pesos fijos, sin convertir por TC: ARS 150.000', () => {
     const r = calcularCobro([{ tipo: 'servicio', codigo: 'CARDIOLOGIA' }], { tc: 1450 });
     expect(r.lineas[0]?.moneda).toBe('ARS');
     expect(r.totalUSD).toBe(0);
-    // Precio PENDIENTE: hoy 0 hasta cargar la lista oficial.
-    expect(r.totalARS).toBe(0);
+    expect(r.totalARS).toBe(150_000);
+  });
+
+  it('Mismo precio en cualquier especialidad; la del plan no se cobra', () => {
+    expect(calcularCobro([{ tipo: 'servicio', codigo: 'GINECOLOGIA' }]).totalARS).toBe(150_000);
+    expect(calcularCobro([{ tipo: 'servicio', codigo: 'CONSULTA_PB100D' }]).totalARS).toBe(0);
   });
 });
 
@@ -58,9 +62,10 @@ describe('Conversión a ARS (R-17)', () => {
 });
 
 describe('Seña (50%)', () => {
-  it('Consulta: seña = 50% del precio fijo en ARS', () => {
+  it('Consulta: seña = 50% del precio fijo en ARS = 75.000', () => {
     const { totalARS, senaARS } = calcularSenaARS([{ tipo: 'servicio', codigo: 'CARDIOLOGIA' }]);
-    expect(senaARS).toBe(Math.round(totalARS * 0.5));
+    expect(totalARS).toBe(150_000);
+    expect(senaARS).toBe(75_000);
   });
 });
 
@@ -70,7 +75,7 @@ describe('Integridad del catálogo', () => {
     expect(new Set(codigos).size).toBe(codigos.length);
   });
 
-  it('Toda consulta tiene precio en ARS declarado (aunque hoy sea 0 = pendiente)', () => {
+  it('Toda consulta tiene precio en ARS declarado (0 = incluida en el plan o pendiente)', () => {
     for (const s of SERVICIOS) {
       expect(typeof s.precioARS).toBe('number');
       expect(s.split.tipo).toBe('SOM_100');

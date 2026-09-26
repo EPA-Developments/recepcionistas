@@ -48,7 +48,7 @@ describe('Bot validar-turno (lógica pura)', () => {
 describe('Bot calcular-cobro', () => {
   const medplumStub = {} as unknown as MedplumClient;
 
-  it('Calcula Invoice en ARS (consulta, precio fijo pendiente = 0) con TC aplicado', async () => {
+  it('Calcula Invoice en ARS (consulta: precio fijo de lista) con TC aplicado', async () => {
     const event = {
       input: {
         items: [{ tipo: 'servicio', codigo: 'CARDIOLOGIA' }],
@@ -59,8 +59,7 @@ describe('Bot calcular-cobro', () => {
 
     const invoice = await cobroHandler(medplumStub, event);
     expect(invoice.resourceType).toBe('Invoice');
-    // Precio PENDIENTE: hoy la consulta está en ARS 0 hasta cargar la lista oficial.
-    expect(invoice.totalGross?.value).toBe(0);
+    expect(invoice.totalGross?.value).toBe(150_000);
     expect(invoice.totalGross?.currency).toBe('ARS');
     const tcExt = invoice.extension?.find((e) => e.url.endsWith('tc-aplicado'));
     expect(tcExt?.valueDecimal).toBe(1450);

@@ -19,7 +19,7 @@ Reglas R-xx vigentes: Segunda Opinión Médica agenda **consultas por especialid
 
 | Regla | Descripción | Implementación |
 |---|---|---|
-| **R-17** | Precios de lista: consultas en ARS fijo (sin conversión; **PENDIENTE** la lista oficial, hoy 0); la conversión USD→ARS queda lista para futuros servicios en USD. | `usdAArs`, `resolverTC`, `calcularCobro` |
+| **R-17** | Precios de lista: consultas en ARS fijo, sin conversión. Lista del 26/09/2026 (Dr. D'Alessandro): **consulta por especialidad ARS 150.000**, igual presencial y por teleconsulta y para todos los profesionales; la consulta del Plan Bienestar está incluida (0; el plan la presupuesta en 100.000, `valor-referencia-ars`); control GLP-1 PENDIENTE. La conversión USD→ARS queda lista para futuros servicios en USD. | `PRECIO_CONSULTA_ESPECIALIDAD_ARS`, `usdAArs`, `resolverTC`, `calcularCobro` |
 
 Split de ingresos: hoy todo servicio es `SOM_100` (100% a Segunda Opinión
 Médica) — `calcularSplit`. El esquema de honorarios profesionales queda

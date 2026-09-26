@@ -167,9 +167,9 @@ está configurado.
 - **Diagnóstico:** `npm run mercadopago:test` ejecuta el bot en el servidor en
   modo diagnóstico (no crea links ni cobra): informa el tipo de credencial (sin
   mostrarla) y si la cuenta puede cobrar.
-- **Seña $0:** con los precios PENDIENTES la seña es 0 y MercadoPago no genera
-  links por $0: el bot lo avisa (y verifica la credencial igual). La seña manual
-  sigue funcionando.
+- **Seña $0:** si un servicio sigue sin precio (hoy, el control GLP-1) la seña es 0
+  y MercadoPago no genera links por $0: el bot lo avisa (y verifica la credencial
+  igual). La seña manual sigue funcionando.
 
 ## Permisos del bot
 

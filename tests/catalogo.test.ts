@@ -3,14 +3,17 @@ import {
   CODIGO_CONSULTA_PB100D,
   CODIGO_CONTROL_GLP1,
   CONSULTAS_POR_ESPECIALIDAD,
+  DURACION_CONSULTA_MIN,
   GRUPOS_ESPECIALIDAD,
+  PRECIO_CONSULTA_ESPECIALIDAD_ARS,
+  VALOR_REFERENCIA_CONSULTA_PB100D_ARS,
   getServicio,
   nombreSegunModalidad,
   ofreceModalidad,
 } from '../src/config/catalogo.js';
 import { RECURSOS, modalidadDeRecurso, recursosPara, recursosParaCategoria } from '../src/config/recursos.js';
 import { buildSeed } from '../src/seed/builders.js';
-import { PLAN_BIENESTAR_URL, SYSTEM, urlServicio } from '../src/fhir/identifiers.js';
+import { EXT, PLAN_BIENESTAR_URL, SYSTEM, urlServicio } from '../src/fhir/identifiers.js';
 import { seAgendaSinTarea } from '../src/lib/glp1-plan.js';
 
 /** Códigos SNOMED CT del value set FHIR R4 `c80-practice-codes` (verificados contra la definición oficial). */
@@ -50,14 +53,26 @@ describe('Catálogo — consultas por especialidad (definidas por el Dr. D’Ale
     ]);
   });
 
-  it('toda consulta por especialidad se ofrece presencial y por teleconsulta, con cargo (precio PENDIENTE)', () => {
+  it('toda consulta por especialidad se ofrece presencial y por teleconsulta, con cargo: ARS 150.000 y 30 min (lista 26/09/2026)', () => {
     expect(CONSULTAS_POR_ESPECIALIDAD).toHaveLength(12);
     for (const s of CONSULTAS_POR_ESPECIALIDAD) {
       expect(s.modalidades).toEqual(['presencial', 'teleconsulta']);
       expect(s.incluidaEnPlan).toBeUndefined();
       expect(s.soloDesdeTarea).toBeUndefined();
-      expect(s.nota).toMatch(/PENDIENTE/);
+      expect(s.precioARS).toBe(PRECIO_CONSULTA_ESPECIALIDAD_ARS);
+      expect(s.precioARS).toBe(150_000);
+      expect(s.duracionMin).toBe(DURACION_CONSULTA_MIN);
+      expect(s.duracionMin).toBe(30);
+      expect(s.valorReferenciaARS).toBeUndefined();
+      expect(s.nota ?? '').not.toMatch(/PENDIENTE/);
     }
+  });
+
+  it('el control GLP-1 sigue con precio PENDIENTE (decisión abierta) y 45 min provisionales', () => {
+    const glp1 = getServicio(CODIGO_CONTROL_GLP1);
+    expect(glp1.precioARS).toBe(0);
+    expect(glp1.duracionMin).toBe(45);
+    expect(glp1.nota).toMatch(/PENDIENTE/);
   });
 
   it('especialidad SNOMED CT solo con códigos del value set c80-practice-codes; Nutrición, solo texto', () => {
@@ -74,7 +89,10 @@ describe('Catálogo — consultas por especialidad (definidas por el Dr. D’Ale
 
   it('la consulta del Plan Bienestar está incluida en el plan y se agenda solo desde su tarea', () => {
     const pb = getServicio(CODIGO_CONSULTA_PB100D);
-    expect(pb).toMatchObject({ incluidaEnPlan: true, soloDesdeTarea: true, precioARS: 0 });
+    expect(pb).toMatchObject({ incluidaEnPlan: true, soloDesdeTarea: true, precioARS: 0, duracionMin: 30 });
+    // Lo que el plan presupuesta por cada consulta: referencia interna, nunca un cargo.
+    expect(pb.valorReferenciaARS).toBe(VALOR_REFERENCIA_CONSULTA_PB100D_ARS);
+    expect(pb.valorReferenciaARS).toBe(100_000);
     expect(pb.modalidades).toEqual(['presencial', 'teleconsulta']);
     expect(pb.nombre).toBe('Consulta del Plan Bienestar 100 Días®');
     expect(seAgendaSinTarea(CODIGO_CONSULTA_PB100D)).toBe(false);
@@ -128,6 +146,15 @@ describe('Seed — catálogo FHIR para el portal (data-driven)', () => {
     const topic = ad('INSUFICIENCIA_CARDIACA').topic!;
     expect(topic[0]).toMatchObject({ coding: [{ system: 'http://snomed.info/sct', code: '394579002' }], text: 'Insuficiencia Cardíaca' });
     expect(topic[1]?.coding?.[0]).toMatchObject({ system: SYSTEM.grupoEspecialidad, code: 'cardiologia-especialidad' });
+  });
+
+  it('el catálogo publica el precio en ARS y, en la consulta del plan, el valor de referencia', () => {
+    const precio = (codigo: string, url: string) => ad(codigo).extension?.find((e) => e.url === url)?.valueDecimal;
+    expect(precio('CARDIOLOGIA', EXT.precioArs)).toBe(150_000);
+    expect(precio('CARDIOLOGIA', EXT.valorReferenciaArs)).toBeUndefined();
+    expect(precio(CODIGO_CONSULTA_PB100D, EXT.precioArs)).toBe(0);
+    expect(precio(CODIGO_CONSULTA_PB100D, EXT.valorReferenciaArs)).toBe(100_000);
+    expect(ad('CARDIOLOGIA').timingTiming?.repeat?.duration).toBe(30);
   });
 
   it('la consulta del plan lleva el programa en useContext', () => {

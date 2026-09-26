@@ -32,8 +32,10 @@ teleconsulta:
 | Neurología | Neurología | 394591006 Neurology |
 | Ginecología | Ginecología | 394586005 Gynecology |
 
-Precios: **PENDIENTES** (los arman el Dr. D'Alessandro y el Dr. Barbagelata). No se
-inventan.
+Precios (lista del 26/09/2026): consulta por especialidad **ARS 150.000**, el mismo precio
+presencial y por teleconsulta. Las tres consultas del plan están incluidas (la paciente
+no paga ni deja seña); el plan las presupuesta en ARS 100.000 cada una, que el catálogo
+publica como `valor-referencia-ars` (informativo).
 
 ## El modelo: tres datos separados
 

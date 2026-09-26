@@ -18,10 +18,14 @@
  * subespecialidades cardiológicas sin código propio van con Cardiología; Nutrición no
  * tiene código en ese value set (solo texto).
  *
- * ⚠️ PRECIOS PENDIENTES. La lista de precios la arman el Dr. D'Alessandro y el Dr.
- * Barbagelata: hasta entonces las consultas quedan con `precioARS: 0` y `nota` de
- * pendiente. NO se inventan precios (principio del repo: la fuente de verdad es la
- * lista oficial). La consulta del Plan Bienestar sí va en 0: está incluida en el plan.
+ * Precios (lista oficial, Dr. D'Alessandro, 26/09/2026):
+ *  - Consulta por especialidad: ARS 150.000, el mismo precio presencial y por
+ *    teleconsulta y para todos los profesionales (`PRECIO_CONSULTA_ESPECIALIDAD_ARS`).
+ *  - Consulta del Plan Bienestar 100 Días®: incluida en el plan (la paciente no paga
+ *    ni deja seña). Dentro del plan está presupuestada en ARS 100.000 cada una: queda
+ *    como valor de referencia interno (`valorReferenciaARS`), nunca como cargo.
+ *  - Control GLP-1: PENDIENTE (ver docs/decisiones-pendientes.md, Seguimiento GLP-1).
+ * Duración: 30 minutos por consulta (misma decisión), sobre la grilla de 30.
  */
 import type { CategoriaServicio, Especialidad, Modalidad, Servicio, Split } from '../domain/types.js';
 
@@ -29,6 +33,15 @@ const SOM100: Split = { tipo: 'SOM_100' };
 
 /** Nota estándar mientras no haya lista de precios. */
 const PRECIO_PENDIENTE = 'Precio PENDIENTE — cargar desde la lista oficial de Segunda Opinión Médica.';
+
+/** Precio de lista (ARS) de toda consulta por especialidad, en cualquier modalidad. */
+export const PRECIO_CONSULTA_ESPECIALIDAD_ARS = 150_000;
+
+/** Lo que el Plan Bienestar 100 Días® presupuesta por cada una de sus tres consultas (referencia interna, no se cobra). */
+export const VALOR_REFERENCIA_CONSULTA_PB100D_ARS = 100_000;
+
+/** Duración de una consulta (presencial o teleconsulta), en minutos. */
+export const DURACION_CONSULTA_MIN = 30;
 
 /** Código del control del programa de seguimiento GLP-1 (lo agendan las tareas del programa). */
 export const CODIGO_CONTROL_GLP1 = 'CONTROL_GLP1';
@@ -63,10 +76,14 @@ interface DefConsulta {
   especialidad?: Especialidad;
   incluidaEnPlan?: boolean;
   soloDesdeTarea?: boolean;
+  /** Precio en ARS. Por defecto, el de consulta por especialidad. */
+  precioARS?: number;
+  valorReferenciaARS?: number;
+  /** Por defecto, `DURACION_CONSULTA_MIN`. */
+  duracionMin?: number;
   nota?: string;
 }
 
-/** Duración provisional de 45 min (a confirmar con la operación, también en teleconsulta). */
 const CONSULTAS: DefConsulta[] = [
   // Cardiología
   {
@@ -162,15 +179,21 @@ const CONSULTAS: DefConsulta[] = [
     categoria: 'PLAN_BIENESTAR',
     incluidaEnPlan: true,
     soloDesdeTarea: true,
+    precioARS: 0,
+    valorReferenciaARS: VALOR_REFERENCIA_CONSULTA_PB100D_ARS,
     nota: 'Incluida en el Plan Bienestar 100 Días®: sin cargo ni seña.',
   },
   // Seguimiento GLP-1 (ver docs/glp1.md): en consultorio, desde su tarea (R-19).
+  // Precio y duración PENDIENTES (decisión "Seguimiento GLP-1"): 45 min provisional.
   {
     codigo: CODIGO_CONTROL_GLP1,
     nombre: 'Seguimiento de tratamiento GLP-1 — Control',
     categoria: 'SEGUIMIENTO_GLP1',
     modalidades: ['presencial'],
     soloDesdeTarea: true,
+    precioARS: 0,
+    duracionMin: 45,
+    nota: PRECIO_PENDIENTE,
   },
 ];
 
@@ -183,12 +206,13 @@ export const SERVICIOS: Servicio[] = CONSULTAS.map((c) => ({
   ...(c.grupo ? { grupo: c.grupo } : {}),
   ...(c.incluidaEnPlan ? { incluidaEnPlan: true } : {}),
   ...(c.soloDesdeTarea ? { soloDesdeTarea: true } : {}),
-  duracionMin: 45, // provisional — confirmar con la operación
+  duracionMin: c.duracionMin ?? DURACION_CONSULTA_MIN,
   precioUSD: 0,
-  precioARS: 0, // PENDIENTE (o incluida en el plan) — se cobra en ARS cuando haya lista de precios
+  precioARS: c.precioARS ?? PRECIO_CONSULTA_ESPECIALIDAD_ARS, // en ARS fijo, sin conversión (R-17)
+  ...(c.valorReferenciaARS != null ? { valorReferenciaARS: c.valorReferenciaARS } : {}),
   reglaPricing: 'POR_SESION',
   split: SOM100,
-  nota: c.nota ?? PRECIO_PENDIENTE,
+  ...(c.nota ? { nota: c.nota } : {}),
 }));
 
 /** Índice por código para lookups O(1). */

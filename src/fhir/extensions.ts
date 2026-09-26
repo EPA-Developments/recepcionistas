@@ -36,6 +36,8 @@ const SPECS: SpecExtension[] = [
   { url: EXT.teleconsultaUrl, nombre: 'teleconsulta-url', contexto: ['Appointment'], tipoValor: 'url', descripcion: 'Link de la videollamada (Jitsi) de la teleconsulta.' },
   // ActivityDefinition (catálogo)
   { url: EXT.precioUsd, nombre: 'precio-usd', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en USD.' },
+  { url: EXT.precioArs, nombre: 'precio-ars', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en ARS, fijo y sin conversión (R-17).' },
+  { url: EXT.valorReferenciaArs, nombre: 'valor-referencia-ars', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Valor de referencia interno (ARS) de una consulta incluida en un programa; no se cobra.' },
   { url: EXT.reglaPricingRecurso, nombre: 'regla-pricing-recurso', contexto: ['ActivityDefinition'], tipoValor: 'code', descripcion: 'Regla de pricing del recurso.' },
   { url: EXT.splitSom, nombre: 'split-som', contexto: ['ActivityDefinition'], tipoValor: 'code', descripcion: 'Tipo de split de ingresos.' },
   // Invoice / ChargeItem
