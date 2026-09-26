@@ -14,7 +14,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). La **modalidad** la da el recurso (la agenda virtual es teleconsulta): la teleconsulta exige el consentimiento firmado y lleva el link de Jitsi (R-21). Con `tareaId` agenda un control GLP-1 (ventana, R-19) o una consulta del **Plan Bienestar 100 Días®** (ventana, R-20; la inicial fija el día 1; incluida → confirmada sin seña) y completa la tarea. | `executeBot` desde el front (Reservar turno / Agendar control / Agendar consulta del plan). |
 | `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` (`class` AMB/VR según la modalidad) y libera la sala al completar/cancelar. En una consulta del Plan Bienestar marca la actividad del plan; si se cancela, la tarea vuelve a quedar por agendar. | `executeBot` desde el front (clic en el turno). |
 | `som-pagar-sena` | Registra la seña (50%), confirma el turno (pending→booked) y envía WhatsApp de confirmación. | `executeBot` (clic en turno tentativo). |
-| `som-link-mercadopago` | Genera un link de MercadoPago por el monto de la seña (si está configurado el token). | `executeBot` (botón en turno tentativo). |
+| `som-link-mercadopago` | Genera un link de MercadoPago (Checkout Pro) por el monto de la seña. Antes valida la credencial (Access Token, no Public Key) y el monto (no hay link por $0); si MercadoPago la rechaza (401 / 403 PolicyAgent) lee la cuenta y dice qué corregir. Con `{ diagnosticar: true }` solo revisa credencial y cuenta (`npm run mercadopago:test`). | `executeBot` (botón en turno tentativo). |
 | `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública que llama MercadoPago. |
 | `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp (en teleconsulta, con el link) y manda los avisos de las consultas del **Plan Bienestar** (se abrió la ventana; a mitad de ventana, segundo aviso + alerta a Recepción). | `cronTimer` del Bot (cada ~30 min). |
 | `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono). | `executeBot` (Atender → Nuevo paciente). |
@@ -80,7 +80,7 @@ MercadoPago usan las credenciales propias de SOM.
 | `TWILIO_WHATSAPP_FROM` | ídem (número de la WABA de EPA Bienestar IA, `whatsapp:+54...`) | para enviar WhatsApp |
 | `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar) | opcional |
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
-| `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago` | para cobrar por MP |
+| `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
 | `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`) | opcional |
 | `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
 | `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
@@ -139,6 +139,27 @@ registrada (`preparation` / `entered-in-error`).
 Para el link de MercadoPago (seña), además: `MERCADOPAGO_ACCESS_TOKEN`. Si no
 está, el flujo manual de seña sigue funcionando y el bot de link avisa que MP no
 está configurado.
+
+### MercadoPago: qué credencial va (y el 403 "PolicyAgent")
+
+- **`MERCADOPAGO_ACCESS_TOKEN` = el Access Token de producción** de la aplicación
+  de SOM: MercadoPago → *Tus integraciones* → la aplicación → *Credenciales de
+  producción* → **Access Token** (`APP_USR-{app}-{fecha}-{hash}-{usuario}`). No
+  la **Public Key** (`APP_USR-` + un UUID: es para el navegador), ni el Client
+  ID / Client Secret. Sin comillas ni `Bearer` (igual el bot los limpia).
+- Las **credenciales de producción** de la aplicación tienen que estar
+  **activadas**, y la cuenta **habilitada para cobrar** (identidad validada,
+  términos aceptados, cuenta de Argentina).
+- **403 `PA_UNAUTHORIZED_RESULT_FROM_POLICIES` (`blocked_by: PolicyAgent`)** es
+  la capa de autorización de MercadoPago: la credencial cargada no está
+  autorizada para crear links de pago. El bot ya no muestra el JSON crudo: dice
+  qué credencial hay cargada y qué ve en la cuenta (`GET /users/me`).
+- **Diagnóstico:** `npm run mercadopago:test` ejecuta el bot en el servidor en
+  modo diagnóstico (no crea links ni cobra): informa el tipo de credencial (sin
+  mostrarla) y si la cuenta puede cobrar.
+- **Seña $0:** con los precios PENDIENTES la seña es 0 y MercadoPago no genera
+  links por $0: el bot lo avisa (y verifica la credencial igual). La seña manual
+  sigue funcionando.
 
 ## Permisos del bot
 
