@@ -13,6 +13,7 @@ import type {
   PlanDefinition,
   Practitioner,
   PractitionerRole,
+  Resource,
   Schedule,
   Slot,
   StructureDefinition,
@@ -346,4 +347,25 @@ export function buildSeed(): RecursosSeed {
     practitionerRoles: MEDICOS.map((m) => buildPractitionerRole(m.codigo)),
     observationDefinitions: BIOMARCADORES.map(buildObservationDefinition),
   };
+}
+
+/**
+ * Grupos del seed en el **orden de carga**. Importa: los recursos con referencias
+ * condicionales (`Practitioner?identifier=…`, `Location?identifier=…`) fallan si el
+ * destino todavía no existe, así que `Location` y `Practitioner` van antes que
+ * `PractitionerRole` y `Schedule`.
+ */
+export function gruposSeed(seed: RecursosSeed): Array<[string, Resource[]]> {
+  return [
+    ['StructureDefinition (extensiones)', seed.structureDefinitions],
+    ['AccessPolicy (roles)', seed.accessPolicies],
+    ['Basic (config TC)', [seed.tcConfig]],
+    ['ActivityDefinition (servicios)', seed.activityDefinitions],
+    ['PlanDefinition (programas)', seed.planDefinitions],
+    ['Location (recursos)', seed.locations],
+    ['Practitioner (médicos)', seed.practitioners],
+    ['PractitionerRole (especialidad, modalidades, disponibilidad)', seed.practitionerRoles],
+    ['Schedule (agendas de recursos y de profesionales)', seed.schedules],
+    ['ObservationDefinition (biomarcadores)', seed.observationDefinitions],
+  ];
 }

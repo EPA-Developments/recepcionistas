@@ -14,7 +14,7 @@
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { ObservationDefinition, Resource } from '@medplum/fhirtypes';
-import { buildSeed, buildSlot, buildSlotProfesional, claveObservationDefinition } from './builders.js';
+import { buildSeed, buildSlot, buildSlotProfesional, claveObservationDefinition, gruposSeed } from './builders.js';
 import { conectarMedplum } from './conexion.js';
 import { HORARIO_ES_PLACEHOLDER, HORARIO_SEMANAL } from '../config/horario.js';
 import { MEDICOS } from '../config/medicos.js';
@@ -29,18 +29,9 @@ async function main(): Promise<void> {
   const dias = parseDias();
   const seed = buildSeed();
 
-  const grupos: Array<[string, Resource[]]> = [
-    ['StructureDefinition (extensiones)', seed.structureDefinitions],
-    ['AccessPolicy (roles)', seed.accessPolicies],
-    ['Basic (config TC)', [seed.tcConfig]],
-    ['ActivityDefinition (servicios)', seed.activityDefinitions],
-    ['PlanDefinition (programas)', seed.planDefinitions],
-    ['Location (recursos)', seed.locations],
-    ['Schedule (agendas de recursos y de profesionales)', seed.schedules],
-    ['Practitioner (médicos)', seed.practitioners],
-    ['PractitionerRole (especialidad, modalidades, disponibilidad)', seed.practitionerRoles],
-    ['ObservationDefinition (biomarcadores)', seed.observationDefinitions],
-  ];
+  // El orden importa: las referencias condicionales (`Practitioner?identifier=…`,
+  // `Location?identifier=…`) exigen que el destino ya exista (`gruposSeed`).
+  const grupos = gruposSeed(seed);
 
   const total = grupos.reduce((acc, [, arr]) => acc + arr.length, 0);
 

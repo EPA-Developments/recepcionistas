@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildSeed } from '../src/seed/builders.js';
+import { buildSeed, gruposSeed } from '../src/seed/builders.js';
 import { BOT_GLP1_INSCRIBIR, BOT_GLP1_PLAN, EXT, PLAN_BIENESTAR_URL, PLAN_GLP1_URL } from '../src/fhir/identifiers.js';
 import { BOTS_RECEPCION } from '../src/fhir/access-policies.js';
 import { MEDICOS } from '../src/config/medicos.js';
@@ -26,6 +26,33 @@ describe('Seed — composición', () => {
     // Profesionales: uno por médico de config (el catálogo nuevo de SOM los carga), con su rol.
     expect(seed.practitioners.length).toBe(MEDICOS.length);
     expect(seed.practitionerRoles.length).toBe(MEDICOS.length);
+  });
+
+  it('El orden de carga respeta las referencias condicionales: Location y Practitioner antes que PractitionerRole y Schedule', () => {
+    const grupos = gruposSeed(seed);
+    const orden = grupos.map(([, arr]) => arr[0]?.resourceType);
+    const pos = (tipo: string) => orden.indexOf(tipo as (typeof orden)[number]);
+    expect(pos('Location')).toBeGreaterThanOrEqual(0);
+    expect(pos('Practitioner')).toBeGreaterThanOrEqual(0);
+    // Schedule.actor → Practitioner?identifier=… / Location?identifier=…
+    expect(pos('Practitioner')).toBeLessThan(pos('Schedule'));
+    expect(pos('Location')).toBeLessThan(pos('Schedule'));
+    // PractitionerRole.practitioner / .location → ídem.
+    expect(pos('Practitioner')).toBeLessThan(pos('PractitionerRole'));
+    expect(pos('Location')).toBeLessThan(pos('PractitionerRole'));
+    // Nada del seed queda fuera de los grupos.
+    const total =
+      seed.structureDefinitions.length +
+      seed.accessPolicies.length +
+      1 + // tcConfig
+      seed.activityDefinitions.length +
+      seed.planDefinitions.length +
+      seed.locations.length +
+      seed.schedules.length +
+      seed.practitioners.length +
+      seed.practitionerRoles.length +
+      seed.observationDefinitions.length;
+    expect(grupos.reduce((n, [, arr]) => n + arr.length, 0)).toBe(total);
   });
 });
 
