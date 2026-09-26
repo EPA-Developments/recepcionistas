@@ -5,7 +5,8 @@
  * nombre, DNI, teléfono y email. NO da acceso al portal — eso es un paso aparte
  * (`som-invitar-paciente`). Deduplica por DNI y, si no hay, por email/teléfono (el
  * teléfono en cualquiera de sus formas, sin unir a dos personas con DNI distinto: así
- * completa el contacto que llegó por WhatsApp).
+ * completa el contacto que llegó por WhatsApp). Al completar la ficha de un contacto
+ * nuevo por WhatsApp, su aviso a Recepción (pestaña WhatsApp) se resuelve solo.
  *
  * No requiere admin del proyecto: la recepción ya tiene permiso de escritura sobre
  * `Patient` por su AccessPolicy.
@@ -13,6 +14,7 @@
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { ContactPoint, Patient } from '@medplum/fhirtypes';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
+import { resolverAvisosDelPaciente } from '../lib/contactos-whatsapp.js';
 import { normalizarValor } from '../lib/crm.js';
 import { partirNombre, validarEmail } from '../lib/onboarding.js';
 import { aE164AR, variantesTelefonoAR } from '../lib/whatsapp.js';
@@ -40,6 +42,8 @@ export interface ResultadoAltaPaciente {
   patientId?: string;
   /** true si se creó; false si se actualizó uno existente. */
   creado?: boolean;
+  /** Avisos de contacto nuevo por WhatsApp que quedaron resueltos (ya tiene ficha). */
+  avisosResueltos?: number;
 }
 
 function telecom(telefono?: string, email?: string): ContactPoint[] {
@@ -98,6 +102,22 @@ function mismoTelefono(a: string | undefined, b: string | undefined): boolean {
   return a.trim() === b.trim() || (na !== undefined && na === aE164AR(b));
 }
 
+/**
+ * Con la ficha completa, el aviso del contacto nuevo por WhatsApp ya cumplió. Best-effort:
+ * si falla, el alta igual vale (el aviso queda para resolverlo a mano).
+ */
+async function resolverAvisos(medplum: MedplumClient, patientId: string | undefined): Promise<number> {
+  if (!patientId) {
+    return 0;
+  }
+  try {
+    return await resolverAvisosDelPaciente(medplum, `Patient/${patientId}`, 'ficha-completada');
+  } catch (err) {
+    console.error('som-alta-paciente: no se pudo resolver el aviso de WhatsApp:', err instanceof Error ? err.message : err);
+    return 0;
+  }
+}
+
 export async function handler(
   medplum: MedplumClient,
   event: BotEvent<EntradaAltaPaciente>,
@@ -149,7 +169,8 @@ export async function handler(
         telecom: [...(existente.telecom ?? []), ...nuevosTelecom],
         extension: extension.length ? extension : undefined,
       });
-      return { ok: true, patientId: actualizado.id, creado: false };
+      const avisosResueltos = await resolverAvisos(medplum, actualizado.id);
+      return { ok: true, patientId: actualizado.id, creado: false, ...(avisosResueltos ? { avisosResueltos } : {}) };
     }
 
     const origen = normalizarValor(e.origenLead);

@@ -50,6 +50,9 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   automáticas** (acuse / fuera de horario) son hijas con `sender.display` =
   «Segunda Opinión Médica · respuesta automática» (sin `reference`) y la extensión
   `auto-respuesta`: el portal las muestra como un mensaje más del equipo.
+  El **aviso a Recepción** de un número nuevo es un `Task` `whatsapp-nuevo-contacto`
+  con `for` = el paciente (así Recepción lo encuentra por paciente): es de trabajo
+  interno y el portal **no** debe listarlo (filtrar sus tareas por `code`).
 - **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`; exige el
   consentimiento firmado) y bot interno `bot-som-report` (informe), ver [`som.md`](som.md).
 - **Estudios de laboratorio en PDF.** Bot interno `som-procesar-laboratorio`: lo
