@@ -12,7 +12,6 @@ import {
   BOT_BIENESTAR_INSCRIBIR,
   BOT_BORRADOR_RESPUESTA,
   BOT_GLP1_INSCRIBIR,
-  BOT_WHATSAPP_ADJUNTO,
   BOT_WHATSAPP_ENTRANTE,
   BOT_WHATSAPP_RESPONDER,
   EXT,
@@ -38,7 +37,6 @@ export const BOTS_RECEPCION = [
   BOT_BIENESTAR_INSCRIBIR,
   BOT_BORRADOR_RESPUESTA,
   BOT_WHATSAPP_RESPONDER,
-  BOT_WHATSAPP_ADJUNTO,
 ] as const;
 
 /** Recepcionista — acceso Operativo: agenda, check-in/out, pagos, comunicación, CRM. */
@@ -57,8 +55,12 @@ export const POLICY_RECEPCIONISTA: AccessPolicy = {
     { resourceType: 'ChargeItem' },
     { resourceType: 'PaymentReconciliation' },
     { resourceType: 'Account' },
-    // Comunicación (WhatsApp / email)
+    // Comunicación (Mensajes con el portal y WhatsApp, avisos por email)
     { resourceType: 'Communication' },
+    // Archivos de Mensajes: Recepción adjunta PDF/fotos y ve los que manda el paciente
+    // (decisión del Dr. D'Alessandro, 26/09/2026, como el demo). Medplum no deja buscar
+    // ni listar Binary: solo se abre un archivo teniendo su link.
+    { resourceType: 'Binary' },
     // CRM / leads
     { resourceType: 'Task' },
     // Banner de seguridad (señal binaria; sin detalle clínico)

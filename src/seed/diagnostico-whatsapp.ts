@@ -15,7 +15,7 @@
  * Para Twilio Sandbox: el número destino debe haber enviado el "join <code>" al
  * número del sandbox, y TWILIO_WHATSAPP_FROM debe ser el del sandbox.
  *
- * Al final muestra la URL del webhook de entrada (chat de WhatsApp de Recepción) para
+ * Al final muestra la URL del webhook de entrada (WhatsApp en Mensajes) para
  * cargar en Twilio: ver docs/whatsapp.md.
  */
 import 'dotenv/config';
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
 
   // Webhook de entrada (mensajes que llegan + ✓✓): la URL para Twilio y el secret TWILIO_WEBHOOK_URL.
   const entrante = await medplum.searchOne('Bot', `name:exact=${BOT_WHATSAPP_ENTRANTE}`);
-  console.log('\nChat de WhatsApp de Recepción (mensajes que llegan y ✓✓):');
+  console.log('\nWhatsApp en Mensajes (mensajes que llegan y ✓✓):');
   if (entrante?.id) {
     console.log(
       `  URL del webhook (Twilio "A message comes in" y secret TWILIO_WEBHOOK_URL), con la ClientApplication "Webhook Twilio":\n` +

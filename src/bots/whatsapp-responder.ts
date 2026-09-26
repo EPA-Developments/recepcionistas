@@ -1,91 +1,93 @@
 /**
- * Bot · Responder un chat de WhatsApp (Recepción).
+ * Bot · Respuesta de Mensajes por WhatsApp (Recepción).
  *
- * Recepción escribe en el chat y el bot:
- *  1) Verifica la **ventana de 24 h** de WhatsApp: solo se responde texto libre dentro de
- *     las 24 h del último mensaje del paciente (fuera de ella, WhatsApp solo acepta
- *     plantillas aprobadas por Meta, que están pendientes).
- *  2) Responde al número desde el que escribió el paciente (el del último entrante).
- *  3) Envía por Twilio y registra la `Communication` en el chat (con los ✓✓ que después
- *     actualiza `som-whatsapp-entrante`).
- *
- * La regla vive acá (no en la app): la recepción no decide si se puede mandar.
+ * Recepción responde en la conversación de **Mensajes** (queda en el portal, como
+ * siempre) y la app llama a este bot con el id de ese mensaje. El bot decide si además
+ * sale por WhatsApp — la recepción no decide nada:
+ *  - sí, si el **último mensaje del paciente** en esa conversación llegó por WhatsApp y
+ *    la **ventana de 24 h** sigue abierta (`lib/whatsapp.ts` → `decidirEnvioWhatsApp`);
+ *  - si escribió por el portal, la respuesta queda solo en el portal;
+ *  - con la ventana cerrada no se intenta (WhatsApp solo acepta plantillas) y lo dice.
+ * Manda el texto y los adjuntos al número desde el que escribió el paciente, y marca el
+ * mensaje: canal WhatsApp, MessageSid y ✓ (los ✓✓ los actualiza `som-whatsapp-entrante`).
+ * Idempotente: un mensaje que ya salió no se vuelve a mandar.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Communication } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
-import { MAX_TEXTO_WHATSAPP, PLANTILLA_RESPUESTA, telefonoDe, ultimoEntrante, ventanaWhatsApp } from '../lib/whatsapp.js';
-import { enviarWhatsApp } from './_shared.js';
+import { adjuntosDe, conEnvioWhatsApp, decidirEnvioWhatsApp, textoDe } from '../lib/whatsapp.js';
+import { mandarWhatsApp } from './_shared.js';
 
 export interface EntradaResponderWhatsApp {
-  /** "Patient/<id>" del chat. */
-  pacienteRef: string;
-  texto: string;
-  /** Quién responde (el usuario de Recepción): queda como remitente del mensaje. */
-  autor?: { reference?: string; display?: string };
+  /** Id del mensaje (Communication hija de la conversación) que escribió Recepción. */
+  mensajeId: string;
 }
 
 export interface ResultadoResponderWhatsApp {
+  /** false solo si tenía que salir por WhatsApp y no salió. */
   ok: boolean;
-  motivo?: string;
+  /** Por dónde quedó: solo el portal, o también WhatsApp. */
+  canal: 'portal' | 'whatsapp';
+  /** Salió por WhatsApp (Twilio lo aceptó). */
+  enviado: boolean;
+  /** El mensaje, con los datos del envío si salió. */
   mensaje?: Communication;
-  /** Hasta cuándo se puede responder texto libre (ISO). */
-  ventanaCierra?: string;
+  /** Por qué no salió por WhatsApp. */
+  motivo?: string;
 }
-
-/** Remitentes válidos de un saliente: el equipo de SOM, nunca un paciente. */
-const AUTORES = /^(Practitioner|PractitionerRole|Organization)\/[^/]+$/;
 
 export async function handler(
   medplum: MedplumClient,
   event: BotEvent<EntradaResponderWhatsApp>,
 ): Promise<ResultadoResponderWhatsApp> {
-  const { pacienteRef, autor } = event.input ?? ({} as EntradaResponderWhatsApp);
-  const texto = (event.input?.texto ?? '').trim();
-  if (!/^Patient\/[^/]+$/.test(pacienteRef ?? '')) {
-    return { ok: false, motivo: 'Falta el paciente del chat.' };
+  const id = event.input?.mensajeId;
+  const mensaje = id ? await medplum.readResource('Communication', id).catch(() => undefined) : undefined;
+  const conversacionRef = mensaje?.partOf?.[0]?.reference;
+  if (!mensaje || !conversacionRef || mensaje.sender?.reference?.startsWith('Patient/')) {
+    return { ok: false, canal: 'portal', enviado: false, motivo: 'No es una respuesta de Recepción en una conversación.' };
   }
-  if (!texto) {
-    return { ok: false, motivo: 'Escribí el mensaje.' };
-  }
-  if (texto.length > MAX_TEXTO_WHATSAPP) {
-    return { ok: false, motivo: `El mensaje es muy largo (máximo ${MAX_TEXTO_WHATSAPP} caracteres).` };
+  if (mensaje.identifier?.some((i) => i.system === SYSTEM.twilioMessageSid)) {
+    return { ok: true, canal: 'whatsapp', enviado: true, mensaje };
   }
 
-  const entrantes = await medplum.searchResources('Communication', {
-    subject: pacienteRef,
-    sender: pacienteRef,
-    category: `${SYSTEM.canal}|whatsapp`,
-    _sort: '-sent',
-    _count: '10',
-  });
-  const ultimo = ultimoEntrante(entrantes);
-  const ventana = ventanaWhatsApp(ultimo?.sent);
-  if (!ventana.abierta) {
+  const hilo = await medplum.searchResources('Communication', { 'part-of': conversacionRef, _sort: 'sent', _count: '500' });
+  const decision = decidirEnvioWhatsApp(hilo);
+  if (!decision.enviar) {
+    return decision.canal === 'portal'
+      ? { ok: true, canal: 'portal', enviado: false, mensaje }
+      : { ok: false, canal: 'whatsapp', enviado: false, mensaje, motivo: decision.motivo };
+  }
+
+  // Los adjuntos llegan con su link firmado (el bot puede leer los Binary): Twilio los baja al enviar.
+  const mediaUrls = adjuntosDe(mensaje)
+    .map((a) => a.url)
+    .filter((u): u is string => Boolean(u?.startsWith('https://')));
+  const envio = await mandarWhatsApp(event.secrets, { to: decision.telefono, body: textoDe(mensaje), mediaUrls });
+  if (envio.status === 'preparation') {
+    // No se intentó: el mensaje queda como estaba (solo en el portal).
     return {
       ok: false,
-      ...(ventana.cierra ? { ventanaCierra: ventana.cierra } : {}),
-      motivo: ultimo
-        ? 'Pasaron más de 24 h desde el último mensaje del paciente: WhatsApp solo permite plantillas aprobadas (pendientes). Esperá a que el paciente vuelva a escribir o contactalo por otro canal.'
-        : 'El paciente todavía no escribió por WhatsApp: solo se le puede escribir primero con una plantilla aprobada (pendientes).',
+      canal: 'whatsapp',
+      enviado: false,
+      mensaje,
+      motivo: envio.motivo ?? 'faltan los secrets de Twilio en Medplum (ver docs/whatsapp.md).',
     };
   }
-
-  const remitente = autor?.reference && AUTORES.test(autor.reference) ? autor : undefined;
-  const mensaje = await enviarWhatsApp(medplum, event.secrets, {
-    template: PLANTILLA_RESPUESTA,
-    body: texto,
-    pacienteRef,
-    to: telefonoDe(ultimo!),
-    ...(remitente ? { autor: remitente } : {}),
-  });
-  const ok = mensaje.status === 'completed';
+  // Salió o Twilio lo rechazó: la burbuja muestra el canal y el ✓ (o el error, con el motivo).
+  const actualizado = await medplum.updateResource<Communication>(
+    conEnvioWhatsApp(mensaje, {
+      telefono: envio.destino,
+      entrega: envio.entrega,
+      messageSids: envio.messageSids,
+      ...(envio.motivo ? { motivo: envio.motivo } : {}),
+    }),
+  );
+  const enviado = envio.status === 'completed';
   return {
-    ok,
-    mensaje,
-    ...(ventana.cierra ? { ventanaCierra: ventana.cierra } : {}),
-    ...(ok
-      ? {}
-      : { motivo: mensaje.statusReason?.text ?? 'No se envió: faltan los secrets de Twilio en Medplum (ver docs/whatsapp.md).' }),
+    ok: enviado,
+    canal: 'whatsapp',
+    enviado,
+    mensaje: actualizado,
+    ...(envio.motivo ? { motivo: envio.motivo } : {}),
   };
 }

@@ -21,25 +21,24 @@ import {
   IconInbox,
   IconMessages,
   IconVaccine,
-  IconBrandWhatsapp,
 } from '@tabler/icons-react';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMedplum, useMedplumProfile } from '@medplum/react';
 import { getDisplayString } from '@medplum/core';
-import type { AvisosWhatsApp } from '@som/lib/whatsapp-chat';
+import type { AvisoWhatsApp } from '@som/lib/whatsapp';
 import { CampanaWhatsApp } from './CampanaWhatsApp';
 
-export type Vista = 'agenda' | 'solicitudes' | 'mensajes' | 'whatsapp' | 'glp1' | 'atender' | 'reportes';
+export type Vista = 'agenda' | 'solicitudes' | 'mensajes' | 'glp1' | 'atender' | 'reportes';
 
 interface ShellProps {
   vista: Vista;
   onVista: (v: Vista) => void;
   /** Mensajes de pacientes sin leer (contador de la pestaña "Mensajes"). */
   mensajesSinLeer?: number;
-  /** WhatsApp: contador de la pestaña y avisos de la campanita (contactos nuevos). */
-  whatsapp?: AvisosWhatsApp;
-  /** Abre el WhatsApp (en el chat de ese paciente, si se indica). */
-  onAbrirWhatsApp?: (pacienteRef?: string) => void;
+  /** La campanita: WhatsApp de números nuevos sin leer. */
+  nuevosContactos?: AvisoWhatsApp[];
+  /** Abre Mensajes (en la conversación del aviso, si se indica). */
+  onAbrirMensajes?: (aviso?: AvisoWhatsApp) => void;
   children: ReactNode;
 }
 
@@ -47,8 +46,8 @@ export function Shell({
   vista,
   onVista,
   mensajesSinLeer = 0,
-  whatsapp,
-  onAbrirWhatsApp,
+  nuevosContactos = [],
+  onAbrirMensajes,
   children,
 }: ShellProps): JSX.Element {
   const medplum = useMedplum();
@@ -56,7 +55,7 @@ export function Shell({
   const { setColorScheme } = useMantineColorScheme();
   const esquema = useComputedColorScheme('light', { getInitialValueInEffect: true });
   const oscuro = esquema === 'dark';
-  // Con las 7 pestañas y la campanita, el subtítulo y el usuario entran recién en pantallas anchas.
+  // Con las pestañas y la campanita, el subtítulo y el usuario entran recién en pantallas anchas.
   const ancha = useMediaQuery('(min-width: 100em)');
   const usuario = profile ? getDisplayString(profile) : '';
 
@@ -65,7 +64,7 @@ export function Shell({
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
-            {/* En pantallas medianas va la sigla, para que entren las pestañas. */}
+            {/* En pantallas medianas va la sigla, para que entren las pestañas y la campanita. */}
             <Title order={3} c="somAzul.7" visibleFrom="xl" style={{ whiteSpace: 'nowrap' }}>
               Segunda Opinión Médica
             </Title>
@@ -85,11 +84,7 @@ export function Shell({
             data={[
               { value: 'agenda', label: segLabel(<IconCalendarEvent size={16} />, 'Agenda') },
               { value: 'solicitudes', label: segLabel(<IconInbox size={16} />, 'Solicitudes') },
-              { value: 'mensajes', label: segLabel(<IconMessages size={16} />, 'Mensajes', mensajesSinLeer) },
-              {
-                value: 'whatsapp',
-                label: segLabel(<IconBrandWhatsapp size={16} />, 'WhatsApp', whatsapp?.sinLeer ?? 0, 'green'),
-              },
+              { value: 'mensajes', label: segLabel(<IconMessages size={16} />, 'Mensajes', mensajesSinLeer, 'teal') },
               { value: 'glp1', label: segLabel(<IconVaccine size={16} />, 'GLP-1') },
               { value: 'atender', label: segLabel(<IconUserHeart size={16} />, 'Atender paciente') },
               { value: 'reportes', label: segLabel(<IconChartBar size={16} />, 'Reportes') },
@@ -103,10 +98,10 @@ export function Shell({
               </Text>
             )}
             <CampanaWhatsApp
-              avisos={whatsapp?.nuevosContactos ?? []}
-              sinLeer={whatsapp?.sinLeer ?? 0}
-              onAbrir={(ref) => onAbrirWhatsApp?.(ref)}
-              onVerTodos={() => onAbrirWhatsApp?.()}
+              avisos={nuevosContactos}
+              sinLeer={mensajesSinLeer}
+              onAbrir={(aviso) => onAbrirMensajes?.(aviso)}
+              onVerTodos={() => onAbrirMensajes?.()}
             />
             <ActionIcon
               variant="default"

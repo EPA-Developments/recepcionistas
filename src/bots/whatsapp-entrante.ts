@@ -1,16 +1,20 @@
 /**
  * Bot · WhatsApp entrante (webhook de Twilio).
  *
- * Twilio llama a este bot por dos motivos, con el mismo formulario (form-urlencoded):
+ * WhatsApp es un canal de las conversaciones de **Mensajes** (el mismo modelo de hilos
+ * que el portal). Twilio llama a este bot por dos motivos, con el mismo formulario:
  *  1) **Mensaje entrante** ("A message comes in"): un paciente escribe al WhatsApp de SOM.
  *     - Idempotente por `MessageSid` (Twilio puede reintentar).
  *     - Busca al paciente por su número (las formas en que puede estar en la ficha); si
- *       no existe, lo crea como **lead** del CRM (origen `whatsapp`).
- *     - Marca el **inicio de contacto** (la campanita de Recepción) si no hubo ningún
- *       WhatsApp con él en las últimas 24 h.
+ *       no existe, lo crea como **lead** del CRM (origen `whatsapp`) y el mensaje queda
+ *       marcado **inicio de contacto**: lo avisa la campanita de Recepción.
+ *     - El mensaje entra en la **conversación abierta** del paciente; si no tiene
+ *       ninguna, abre una nueva con motivo «Otro motivo». El paciente también la ve en el
+ *       portal.
  *     - Guarda fotos, audios y documentos en `Binary` (en el compartimento del paciente).
- *     - Deja la `Communication` sin leer (`in-progress`) en el chat de Recepción.
- *  2) **Estado de entrega** (`StatusCallback` de los salientes): actualiza los ✓✓
+ *     - **Respuesta automática** (`lib/auto-respuesta.ts`): fuera de horario, un aviso
+ *       una vez por período cerrado; si abrió una conversación nueva, un acuse.
+ *  2) **Estado de entrega** (`StatusCallback` de lo que salió): actualiza los ✓✓
  *     (enviado → entregado → leído, o fallido con el motivo).
  *
  * Seguridad: la URL lleva las credenciales de una ClientApplication dedicada, que solo
@@ -21,25 +25,31 @@
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Attachment, Communication, Patient } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
+import { respuestaAutomatica, type TipoRespuestaAutomatica } from '../lib/auto-respuesta.js';
 import {
   aE164AR,
+  claveConversacionWhatsApp,
   combinarEstadoEntrega,
+  conEnvioWhatsApp,
   conEstadoEntrega,
+  construirConversacionWhatsApp,
   construirLeadWhatsApp,
   construirMensajeEntrante,
+  construirRespuestaAutomatica,
+  conversacionAbierta,
   elegirPacientePorTelefono,
-  esInicioDeContacto,
   esMediaDeTwilio,
   estadoEntregaDe,
   leerWebhookTwilio,
   MAX_ADJUNTO_BYTES,
   nombreAdjunto,
-  ultimaActividad,
+  tipoAutomatica,
   variantesTelefonoAR,
   type EstadoEntrega,
   type MediaTwilio,
   type WebhookTwilio,
 } from '../lib/whatsapp.js';
+import { mandarWhatsApp } from './_shared.js';
 
 type Secrets = BotEvent['secrets'];
 
@@ -48,15 +58,17 @@ export interface ResultadoWebhookWhatsApp {
   tipo: 'entrante' | 'estado' | 'ignorado';
   motivo?: string;
   pacienteRef?: string;
+  /** Conversación de Mensajes donde entró el mensaje. */
+  conversacionId?: string;
   communicationId?: string;
-  /** Se creó un lead nuevo para el número. */
+  /** Número nuevo: se creó un lead y suena la campanita. */
   pacienteNuevo?: boolean;
-  /** El mensaje abre conversación: lo avisa la campanita. */
-  inicioContacto?: boolean;
+  /** El mensaje abrió una conversación nueva. */
+  conversacionNueva?: boolean;
+  /** Qué respondió solo el sistema, si respondió. */
+  respuestaAutomatica?: TipoRespuestaAutomatica;
   estadoEntrega?: EstadoEntrega;
 }
-
-const CATEGORIA = `${SYSTEM.canal}|whatsapp`;
 
 export async function handler(
   medplum: MedplumClient,
@@ -124,7 +136,14 @@ async function registrarEntrante(
   // 1) Idempotencia: un reintento de Twilio no duplica el mensaje.
   const ya = await medplum.searchOne('Communication', { identifier: `${SYSTEM.twilioMessageSid}|${w.messageSid}` });
   if (ya?.id) {
-    return { ok: true, tipo: 'entrante', motivo: 'ya registrado', communicationId: ya.id, pacienteRef: ya.subject?.reference };
+    return {
+      ok: true,
+      tipo: 'entrante',
+      motivo: 'ya registrado',
+      communicationId: ya.id,
+      pacienteRef: ya.subject?.reference,
+      conversacionId: ya.partOf?.[0]?.reference?.split('/')[1],
+    };
   }
 
   // 2) El número de Recepción (el que recibe los avisos) no es un paciente.
@@ -133,36 +152,119 @@ async function registrarEntrante(
     return { ok: true, tipo: 'ignorado', motivo: 'Mensaje del número de Recepción.' };
   }
 
-  // 3) ¿Quién escribe? El paciente con ese número o, si no hay, un lead nuevo.
+  // 3) ¿Quién escribe? El paciente con ese número o, si no hay, un lead nuevo (campanita).
   const { paciente, nuevo } = await pacientePorTelefono(medplum, w.desde, w.nombrePerfil);
   const pacienteRef = `Patient/${paciente.id}`;
 
-  // 4) ¿Abre conversación? Ningún WhatsApp con él (de ida o de vuelta) en 24 h.
-  const ahora = new Date();
-  const previos = await medplum.searchResources('Communication', {
-    subject: pacienteRef,
-    category: CATEGORIA,
-    _sort: '-sent',
-    _count: '5',
-  });
-  const inicioContacto = esInicioDeContacto(ultimaActividad(previos), ahora);
+  // 4) La conversación: la abierta del paciente o una nueva («Otro motivo»).
+  const { conversacion, conversacionNueva } = await conversacionDelPaciente(medplum, pacienteRef);
+  const conversacionRef = `Communication/${conversacion.id}`;
 
   // 5) Fotos, audios, documentos (best-effort: sin la media, el mensaje igual queda).
   const adjuntos = await guardarAdjuntos(medplum, secrets, w.media, pacienteRef);
 
-  // 6) El mensaje, sin leer, en el chat de Recepción.
+  // 6) El mensaje, sin leer, en la conversación.
+  const ahora = new Date();
   const comm = await medplum.createResource<Communication>(
     construirMensajeEntrante({
+      conversacionRef,
       pacienteRef,
       texto: w.texto,
       adjuntos,
       messageSid: w.messageSid,
       telefono: w.desde,
-      inicioContacto,
+      inicioContacto: nuevo,
       ahora: ahora.toISOString(),
     }),
   );
-  return { ok: true, tipo: 'entrante', pacienteRef, communicationId: comm.id, pacienteNuevo: nuevo, inicioContacto };
+
+  // 7) Lo que responde solo el sistema (acuse / fuera de horario).
+  const automatica = await responderSolo(medplum, secrets, {
+    conversacionRef,
+    conversacionNueva,
+    pacienteRef,
+    telefono: w.desde,
+    ahora,
+  });
+
+  return {
+    ok: true,
+    tipo: 'entrante',
+    pacienteRef,
+    conversacionId: conversacion.id,
+    communicationId: comm.id,
+    pacienteNuevo: nuevo,
+    conversacionNueva,
+    ...(automatica ? { respuestaAutomatica: automatica } : {}),
+  };
+}
+
+/** La conversación abierta más reciente del paciente o, si no tiene, una nueva. */
+async function conversacionDelPaciente(
+  medplum: MedplumClient,
+  pacienteRef: string,
+): Promise<{ conversacion: Communication & { id: string }; conversacionNueva: boolean }> {
+  const candidatas = await medplum.searchResources('Communication', {
+    subject: pacienteRef,
+    'part-of:missing': 'true',
+    status: 'in-progress',
+    _sort: '-_lastUpdated',
+    _count: '50',
+  });
+  const abierta = conversacionAbierta(candidatas);
+  if (abierta?.id) {
+    return { conversacion: abierta as Communication & { id: string }, conversacionNueva: false };
+  }
+  // Condicional: si otro WhatsApp del paciente llegó a la vez, no se abren dos conversaciones.
+  const nueva = await medplum.createResourceIfNoneExist<Communication>(
+    construirConversacionWhatsApp(pacienteRef),
+    new URLSearchParams({
+      identifier: `${SYSTEM.communication}|${claveConversacionWhatsApp(pacienteRef)}`,
+      status: 'in-progress',
+    }).toString(),
+  );
+  return { conversacion: nueva as Communication & { id: string }, conversacionNueva: true };
+}
+
+/** Manda (y deja en la conversación) la respuesta automática que corresponda, si corresponde. */
+async function responderSolo(
+  medplum: MedplumClient,
+  secrets: Secrets,
+  p: { conversacionRef: string; conversacionNueva: boolean; pacienteRef: string; telefono: string; ahora: Date },
+): Promise<TipoRespuestaAutomatica | undefined> {
+  const previos = p.conversacionNueva
+    ? []
+    : await medplum.searchResources('Communication', { 'part-of': p.conversacionRef, _sort: '-sent', _count: '200' });
+  const ultimoAviso = previos
+    .filter((m) => tipoAutomatica(m) === 'fuera-de-horario')
+    .map((m) => m.sent)
+    .filter((s): s is string => Boolean(s))
+    .sort()
+    .pop();
+  const r = respuestaAutomatica({ conversacionNueva: p.conversacionNueva, ahora: p.ahora, ultimoAvisoFueraDeHorario: ultimoAviso });
+  if (!r) {
+    return undefined;
+  }
+  const envio = await mandarWhatsApp(secrets, { to: p.telefono, body: r.texto });
+  const base = construirRespuestaAutomatica({
+    conversacionRef: p.conversacionRef,
+    pacienteRef: p.pacienteRef,
+    tipo: r.tipo,
+    texto: r.texto,
+    // Siempre después del mensaje que la provocó (el orden de la conversación).
+    ahora: new Date(Math.max(Date.now(), p.ahora.getTime() + 1)).toISOString(),
+  });
+  await medplum.createResource<Communication>(
+    conEnvioWhatsApp(base, {
+      telefono: envio.destino,
+      entrega: envio.entrega,
+      messageSids: envio.messageSids,
+      ...(envio.status === 'completed'
+        ? {}
+        : { motivo: envio.motivo ?? 'No salió por WhatsApp: faltan los secrets de Twilio en Medplum.' }),
+    }),
+  );
+  return r.tipo;
 }
 
 async function pacientePorTelefono(
@@ -179,11 +281,20 @@ async function pacientePorTelefono(
     return { paciente: existente as Patient & { id: string }, nuevo: false };
   }
   // Condicional: si otro mensaje del mismo número llegó a la vez, no se duplica el lead.
-  const lead = await medplum.createResourceIfNoneExist<Patient>(
-    construirLeadWhatsApp(telefono, nombrePerfil),
-    `phone=${encodeURIComponent(telefono)}`,
-  );
-  return { paciente: lead as Patient & { id: string }, nuevo: true };
+  try {
+    const lead = await medplum.createResourceIfNoneExist<Patient>(
+      construirLeadWhatsApp(telefono, nombrePerfil),
+      `phone=${encodeURIComponent(telefono)}`,
+    );
+    return { paciente: lead as Patient & { id: string }, nuevo: true };
+  } catch (err) {
+    // Otro mensaje lo creó en el mismo instante: se usa ese.
+    const otro = elegirPacientePorTelefono(await medplum.searchResources('Patient', { phone: telefono, _count: '20' }));
+    if (!otro?.id) {
+      throw err;
+    }
+    return { paciente: otro as Patient & { id: string }, nuevo: false };
+  }
 }
 
 async function guardarAdjuntos(

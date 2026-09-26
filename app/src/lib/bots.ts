@@ -1,4 +1,4 @@
-import type { Communication, Invoice, Reference } from '@medplum/fhirtypes';
+import type { Communication, Invoice } from '@medplum/fhirtypes';
 import type { Modalidad } from '@som/domain/types';
 import type { ConsultaPlanVista } from '@som/lib/plan-bienestar';
 import { medplum } from '../medplum';
@@ -244,38 +244,23 @@ export async function borradorRespuesta(hiloId: string): Promise<ResultadoBorrad
 }
 
 export interface ResultadoResponderWhatsApp {
+  /** false solo si tenía que salir por WhatsApp y no salió. */
   ok: boolean;
-  motivo?: string;
-  /** El mensaje registrado (también cuando no salió, para verlo en el chat). */
+  /** Por dónde quedó: solo el portal, o también WhatsApp. */
+  canal: 'portal' | 'whatsapp';
+  /** Salió por WhatsApp (Twilio lo aceptó). */
+  enviado: boolean;
+  /** El mensaje, con los datos del envío (canal, ✓) si salió. */
   mensaje?: Communication;
-  /** Hasta cuándo se puede responder texto libre (ISO). */
-  ventanaCierra?: string;
+  /** Por qué no salió por WhatsApp. */
+  motivo?: string;
 }
 
 /**
- * Responde un chat de WhatsApp (som-whatsapp-responder). El bot decide si se puede: solo
- * dentro de las 24 h del último mensaje del paciente (regla de WhatsApp).
+ * Después de responder en Mensajes: el bot decide si la respuesta sale también por
+ * WhatsApp (si el paciente escribió por ahí y la ventana de 24 h sigue abierta) y la manda.
  */
-export async function responderWhatsApp(
-  pacienteRef: string,
-  texto: string,
-  autor?: Reference,
-): Promise<ResultadoResponderWhatsApp> {
+export async function responderWhatsApp(mensajeId: string): Promise<ResultadoResponderWhatsApp> {
   const id = await botIdPorNombre('som-whatsapp-responder');
-  return (await medplum.executeBot(id, { pacienteRef, texto, autor })) as ResultadoResponderWhatsApp;
-}
-
-export interface AdjuntoWhatsApp {
-  ok: boolean;
-  motivo?: string;
-  contentType?: string;
-  /** El archivo en base64. */
-  data?: string;
-  titulo?: string;
-}
-
-/** Trae la foto, audio o documento de un mensaje del chat (som-whatsapp-adjunto). */
-export async function adjuntoWhatsApp(communicationId: string, indice = 0): Promise<AdjuntoWhatsApp> {
-  const id = await botIdPorNombre('som-whatsapp-adjunto');
-  return (await medplum.executeBot(id, { communicationId, indice })) as AdjuntoWhatsApp;
+  return (await medplum.executeBot(id, { mensajeId })) as ResultadoResponderWhatsApp;
 }

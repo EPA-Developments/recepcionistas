@@ -80,13 +80,15 @@ export const EXT = {
   modalidad: `${BASE}/StructureDefinition/modalidad`,
   /** Link de la videollamada (Jitsi) de una teleconsulta. */
   teleconsultaUrl: `${BASE}/StructureDefinition/teleconsulta-url`,
-  // WhatsApp (Twilio) — chat de Recepción.
+  // WhatsApp (Twilio) — canal de las conversaciones de Mensajes.
   /** Número de WhatsApp (E.164) del otro lado de un mensaje: a dónde se responde. */
   telefonoWhatsapp: `${BASE}/StructureDefinition/telefono-whatsapp`,
   /** Estado de entrega de un WhatsApp saliente: `en-cola` | `enviado` | `entregado` | `leido` | `fallido` (los ✓✓). */
   estadoEntrega: `${BASE}/StructureDefinition/estado-entrega`,
-  /** true en el primer mensaje que llega de un contacto: la campanita lo avisa como contacto nuevo. */
+  /** true en el primer WhatsApp de un número nuevo (no estaba en SOM): lo avisa la campanita. */
   inicioContacto: `${BASE}/StructureDefinition/inicio-contacto`,
+  /** Respuesta que mandó solo el sistema en Mensajes: `acuse` | `fuera-de-horario`. */
+  autoRespuesta: `${BASE}/StructureDefinition/auto-respuesta`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */
@@ -242,10 +244,8 @@ export function urlServicio(codigo: string): string {
 
 /** WhatsApp (Twilio): webhook de mensajes entrantes y estados de entrega (lo llama Twilio). */
 export const BOT_WHATSAPP_ENTRANTE = 'som-whatsapp-entrante';
-/** WhatsApp: Recepción responde un chat (dentro de la ventana de 24 h). */
+/** Mensajes: manda por WhatsApp la respuesta de Recepción si el paciente escribió por ahí. */
 export const BOT_WHATSAPP_RESPONDER = 'som-whatsapp-responder';
-/** WhatsApp: Recepción ve una foto, audio o documento que mandó el paciente. */
-export const BOT_WHATSAPP_ADJUNTO = 'som-whatsapp-adjunto';
 
 /** Plan Bienestar 100 Días®: plantilla (PlanDefinition) con sus tres consultas programadas. */
 export const PLAN_BIENESTAR_URL = `${BASE}/PlanDefinition/plan-bienestar-100`;

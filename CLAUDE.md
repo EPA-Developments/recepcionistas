@@ -32,8 +32,9 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 - `src/lib` — **lógica pura** (sin red): `money`, `pricing`, `reglas-turno`,
   `glp1-plan` (armado FHIR del seguimiento GLP-1), `plan-bienestar` (Plan
   Bienestar 100 Días®), `teleconsulta` (modalidad, consentimiento, Jitsi),
-  `programas` (ventanas y sincronización comunes) y `whatsapp` (chat de Recepción:
-  E.164, webhook de Twilio, ventana de 24 h, campanita). Es lo que se testea
+  `programas` (ventanas y sincronización comunes), `whatsapp` (WhatsApp como canal de
+  Mensajes: E.164, webhook de Twilio, a dónde responder, campanita) y `auto-respuesta`
+  (ventana de 24 h, horario, respuestas automáticas). Es lo que se testea
   exhaustivamente. `src/lib/glp1/` es el calendario GLP-1 **compartido con la
   plataforma CKM**: se mantiene igual al original (solo imports), sin lógica de SOM.
 - `src/fhir` — identificadores/URLs, extensiones (`StructureDefinition`),
@@ -111,5 +112,5 @@ real).
 Lo demás **no frena el desarrollo**: cargar los Project Secrets de Twilio/SES en
 Medplum (para que confirmaciones y recordatorios **envíen** de verdad; sin ellos
 las `Communication` quedan en `preparation`), configurar el webhook de Twilio para
-el chat de WhatsApp de Recepción (`docs/whatsapp.md`) y confirmar duración de
+WhatsApp en Mensajes (`docs/whatsapp.md`) y confirmar duración de
 consultas y lista real de consultorios/salas.

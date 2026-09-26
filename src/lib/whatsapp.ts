@@ -1,20 +1,25 @@
 /**
- * WhatsApp (Twilio) — lógica pura del chat de Recepción (sin red).
+ * WhatsApp (Twilio) — lógica pura del canal WhatsApp de **Mensajes** (sin red).
  *
+ * WhatsApp no es una bandeja aparte: es un canal de las conversaciones de Mensajes
+ * (el mismo modelo de hilos que el portal, `src/lib/mensajes.ts`).
  *  - Teléfonos: WhatsApp (y Twilio) exigen E.164. En Argentina un celular es
  *    `+54 9 {área sin 0} {número sin 15}`; acá se normaliza lo que se tipeó en la ficha
  *    (`011 15 2233-4455`, `11 2233-4455`, `+54 11 …`) y se arman las variantes para
  *    encontrar al paciente que escribe.
  *  - Webhook de Twilio: el mismo bot recibe los mensajes entrantes y los estados de
- *    entrega de los salientes (enviado / entregado / leído / fallido: los ✓✓).
- *  - Ventana de 24 h de WhatsApp: el negocio responde texto libre solo dentro de las
- *    24 h del último mensaje del paciente; fuera de ella, solo plantillas aprobadas.
- *  - Chats: cada paciente es un chat (todas sus Communication de WhatsApp, entrantes y
- *    salientes, incluidos recordatorios y confirmaciones).
+ *    entrega de las respuestas (enviado / entregado / leído / fallido: los ✓✓).
+ *  - Hilos: un WhatsApp entra en la conversación abierta del paciente o abre una nueva
+ *    (motivo «Otro motivo»); la respuesta de Recepción sale por WhatsApp si el último
+ *    mensaje del paciente en esa conversación llegó por WhatsApp y la ventana de 24 h
+ *    sigue abierta (`auto-respuesta.ts`).
+ *  - Campanita: avisa los WhatsApp de números nuevos (contactos que no estaban en SOM).
  */
 import type { Attachment, CodeableConcept, Coding, Communication, Patient } from '@medplum/fhirtypes';
 import { TZ } from '../config/horario.js';
+import { REMITENTE_AUTOMATICO } from '../config/auto-respuesta.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
+import { ventana24h, type TipoRespuestaAutomatica } from './auto-respuesta.js';
 
 // ───────────────────────────── teléfonos (Argentina) ─────────────────────────────
 
@@ -267,36 +272,6 @@ export function leerWebhookTwilio(input: unknown): WebhookTwilio {
   return { tipo: 'desconocido', motivo: `estado no reconocido: ${estadoCrudo || '(vacío)'}` };
 }
 
-// ───────────────────────────── ventana de 24 h ─────────────────────────────
-
-/** Horas en que WhatsApp deja responder texto libre después del último mensaje del paciente. */
-export const VENTANA_WHATSAPP_HORAS = 24;
-
-export interface VentanaWhatsApp {
-  abierta: boolean;
-  /** Hasta cuándo se puede responder (ISO), si hubo un mensaje del paciente. */
-  cierra?: string;
-}
-
-export function ventanaWhatsApp(ultimoEntrante: string | undefined, ahora: Date = new Date()): VentanaWhatsApp {
-  if (!ultimoEntrante) {
-    return { abierta: false };
-  }
-  const cierra = new Date(Date.parse(ultimoEntrante) + VENTANA_WHATSAPP_HORAS * 3_600_000);
-  return { abierta: cierra.getTime() > ahora.getTime(), cierra: cierra.toISOString() };
-}
-
-/**
- * ¿El mensaje del paciente abre una conversación? Sí, si no hubo ningún WhatsApp con él
- * (de ida o de vuelta) en las últimas 24 h: el contacto nuevo o el que vuelve a escribir
- * después de un tiempo (lo que WhatsApp llama una conversación iniciada por el usuario).
- * Es lo que avisa la campanita de Recepción.
- */
-export function esInicioDeContacto(ultimaActividad: string | undefined, ahora: Date = new Date()): boolean {
-  const t = ultimaActividad ? Date.parse(ultimaActividad) : Number.NaN;
-  return Number.isNaN(t) || ahora.getTime() - t >= VENTANA_WHATSAPP_HORAS * 3_600_000;
-}
-
 /**
  * Errores de Twilio más comunes al mandar un WhatsApp, en palabras de Recepción
  * (códigos del diccionario de errores de Twilio: https://www.twilio.com/docs/api/errors).
@@ -323,7 +298,7 @@ export function explicarErrorTwilio(codigo: string | number | undefined): string
   return texto ? `WhatsApp no entregó el mensaje: ${texto} (Twilio ${c}).` : `WhatsApp no entregó el mensaje (Twilio ${c}: https://www.twilio.com/docs/api/errors/${c}).`;
 }
 
-// ───────────────────────────── mensajes (Communication) ─────────────────────────────
+// ───────────────────────────── mensajes del canal WhatsApp ─────────────────────────────
 
 export const CATEGORIA_WHATSAPP: CodeableConcept = {
   coding: [{ system: SYSTEM.canal, code: 'whatsapp', display: 'WhatsApp' }],
@@ -333,15 +308,36 @@ export const CATEGORIA_WHATSAPP: CodeableConcept = {
 /** Largo máximo de un mensaje de WhatsApp por Twilio. */
 export const MAX_TEXTO_WHATSAPP = 1600;
 
+/**
+ * Un texto largo en partes que Twilio acepta (hasta `max` caracteres), cortando en un
+ * salto de línea o un espacio para no partir palabras.
+ */
+export function partirTexto(texto: string, max: number = MAX_TEXTO_WHATSAPP): string[] {
+  const partes: string[] = [];
+  let resto = texto.trim();
+  while (resto.length > max) {
+    let corte = resto.lastIndexOf('\n', max);
+    if (corte < max / 2) {
+      corte = resto.lastIndexOf(' ', max);
+    }
+    if (corte < max / 2) {
+      corte = max;
+    }
+    partes.push(resto.slice(0, corte).trim());
+    resto = resto.slice(corte).trim();
+  }
+  return resto ? [...partes, resto] : partes;
+}
+
+/** Llegó o salió por WhatsApp (extensión `canal` o categoría). */
 export function esWhatsApp(c: Communication): boolean {
   return (
-    (c.category ?? []).some((cc) => cc.coding?.some((k) => k.system === SYSTEM.canal && k.code === 'whatsapp')) ||
-    c.extension?.some((e) => e.url === EXT.canal && e.valueCode === 'whatsapp') === true
+    c.extension?.some((e) => e.url === EXT.canal && e.valueCode === 'whatsapp') === true ||
+    (c.category ?? []).some((cc) => cc.coding?.some((k) => k.system === SYSTEM.canal && k.code === 'whatsapp'))
   );
 }
 
-/** Mensaje del paciente (entrante): lo manda el Patient. */
-export function esEntrante(c: Communication): boolean {
+function delPaciente(c: Communication): boolean {
   return Boolean(c.sender?.reference?.startsWith('Patient/'));
 }
 
@@ -354,8 +350,15 @@ export function telefonoDe(c: Communication): string | undefined {
   return c.extension?.find((e) => e.url === EXT.telefonoWhatsapp)?.valueString;
 }
 
+/** Primer WhatsApp de un número nuevo (lo avisa la campanita). */
 export function esInicioContacto(c: Communication): boolean {
   return c.extension?.some((e) => e.url === EXT.inicioContacto && e.valueBoolean === true) === true;
+}
+
+/** Respuesta que mandó solo el sistema (acuse o fuera de horario): se ve «🤖 Automática». */
+export function tipoAutomatica(c: Communication): TipoRespuestaAutomatica | undefined {
+  const v = c.extension?.find((e) => e.url === EXT.autoRespuesta)?.valueCode;
+  return v === 'acuse' || v === 'fuera-de-horario' ? v : undefined;
 }
 
 export function textoDe(c: Communication): string {
@@ -370,22 +373,14 @@ export function adjuntosDe(c: Communication): Attachment[] {
 }
 
 /**
- * Etiqueta de confidencialidad HL7 v3 "R" (restricted): el WhatsApp lleva información
- * clínica (p. ej. el aviso del informe SOM con su resumen). El chat de Recepción muestra
- * que salió, nunca el contenido (privacidad por diseño).
+ * Etiqueta de confidencialidad HL7 v3 "R" (restricted) para los WhatsApp que llevan
+ * información clínica (p. ej. el aviso del informe SOM con su resumen).
  */
 export const ETIQUETA_RESERVADO: Coding = {
   system: 'http://terminology.hl7.org/CodeSystem/v3-Confidentiality',
   code: 'R',
   display: 'restricted',
 };
-
-export function esReservado(c: Communication): boolean {
-  return (c.meta?.security ?? []).some((s) => s.system === ETIQUETA_RESERVADO.system && s.code === ETIQUETA_RESERVADO.code);
-}
-
-/** Lo que Recepción ve en lugar de un mensaje reservado. */
-export const TEXTO_RESERVADO = '🔒 Aviso con información clínica (solo lo ve el paciente)';
 
 export type TipoAdjunto = 'imagen' | 'audio' | 'video' | 'documento' | 'contacto' | 'otro';
 
@@ -445,27 +440,14 @@ export function nombreAdjunto(contentType: string | undefined, indice: number): 
   return `whatsapp-${indice + 1}.${EXTENSIONES[base] ?? 'bin'}`;
 }
 
-/**
- * ¿Se puede abrir en el navegador? Solo fotos, audio, video y PDF. Lo demás (un HTML o un
- * SVG que mande alguien por WhatsApp puede traer código) se descarga, nunca se abre en
- * la app de Recepción.
- */
-export function esSeguroParaVer(contentType: string | undefined): boolean {
-  const t = (contentType ?? '').toLowerCase().split(';')[0]!.trim();
-  return /^(image\/(png|jpeg|webp|gif)|audio\/[\w.+-]+|video\/(mp4|3gpp|webm)|application\/pdf)$/.test(t);
-}
-
 /** Tope de un adjunto entrante que se guarda (WhatsApp admite hasta 16 MB). */
 export const MAX_ADJUNTO_BYTES = 10 * 1024 * 1024;
 
-/** Tope de un adjunto que el bot devuelve para verlo en el chat (la respuesta viaja en base64). */
-export const MAX_ADJUNTO_VISTA_BYTES = 4 * 1024 * 1024;
+/** Tope de un archivo que adjunta Recepción (Twilio rechaza medios más grandes). */
+export const MAX_ADJUNTO_RECEPCION_BYTES = 15 * 1024 * 1024;
 
-/** Una línea para la lista de chats y la campanita. */
+/** Una línea para la lista de conversaciones y la campanita. */
 export function vistaPrevia(c: Communication): string {
-  if (esReservado(c)) {
-    return TEXTO_RESERVADO;
-  }
   const texto = textoDe(c).replace(/\s+/g, ' ').trim();
   if (texto) {
     return texto;
@@ -477,8 +459,60 @@ export function vistaPrevia(c: Communication): string {
 /** Lo que se muestra si WhatsApp mandó un tipo de mensaje sin texto ni archivo. */
 export const MENSAJE_SIN_CONTENIDO = '(mensaje de WhatsApp sin texto que no se puede mostrar)';
 
-/** El mensaje entrante tal como se guarda (sin leer: `in-progress`, como en Mensajes). */
+// ───────────────────────────── hilos (conversaciones de Mensajes) ─────────────────────────────
+
+/** Motivo de las conversaciones que abre un WhatsApp (los del portal, `mensajes.ts`). */
+export const MOTIVO_WHATSAPP = { code: 'otro', titulo: 'Otro motivo' } as const;
+
+/**
+ * Una conversación de Mensajes abierta (no un mensaje, ni una Novedad del portal, ni un
+ * aviso suelto): sin `partOf`, en curso y con motivo.
+ */
+export function esConversacionAbierta(c: Communication): boolean {
+  return (
+    !c.partOf?.length &&
+    c.status === 'in-progress' &&
+    Boolean(c.topic) &&
+    !(c.category ?? []).some((cc) => cc.coding?.some((k) => k.system === SYSTEM.notificacion))
+  );
+}
+
+/** La conversación abierta más reciente del paciente (a la que entra su WhatsApp). */
+export function conversacionAbierta(candidatas: Communication[]): Communication | undefined {
+  return candidatas
+    .filter(esConversacionAbierta)
+    .sort((a, b) => (b.meta?.lastUpdated ?? '').localeCompare(a.meta?.lastUpdated ?? ''))[0];
+}
+
+/**
+ * Clave de la conversación que abre un WhatsApp (identifier): evita abrir dos si llegan
+ * dos mensajes a la vez. Solo cuenta la abierta (se busca junto con `status=in-progress`).
+ */
+export function claveConversacionWhatsApp(pacienteRef: string): string {
+  return `conversacion-whatsapp-${pacienteRef.split('/')[1] ?? pacienteRef}`;
+}
+
+/** Conversación nueva que abre un WhatsApp (el paciente no tenía ninguna abierta). */
+export function construirConversacionWhatsApp(pacienteRef: string): Communication {
+  const paciente = { reference: pacienteRef };
+  return {
+    resourceType: 'Communication',
+    status: 'in-progress',
+    identifier: [{ system: SYSTEM.communication, value: claveConversacionWhatsApp(pacienteRef) }],
+    subject: paciente,
+    sender: paciente,
+    topic: {
+      coding: [{ system: SYSTEM.motivoMensaje, code: MOTIVO_WHATSAPP.code, display: MOTIVO_WHATSAPP.titulo }],
+      text: MOTIVO_WHATSAPP.titulo,
+    },
+    // Por dónde empezó (la bandeja lo muestra con el ícono de WhatsApp).
+    extension: [{ url: EXT.canal, valueCode: 'whatsapp' }],
+  };
+}
+
+/** El WhatsApp del paciente como mensaje de la conversación (sin leer: `in-progress`). */
 export function construirMensajeEntrante(p: {
+  conversacionRef: string;
   pacienteRef: string;
   texto: string;
   adjuntos: Attachment[];
@@ -490,7 +524,7 @@ export function construirMensajeEntrante(p: {
   return {
     resourceType: 'Communication',
     status: 'in-progress',
-    category: [CATEGORIA_WHATSAPP],
+    partOf: [{ reference: p.conversacionRef }],
     identifier: [{ system: SYSTEM.twilioMessageSid, value: p.messageSid }],
     subject: { reference: p.pacienteRef },
     sender: { reference: p.pacienteRef },
@@ -507,6 +541,93 @@ export function construirMensajeEntrante(p: {
     ],
   };
 }
+
+/** La respuesta automática como mensaje de la conversación (firmada por el sistema). */
+export function construirRespuestaAutomatica(p: {
+  conversacionRef: string;
+  pacienteRef: string;
+  tipo: TipoRespuestaAutomatica;
+  texto: string;
+  ahora: string;
+}): Communication {
+  const paciente = { reference: p.pacienteRef };
+  return {
+    resourceType: 'Communication',
+    status: 'in-progress',
+    partOf: [{ reference: p.conversacionRef }],
+    subject: paciente,
+    sender: { display: REMITENTE_AUTOMATICO },
+    recipient: [paciente],
+    sent: p.ahora,
+    payload: [{ contentString: p.texto }],
+    extension: [{ url: EXT.autoRespuesta, valueCode: p.tipo }],
+  };
+}
+
+/** El mensaje con los datos del envío por WhatsApp (canal, número, ✓ y MessageSid). */
+export function conEnvioWhatsApp(
+  c: Communication,
+  envio: { telefono?: string; entrega?: EstadoEntrega; messageSids: string[]; motivo?: string },
+): Communication {
+  const propias: string[] = [EXT.canal, EXT.telefonoWhatsapp, EXT.estadoEntrega];
+  return {
+    ...c,
+    extension: [
+      ...(c.extension ?? []).filter((e) => !propias.includes(e.url)),
+      { url: EXT.canal, valueCode: 'whatsapp' },
+      ...(envio.telefono ? [{ url: EXT.telefonoWhatsapp, valueString: envio.telefono }] : []),
+      ...(envio.entrega ? [{ url: EXT.estadoEntrega, valueCode: envio.entrega }] : []),
+    ],
+    ...(envio.messageSids.length
+      ? {
+          identifier: [
+            ...(c.identifier ?? []),
+            ...envio.messageSids.map((value) => ({ system: SYSTEM.twilioMessageSid, value })),
+          ],
+        }
+      : {}),
+    ...(envio.motivo ? { statusReason: { text: envio.motivo } } : {}),
+  };
+}
+
+/** El último mensaje del paciente en la conversación (define por dónde se le responde). */
+export function ultimoDelPaciente(hilo: Communication[]): Communication | undefined {
+  return [...hilo]
+    .filter(delPaciente)
+    .sort((a, b) => (a.sent ?? '').localeCompare(b.sent ?? ''))
+    .pop();
+}
+
+export type DecisionEnvio =
+  | { enviar: true; telefono: string }
+  | { enviar: false; canal: 'portal' }
+  | { enviar: false; canal: 'whatsapp'; motivo: string };
+
+/**
+ * ¿La respuesta de Recepción sale también por WhatsApp? Sí, si el último mensaje del
+ * paciente en la conversación llegó por WhatsApp y la ventana de 24 h sigue abierta.
+ * Si escribió por el portal, la respuesta queda solo en el portal.
+ */
+export function decidirEnvioWhatsApp(hilo: Communication[], ahora: Date = new Date()): DecisionEnvio {
+  const ultimo = ultimoDelPaciente(hilo);
+  if (!ultimo || !esWhatsApp(ultimo)) {
+    return { enviar: false, canal: 'portal' };
+  }
+  if (!ventana24h(ultimo.sent, ahora).abierta) {
+    return {
+      enviar: false,
+      canal: 'whatsapp',
+      motivo:
+        'pasaron más de 24 h desde el último WhatsApp del paciente: WhatsApp solo acepta plantillas aprobadas (pendientes). El mensaje quedó en la conversación y lo ve en el portal.',
+    };
+  }
+  const telefono = telefonoDe(ultimo);
+  return telefono
+    ? { enviar: true, telefono }
+    : { enviar: false, canal: 'whatsapp', motivo: 'no se sabe desde qué número escribió el paciente.' };
+}
+
+// ───────────────────────────── pacientes ─────────────────────────────
 
 /**
  * Paciente nuevo (lead del CRM) para un número que escribe por primera vez. El nombre
@@ -542,108 +663,23 @@ export function elegirPacientePorTelefono(candidatos: Patient[]): Patient | unde
   )[0];
 }
 
-// ───────────────────────────── chats (vista de Recepción) ─────────────────────────────
-
-export interface ChatWhatsApp {
-  /** "Patient/<id>". */
-  pacienteRef: string;
-  nombre: string;
-  /** El número de WhatsApp del chat (E.164), si se conoce. */
-  telefono?: string;
-  ultimo: Communication;
-  /** Mensajes del paciente que Recepción no leyó. */
-  sinLeer: number;
-  /** Primer mensaje de un contacto que todavía nadie de SOM respondió. */
-  nuevoContacto: boolean;
-  /** Último mensaje del paciente (ISO): abre la ventana de 24 h. */
-  ultimoEntrante?: string;
-  /** Última actividad (ISO), para ordenar. */
-  actividad: string;
-  /** Contacto que llegó por WhatsApp y todavía no tiene ficha (solo el apodo del perfil). */
-  sinFicha?: boolean;
-}
-
-function porFecha(a: Communication, b: Communication): number {
-  return (a.sent ?? a.meta?.lastUpdated ?? '').localeCompare(b.sent ?? b.meta?.lastUpdated ?? '');
-}
-
-export function ordenarMensajes(mensajes: Communication[]): Communication[] {
-  return [...mensajes].sort(porFecha);
-}
-
-/**
- * Agrupa los WhatsApp por paciente: un chat por paciente, del más activo al menos.
- * Los mensajes sin paciente (p. ej. avisos al número de Recepción) no son un chat.
- */
-export function resumirChats(mensajes: Communication[], nombres: ReadonlyMap<string, string>): ChatWhatsApp[] {
-  const porPaciente = new Map<string, Communication[]>();
-  for (const m of mensajes) {
-    const ref = m.subject?.reference;
-    if (ref?.startsWith('Patient/') && esWhatsApp(m)) {
-      porPaciente.set(ref, [...(porPaciente.get(ref) ?? []), m]);
-    }
-  }
-  const chats: ChatWhatsApp[] = [];
-  for (const [pacienteRef, lista] of porPaciente) {
-    const orden = ordenarMensajes(lista);
-    const ultimo = orden[orden.length - 1]!;
-    const entrantes = orden.filter(esEntrante);
-    const inicio = orden.findIndex(esInicioContacto);
-    const respondido = inicio >= 0 && orden.slice(inicio + 1).some((m) => !esEntrante(m));
-    chats.push({
-      pacienteRef,
-      nombre: nombres.get(pacienteRef) ?? 'Paciente',
-      telefono: [...orden].reverse().map(telefonoDe).find(Boolean),
-      ultimo,
-      sinLeer: entrantes.filter(esNoLeido).length,
-      nuevoContacto: inicio >= 0 && !respondido,
-      ultimoEntrante: entrantes[entrantes.length - 1]?.sent,
-      actividad: ultimo.sent ?? ultimo.meta?.lastUpdated ?? '',
-    });
-  }
-  return chats.sort((a, b) => b.actividad.localeCompare(a.actividad));
-}
-
 /** El paciente solo tiene el apodo del perfil de WhatsApp: falta completar la ficha (alta). */
 export function esSinFicha(p: Patient): boolean {
   return (p.name ?? []).every((n) => n.use === 'nickname');
 }
 
-/** Lo que se ve al pie de un saliente: los ✓✓ o que no salió. */
-export type EstadoVisible = EstadoEntrega | 'no-enviado';
-
-export function estadoVisible(c: Communication): EstadoVisible {
-  const entrega = estadoEntregaDe(c);
-  if (c.status === 'entered-in-error' || entrega === 'fallido') {
-    return 'fallido';
-  }
-  if (c.status === 'preparation') {
-    return 'no-enviado';
-  }
-  return entrega ?? 'enviado';
+export function nombreDePaciente(p: Patient): string {
+  const n = p.name?.[0];
+  return n?.text ?? ([...(n?.given ?? []), n?.family].filter(Boolean).join(' ') || 'Paciente');
 }
 
-/** El template de un saliente automático (recordatorio, confirmación, …). */
-export function plantillaDe(c: Communication): string | undefined {
-  return c.extension?.find((e) => e.url === EXT.templateUsado)?.valueString;
-}
+// ───────────────────────────── campanita ─────────────────────────────
 
-/** Template de las respuestas que escribe Recepción en el chat (no son automáticas). */
-export const PLANTILLA_RESPUESTA = 'respuesta-recepcion';
-
-/** Fecha (ISO) del mensaje más reciente de la lista. */
-export function ultimaActividad(mensajes: Communication[]): string | undefined {
-  return mensajes.map((m) => m.sent).filter((s): s is string => Boolean(s)).sort().pop();
-}
-
-/** El último mensaje del paciente (define la ventana de 24 h y a qué número responder). */
-export function ultimoEntrante(mensajes: Communication[]): Communication | undefined {
-  return ordenarMensajes(mensajes.filter((m) => esWhatsApp(m) && esEntrante(m))).pop();
-}
-
-/** Un aviso de la campanita: alguien abrió una conversación y nadie la leyó todavía. */
+/** Un aviso de la campanita: un número nuevo escribió por WhatsApp y nadie lo leyó. */
 export interface AvisoWhatsApp {
   pacienteRef: string;
+  /** Id de la conversación de Mensajes donde entró. */
+  conversacionId?: string;
   nombre: string;
   telefono?: string;
   /** Vista previa del mensaje. */
@@ -651,20 +687,15 @@ export interface AvisoWhatsApp {
   sent: string;
 }
 
-/** Mensaje del paciente que Recepción todavía no leyó (`in-progress`, como en Mensajes). */
-export function esNoLeido(m: Communication): boolean {
-  return esWhatsApp(m) && esEntrante(m) && m.status === 'in-progress';
-}
-
 /**
- * La campanita: los mensajes que abren conversación (inicio de contacto) sin leer, uno
- * por paciente (el más reciente), del más nuevo al más viejo. Se apagan al abrir el chat.
+ * La campanita: el primer WhatsApp de cada número nuevo, mientras siga sin leer (uno
+ * por contacto, del más nuevo al más viejo). Se apaga al abrir la conversación.
  */
 export function avisosInicioContacto(mensajes: Communication[], nombres: ReadonlyMap<string, string>): AvisoWhatsApp[] {
   const porPaciente = new Map<string, Communication>();
   for (const m of mensajes) {
     const ref = m.subject?.reference;
-    if (!ref?.startsWith('Patient/') || !esNoLeido(m) || !esInicioContacto(m)) {
+    if (!ref?.startsWith('Patient/') || !delPaciente(m) || m.status !== 'in-progress' || !esInicioContacto(m)) {
       continue;
     }
     const previo = porPaciente.get(ref);
@@ -673,25 +704,21 @@ export function avisosInicioContacto(mensajes: Communication[], nombres: Readonl
     }
   }
   return [...porPaciente.entries()]
-    .map(([pacienteRef, m]) => ({
-      pacienteRef,
-      nombre: nombres.get(pacienteRef) ?? 'Contacto nuevo',
-      ...(telefonoDe(m) ? { telefono: telefonoDe(m) } : {}),
-      texto: vistaPrevia(m),
-      sent: m.sent ?? '',
-    }))
+    .map(([pacienteRef, m]) => {
+      const conversacion = m.partOf?.[0]?.reference;
+      return {
+        pacienteRef,
+        ...(conversacion?.startsWith('Communication/') ? { conversacionId: conversacion.slice('Communication/'.length) } : {}),
+        nombre: nombres.get(pacienteRef) ?? 'Contacto nuevo',
+        ...(telefonoDe(m) ? { telefono: telefonoDe(m) } : {}),
+        texto: vistaPrevia(m),
+        sent: m.sent ?? '',
+      };
+    })
     .sort((a, b) => b.sent.localeCompare(a.sent));
 }
 
-/** Mensajes de pacientes sin leer (el contador de la pestaña WhatsApp). */
-export function contarNoLeidos(mensajes: Communication[]): number {
-  return mensajes.filter(esNoLeido).length;
-}
-
-export function nombreDePaciente(p: Patient): string {
-  const n = p.name?.[0];
-  return n?.text ?? ([...(n?.given ?? []), n?.family].filter(Boolean).join(' ') || 'Paciente');
-}
+// ───────────────────────────── fechas e iniciales (hora de Argentina) ─────────────────────────────
 
 const fmtDia = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const fmtHora = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
@@ -701,6 +728,7 @@ const fmtFecha = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, weekday: 'long
 export function horaMensaje(iso: string | undefined): string {
   return iso ? fmtHora.format(new Date(iso)) : '';
 }
+
 
 /** Separador de día del chat: "Hoy", "Ayer" o "lunes 21/09". */
 export function etiquetaDia(iso: string, ahora: Date = new Date()): string {
@@ -733,15 +761,6 @@ export function fechaCorta(iso: string | undefined, ahora: Date = new Date()): s
   }
   const dias = (Date.parse(fmtDia.format(ahora)) - Date.parse(fmtDia.format(new Date(iso)))) / 86_400_000;
   return dias < 7 ? fmtSemana.format(new Date(iso)) : fmtCorta.format(new Date(iso));
-}
-
-/** Cuándo se cierra la ventana de 24 h: "hoy a las 18:40" o "mañana a las 09:15". */
-export function cierreVentana(cierra: string | undefined, ahora: Date = new Date()): string {
-  if (!cierra) {
-    return '';
-  }
-  const hoy = diaDeMensaje(ahora.toISOString()) === diaDeMensaje(cierra);
-  return `${hoy ? 'hoy' : 'mañana'} a las ${horaMensaje(cierra)}`;
 }
 
 /** "recién", "hace 5 min", "hace 2 h" o la fecha corta (para la campanita). */
@@ -777,9 +796,4 @@ export function iniciales(nombre: string): string {
     .slice(0, 2)
     .map((p) => p[0]!.toUpperCase())
     .join('');
-}
-
-/** Día (AAAA-MM-DD, Argentina) de un mensaje: para agrupar por separador. */
-export function diaDeMensaje(iso: string | undefined): string {
-  return iso ? fmtDia.format(new Date(iso)) : '';
 }
