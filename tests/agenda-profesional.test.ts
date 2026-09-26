@@ -112,7 +112,33 @@ describe('Profesionales cargados (lista del 26/09/2026)', () => {
     }
   });
 
-  it('sin disponibilidad cargada (PENDIENTE) no generan horarios: nadie puede reservarlos todavía', () => {
-    expect(generarSlotsProfesionales(MEDICOS, HORARIO_SEMANAL, { desde: new Date(), dias: 30 })).toEqual([]);
+  it('disponibilidad cargada el 26/09/2026: horarios de 30 min de cada uno en la semana del 28/09', () => {
+    const desde = new Date('2026-09-28T12:00:00Z'); // lunes
+    const de = (codigo: string) => generarSlotsProfesional(MEDICOS.find((m) => m.codigo === codigo)!, HORARIO_SEMANAL, { desde, dias: 7 });
+    // Dr. Barbagelata: martes y jueves 14–18 → 8 + 8.
+    const barbagelata = de('MED_BARBAGELATA');
+    expect(barbagelata).toHaveLength(16);
+    expect(barbagelata[0]?.inicio).toBe('2026-09-29T14:00:00-03:00');
+    expect(barbagelata.at(-1)?.fin).toBe('2026-10-01T18:00:00-03:00');
+    // Dr. D'Alessandro: lunes, miércoles y viernes 16–20 → 3 × 8.
+    const dalessandro = de('MED_DALESSANDRO');
+    expect(dalessandro).toHaveLength(24);
+    expect(dalessandro[0]?.inicio).toBe('2026-09-28T16:00:00-03:00');
+    expect(dalessandro.at(-1)?.fin).toBe('2026-10-02T20:00:00-03:00');
+    // Dra. Gold: miércoles y viernes 08–12 → 8 + 8.
+    const gold = de('MED_GOLD');
+    expect(gold).toHaveLength(16);
+    expect(gold[0]?.inicio).toBe('2026-09-30T08:00:00-03:00');
+    expect(generarSlotsProfesionales(MEDICOS, HORARIO_SEMANAL, { desde, dias: 7 })).toHaveLength(56);
+  });
+
+  it('consultorio: el Dr. Barbagelata atiende en el Consultorio 1; los otros dos siguen provisorios (sin consultorio)', () => {
+    const barbagelata = MEDICOS.find((m) => m.codigo === 'MED_BARBAGELATA')!;
+    expect(barbagelata.consultorioCodigo).toBe('R_CONSULTORIO_1');
+    expect(barbagelata.provisional).toBeFalsy();
+    expect(MEDICOS.filter((m) => m.provisional).map((m) => m.codigo)).toEqual(['MED_GOLD', 'MED_DALESSANDRO']);
+    for (const m of MEDICOS.filter((m) => m.provisional)) {
+      expect(m.consultorioCodigo).toBeUndefined();
+    }
   });
 });
