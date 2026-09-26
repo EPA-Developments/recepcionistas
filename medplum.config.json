@@ -143,12 +143,6 @@
       "id": "",
       "source": "src/bots/whatsapp-responder.ts",
       "dist": "dist/bots/whatsapp-responder.js"
-    },
-    {
-      "name": "som-whatsapp-adjunto",
-      "id": "",
-      "source": "src/bots/whatsapp-adjunto.ts",
-      "dist": "dist/bots/whatsapp-adjunto.js"
     }
   ]
 }

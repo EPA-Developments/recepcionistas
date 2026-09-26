@@ -9,8 +9,8 @@
  * `som-limpiar-demo`) borra SOLO lo etiquetado demo: nunca toca datos reales.
  *
  * Genera pacientes, turnos de consulta (varios estados), un Flag de banner de
- * seguridad, cobros y chats de WhatsApp (con un contacto nuevo para la campanita),
- * para ver la app con datos.
+ * seguridad, cobros, avisos por WhatsApp y conversaciones de Mensajes (WhatsApp y
+ * portal, con un contacto nuevo para la campanita), para ver la app con datos.
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
@@ -18,12 +18,14 @@ import type { Appointment, Communication, Patient, Slot } from '@medplum/fhirtyp
 import { getServicio } from '../config/catalogo.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { META_DEMO, borrarRecursosDemo } from '../bots/_shared.js';
+import { TEXTO_ACUSE } from '../config/auto-respuesta.js';
 import {
   CATEGORIA_WHATSAPP,
+  conEnvioWhatsApp,
+  construirConversacionWhatsApp,
   construirLeadWhatsApp,
   construirMensajeEntrante,
-  PLANTILLA_RESPUESTA,
-  type EstadoEntrega,
+  construirRespuestaAutomatica,
 } from '../lib/whatsapp.js';
 import { conectarMedplum } from './conexion.js';
 
@@ -182,71 +184,136 @@ async function generar(medplum: MedplumClient): Promise<void> {
   }
   console.log(`  • Cobros (Invoice): ${invoices}`);
 
-  // WhatsApp (chat de Recepción y Reportes): avisos automáticos, una charla con
-  // respuesta de Recepción, un mensaje sin leer y un contacto NUEVO que hace sonar la
-  // campanita. Los horarios son relativos a ahora (para ver "Hoy" / "Ayer").
+  // Avisos automáticos por WhatsApp (Reportes): Communication sueltas, como las del bot.
   const hace = (min: number): string => new Date(Date.now() - min * 60_000).toISOString();
-  const lead = await medplum.createResource<Patient>({
-    ...construirLeadWhatsApp('+5491155550000', 'Carla (demo)'),
-    meta: META_DEMO,
-  });
-  const mensajes: Array<{
-    paciente?: Patient;
-    entrante?: boolean;
-    template?: string;
-    body: string;
-    minutos: number;
-    entrega?: EstadoEntrega;
-    leido?: boolean;
-    inicio?: boolean;
-  }> = [
-    { paciente: porNombre.get('Lucía'), template: 'reserva-tentativa', body: 'Segunda Opinión Médica: reservamos tu turno (demo).', minutos: 26 * 60, entrega: 'leido' },
-    { paciente: porNombre.get('Sofía'), template: 'turno-confirmado', body: 'Segunda Opinión Médica: ¡tu turno quedó confirmado! (demo)', minutos: 25 * 60, entrega: 'leido' },
-    { paciente: porNombre.get('Sofía'), entrante: true, body: '¡Gracias! ¿Tengo que llevar estudios? (demo)', minutos: 25 * 60 - 6, leido: true },
-    { paciente: porNombre.get('Sofía'), template: PLANTILLA_RESPUESTA, body: 'Sí, traé los últimos análisis y el electro si tenés 😊 (demo)', minutos: 25 * 60 - 10, entrega: 'entregado' },
-    { paciente: porNombre.get('Diego'), template: 'recordatorio-48h', body: 'Segunda Opinión Médica: te recordamos tu turno (demo).', minutos: 90, entrega: 'entregado' },
-    { paciente: porNombre.get('Diego'), entrante: true, body: 'Confirmo, ahí estaré 👍 (demo)', minutos: 70 },
-    { paciente: lead, entrante: true, inicio: true, body: 'Hola! Quería saber cómo pedir una segunda opinión con cardiología (demo)', minutos: 5 },
+  const avisos: Array<{ paciente?: Patient; template: string; body: string }> = [
+    { paciente: porNombre.get('Lucía'), template: 'reserva-tentativa', body: 'Segunda Opinión Médica: reservamos tu turno (demo).' },
+    { paciente: porNombre.get('Sofía'), template: 'turno-confirmado', body: 'Segunda Opinión Médica: ¡tu turno quedó confirmado! (demo)' },
+    { paciente: porNombre.get('Diego'), template: 'recordatorio-48h', body: 'Segunda Opinión Médica: te recordamos tu turno (demo).' },
   ];
   let communications = 0;
-  for (const [i, m] of mensajes.entries()) {
-    const ref = m.paciente?.id ? `Patient/${m.paciente.id}` : undefined;
-    const telefono = m.paciente?.telecom?.find((t) => t.system === 'phone')?.value;
-    if (!ref || !telefono) {
+  for (const a of avisos) {
+    const tel = a.paciente?.telecom?.find((t) => t.system === 'phone')?.value;
+    if (!a.paciente?.id) {
       continue;
     }
-    const base = m.entrante
-      ? construirMensajeEntrante({
-          pacienteRef: ref,
-          texto: m.body,
-          adjuntos: [],
-          messageSid: `SMdemo${Date.now()}${i}`,
-          telefono,
-          inicioContacto: Boolean(m.inicio),
-          ahora: hace(m.minutos),
-        })
-      : ({
-          resourceType: 'Communication',
-          status: 'completed',
-          category: [CATEGORIA_WHATSAPP],
-          sent: hace(m.minutos),
-          subject: { reference: ref },
-          recipient: [{ reference: ref }],
-          payload: [{ contentString: m.body }],
-          extension: [
-            { url: EXT.canal, valueCode: 'whatsapp' },
-            { url: EXT.templateUsado, valueString: m.template ?? PLANTILLA_RESPUESTA },
-            { url: EXT.telefonoWhatsapp, valueString: telefono },
-            { url: EXT.estadoEntrega, valueCode: m.entrega ?? 'enviado' },
-          ],
-        } satisfies Communication);
     await medplum.createResource<Communication>({
-      ...base,
+      resourceType: 'Communication',
       meta: META_DEMO,
-      ...(m.entrante && m.leido ? { status: 'completed', received: hace(m.minutos - 1) } : {}),
+      status: 'completed',
+      category: [CATEGORIA_WHATSAPP],
+      sent: hace(26 * 60),
+      subject: { reference: `Patient/${a.paciente.id}` },
+      recipient: [{ reference: `Patient/${a.paciente.id}` }],
+      payload: [{ contentString: a.body }],
+      extension: [
+        { url: EXT.canal, valueCode: 'whatsapp' },
+        { url: EXT.templateUsado, valueString: a.template },
+        ...(tel ? [{ url: EXT.telefonoWhatsapp, valueString: tel }] : []),
+        { url: EXT.estadoEntrega, valueCode: 'entregado' },
+      ],
     });
     communications++;
   }
+
+  // Mensajes (bandeja de Recepción): WhatsApp y portal en las mismas conversaciones.
+  //  - Un número NUEVO escribe por WhatsApp (suena la campanita) y recibe el acuse automático.
+  //  - Sofía escribió por WhatsApp, Recepción le respondió (salió por WhatsApp ✓✓) y volvió a escribir.
+  //  - Diego escribe desde el portal (su respuesta queda en el portal).
+  const lead = await medplum.createResource<Patient>({ ...construirLeadWhatsApp('+5491155550000', 'Carla (demo)'), meta: META_DEMO });
+  const crear = (c: Communication): Promise<Communication> =>
+    medplum.createResource<Communication>({ ...c, meta: { ...(c.meta ?? {}), ...META_DEMO } });
+  const recepcion = { display: 'Recepción (demo)' };
+  let mensajes = 0;
+
+  if (lead.id) {
+    const ref = `Patient/${lead.id}`;
+    const conv = await crear(construirConversacionWhatsApp(ref));
+    const convRef = `Communication/${conv.id}`;
+    await crear(
+      construirMensajeEntrante({
+        conversacionRef: convRef,
+        pacienteRef: ref,
+        texto: 'Hola! Quería saber cómo pedir una segunda opinión con cardiología (demo)',
+        adjuntos: [],
+        messageSid: `SMdemo${Date.now()}a`,
+        telefono: '+5491155550000',
+        inicioContacto: true,
+        ahora: hace(5),
+      }),
+    );
+    await crear(
+      conEnvioWhatsApp(
+        construirRespuestaAutomatica({ conversacionRef: convRef, pacienteRef: ref, tipo: 'acuse', texto: TEXTO_ACUSE, ahora: hace(5) }),
+        { telefono: '+5491155550000', entrega: 'entregado', messageSids: [] },
+      ),
+    );
+    mensajes += 2;
+  }
+
+  const sofia = porNombre.get('Sofía');
+  const telSofia = sofia?.telecom?.find((t) => t.system === 'phone')?.value;
+  if (sofia?.id && telSofia) {
+    const ref = `Patient/${sofia.id}`;
+    const conv = await crear(construirConversacionWhatsApp(ref));
+    const convRef = `Communication/${conv.id}`;
+    const entrante = (texto: string, minutos: number, leido: boolean, sufijo: string): Promise<Communication> =>
+      crear({
+        ...construirMensajeEntrante({
+          conversacionRef: convRef,
+          pacienteRef: ref,
+          texto,
+          adjuntos: [],
+          messageSid: `SMdemo${Date.now()}${sufijo}`,
+          telefono: telSofia,
+          inicioContacto: false,
+          ahora: hace(minutos),
+        }),
+        ...(leido ? { status: 'completed' as const, received: hace(minutos - 1) } : {}),
+      });
+    await entrante('¡Gracias! ¿Tengo que llevar estudios? (demo)', 25 * 60, true, 'b');
+    await crear(
+      conEnvioWhatsApp(
+        {
+          resourceType: 'Communication',
+          status: 'completed',
+          partOf: [{ reference: convRef }],
+          subject: { reference: ref },
+          sender: recepcion,
+          recipient: [{ reference: ref }],
+          sent: hace(25 * 60 - 10),
+          payload: [{ contentString: 'Sí, traé los últimos análisis y el electro si tenés 😊 (demo)' }],
+        },
+        { telefono: telSofia, entrega: 'leido', messageSids: [] },
+      ),
+    );
+    await entrante('Perfecto, nos vemos el jueves. ¡Gracias! (demo)', 40, false, 'c');
+    mensajes += 3;
+  }
+
+  const diegoPortal = porNombre.get('Diego');
+  if (diegoPortal?.id) {
+    const ref = { reference: `Patient/${diegoPortal.id}` };
+    const conv = await crear({
+      resourceType: 'Communication',
+      status: 'in-progress',
+      subject: ref,
+      sender: ref,
+      recipient: [ref],
+      topic: { coding: [{ system: SYSTEM.motivoMensaje, code: 'turnos', display: 'Turnos y reservas' }], text: 'Turnos y reservas' },
+    });
+    await crear({
+      resourceType: 'Communication',
+      status: 'in-progress',
+      partOf: [{ reference: `Communication/${conv.id}` }],
+      subject: ref,
+      sender: ref,
+      sent: hace(70),
+      payload: [{ contentString: '¿Puedo pasar mi turno del viernes al lunes? (demo, desde el portal)' }],
+    });
+    mensajes += 1;
+  }
+  console.log(`  • Mensajes (conversaciones de demo): ${mensajes}`);
   console.log(`  • Comunicaciones: ${communications}`);
 }
 

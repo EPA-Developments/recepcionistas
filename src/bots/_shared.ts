@@ -17,6 +17,7 @@ import {
   ETIQUETA_RESERVADO,
   estadoEntregaDeTwilio,
   explicarErrorTwilio,
+  partirTexto,
   type EstadoEntrega,
 } from '../lib/whatsapp.js';
 
@@ -127,17 +128,100 @@ export async function leerTcVigente(medplum: MedplumClient): Promise<number> {
   return resolverTC();
 }
 
+/** Resultado de mandar un WhatsApp por Twilio (sin registrar nada en Medplum). */
+export interface EnvioWhatsApp {
+  /** `completed` salió · `preparation` no se intentó (faltan secrets o el número) · `entered-in-error` Twilio lo rechazó. */
+  status: 'completed' | 'preparation' | 'entered-in-error';
+  /** Número al que se mandó (E.164). */
+  destino?: string;
+  /** Un MessageSid por mensaje de Twilio (uno por adjunto: WhatsApp manda un archivo por mensaje). */
+  messageSids: string[];
+  entrega?: EstadoEntrega;
+  /** Por qué no salió, en palabras de Recepción. */
+  motivo?: string;
+}
+
 /**
- * Envía un WhatsApp por Twilio y registra la Communication. Resuelve el teléfono
- * desde el paciente si no se pasa `to` y lo normaliza a E.164 (en Argentina,
- * `+549…`: WhatsApp no acepta el número como se tipea en la ficha). Si faltan
- * credenciales o teléfono, NO envía pero igual deja la Communication (estado
- * 'preparation'). Los secretos de Twilio se leen de event.secrets (Project Secrets
- * de Medplum).
- *
- * La Communication queda en el chat de WhatsApp de Recepción (category
- * `canal|whatsapp`), con el MessageSid de Twilio y su estado de entrega (los ✓✓, que
- * actualiza `som-whatsapp-entrante` si está el secret `TWILIO_WEBHOOK_URL`).
+ * Manda un WhatsApp por Twilio: el texto y, si hay, los archivos (`mediaUrls`, links
+ * públicos o firmados: Twilio los baja al enviar). WhatsApp acepta un archivo por
+ * mensaje: el texto va con el primero y cada archivo más sale en otro mensaje; un texto
+ * de más de 1600 caracteres (el tope de Twilio) sale en varias partes. El
+ * teléfono se normaliza a E.164 (`+549…`). Pide los estados de entrega (✓✓) al webhook
+ * si está el secret `TWILIO_WEBHOOK_URL`.
+ */
+export async function mandarWhatsApp(
+  secrets: Secrets,
+  p: { to?: string; body: string; mediaUrls?: string[] },
+): Promise<EnvioWhatsApp> {
+  const destino = aE164AR(p.to);
+  if (!destino) {
+    return {
+      status: 'preparation',
+      messageSids: [],
+      ...(p.to ? { motivo: `El teléfono "${p.to}" no es un celular válido para WhatsApp.` } : {}),
+    };
+  }
+  const sid = secrets['TWILIO_ACCOUNT_SID']?.valueString;
+  const token = secrets['TWILIO_AUTH_TOKEN']?.valueString;
+  const from = secrets['TWILIO_WHATSAPP_FROM']?.valueString;
+  const statusCallback = secrets['TWILIO_WEBHOOK_URL']?.valueString;
+  if (!sid || !token || !from) {
+    return { status: 'preparation', destino, messageSids: [] };
+  }
+
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const medios = p.mediaUrls ?? [];
+  // Un texto de más de 1600 caracteres sale en varios mensajes; si entra en uno, va como
+  // epígrafe del primer archivo.
+  const textos = partirTexto(p.body);
+  const partes: Array<{ Body?: string; MediaUrl?: string }> =
+    medios.length && textos.length <= 1
+      ? medios.map((MediaUrl, i) => ({ ...(i === 0 && textos[0] ? { Body: textos[0] } : {}), MediaUrl }))
+      : [...textos.map((Body) => ({ Body })), ...medios.map((MediaUrl) => ({ MediaUrl }))];
+  if (partes.length === 0) {
+    return { status: 'preparation', destino, messageSids: [], motivo: 'El mensaje está vacío.' };
+  }
+  const messageSids: string[] = [];
+  let entrega: EstadoEntrega | undefined;
+  for (const parte of partes) {
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        From: from.startsWith('whatsapp:') ? from : `whatsapp:${from}`,
+        To: `whatsapp:${destino}`,
+        ...parte,
+        ...(statusCallback ? { StatusCallback: statusCallback } : {}),
+      }),
+    });
+    const respuesta = await leerJson(resp);
+    if (!resp.ok) {
+      const codigo = typeof respuesta?.code === 'number' || typeof respuesta?.code === 'string' ? respuesta.code : undefined;
+      console.error(`mandarWhatsApp: Twilio ${resp.status}${codigo ? ` (${codigo})` : ''}`);
+      return {
+        status: 'entered-in-error',
+        destino,
+        messageSids,
+        entrega: 'fallido',
+        motivo:
+          explicarErrorTwilio(codigo) ??
+          `Twilio respondió ${resp.status}${respuesta?.message ? `: ${String(respuesta.message)}` : ''}`,
+      };
+    }
+    if (typeof respuesta?.sid === 'string') {
+      messageSids.push(respuesta.sid);
+    }
+    entrega ??= estadoEntregaDeTwilio(String(respuesta?.status ?? '')) ?? 'en-cola';
+  }
+  return { status: 'completed', destino, messageSids, entrega };
+}
+
+/**
+ * Envía un aviso por WhatsApp (confirmación, recordatorio, invitación, …) y lo registra
+ * como `Communication` suelta (no es una conversación de Mensajes). Resuelve el teléfono
+ * desde el paciente si no se pasa `to`. Si faltan credenciales o teléfono, NO envía pero
+ * igual deja la Communication (estado 'preparation'). Los secretos de Twilio se leen de
+ * event.secrets (Project Secrets de Medplum).
  */
 export async function enviarWhatsApp(
   medplum: MedplumClient,
@@ -149,12 +233,7 @@ export async function enviarWhatsApp(
     to?: string;
     identifier?: { system: string; value: string };
     about?: string;
-    /** Quién escribe (p. ej. la recepcionista que responde el chat). */
-    autor?: Communication['sender'];
-    /**
-     * El mensaje lleva información clínica: queda con la etiqueta de confidencialidad
-     * "R" y el chat de Recepción muestra que salió, no el contenido.
-     */
+    /** El mensaje lleva información clínica: queda con la etiqueta de confidencialidad "R". */
     reservado?: boolean;
   },
 ): Promise<Communication> {
@@ -167,50 +246,16 @@ export async function enviarWhatsApp(
       to = (telefonos.find((t) => t.use === 'mobile') ?? telefonos[0])?.value;
     }
   }
-  const destino = aE164AR(to);
-
-  const sid = secrets['TWILIO_ACCOUNT_SID']?.valueString;
-  const token = secrets['TWILIO_AUTH_TOKEN']?.valueString;
-  const from = secrets['TWILIO_WHATSAPP_FROM']?.valueString;
-  const statusCallback = secrets['TWILIO_WEBHOOK_URL']?.valueString;
-
-  let status: Communication['status'] = 'preparation';
-  let messageSid: string | undefined;
-  let entrega: EstadoEntrega | undefined;
-  let motivo: string | undefined = to && !destino ? `El teléfono "${to}" no es un celular válido para WhatsApp.` : undefined;
-  if (destino && sid && token && from) {
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        From: from.startsWith('whatsapp:') ? from : `whatsapp:${from}`,
-        To: `whatsapp:${destino}`,
-        Body: params.body,
-        ...(statusCallback ? { StatusCallback: statusCallback } : {}),
-      }),
-    });
-    const respuesta = await leerJson(resp);
-    status = resp.ok ? 'completed' : 'entered-in-error';
-    messageSid = typeof respuesta?.sid === 'string' ? respuesta.sid : undefined;
-    entrega = resp.ok ? (estadoEntregaDeTwilio(String(respuesta?.status ?? '')) ?? 'en-cola') : 'fallido';
-    if (!resp.ok) {
-      const codigo = typeof respuesta?.code === 'number' || typeof respuesta?.code === 'string' ? respuesta.code : undefined;
-      motivo =
-        explicarErrorTwilio(codigo) ??
-        `Twilio respondió ${resp.status}${respuesta?.message ? `: ${String(respuesta.message)}` : ''}`;
-      console.error(`enviarWhatsApp: Twilio ${resp.status}${codigo ? ` (${codigo})` : ''}`);
-    }
-  }
+  const envio = await mandarWhatsApp(secrets, { to, body: params.body });
 
   const identificadores = [
     ...(params.identifier ? [params.identifier] : []),
-    ...(messageSid ? [{ system: SYSTEM.twilioMessageSid, value: messageSid }] : []),
+    ...envio.messageSids.map((value) => ({ system: SYSTEM.twilioMessageSid, value })),
   ];
   return medplum.createResource<Communication>({
     resourceType: 'Communication',
     ...(params.reservado ? { meta: { security: [ETIQUETA_RESERVADO] } } : {}),
-    status,
+    status: envio.status,
     category: [CATEGORIA_WHATSAPP],
     sent: new Date().toISOString(),
     ...(identificadores.length ? { identifier: identificadores } : {}),
@@ -218,16 +263,15 @@ export async function enviarWhatsApp(
     ...(params.pacienteRef
       ? { subject: { reference: params.pacienteRef }, recipient: [{ reference: params.pacienteRef }] }
       : {}),
-    ...(params.autor ? { sender: params.autor } : {}),
-    ...(motivo ? { statusReason: { text: motivo } } : {}),
+    ...(envio.motivo ? { statusReason: { text: envio.motivo } } : {}),
     // payload solo si hay cuerpo: un payload sin content[x] es FHIR inválido.
     ...(params.body ? { payload: [{ contentString: params.body }] } : {}),
     extension: [
       { url: EXT.canal, valueCode: 'whatsapp' },
       // templateUsado solo si hay template: una extensión sin valor viola ext-1.
       ...(params.template ? [{ url: EXT.templateUsado, valueString: params.template }] : []),
-      ...(destino ? [{ url: EXT.telefonoWhatsapp, valueString: destino }] : []),
-      ...(entrega ? [{ url: EXT.estadoEntrega, valueCode: entrega }] : []),
+      ...(envio.destino ? [{ url: EXT.telefonoWhatsapp, valueString: envio.destino }] : []),
+      ...(envio.entrega ? [{ url: EXT.estadoEntrega, valueCode: envio.entrega }] : []),
     ],
   });
 }

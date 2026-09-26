@@ -17,13 +17,12 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-link-mercadopago` | Genera un link de MercadoPago (Checkout Pro) por el monto de la seña. Antes valida la credencial (Access Token, no Public Key) y el monto (no hay link por $0); si MercadoPago la rechaza (401 / 403 PolicyAgent) lee la cuenta y dice qué corregir. Con `{ diagnosticar: true }` solo revisa credencial y cuenta (`npm run mercadopago:test`). | `executeBot` (botón en turno tentativo). |
 | `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública que llama MercadoPago. |
 | `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp (en teleconsulta, con el link) y manda los avisos de las consultas del **Plan Bienestar** (se abrió la ventana; a mitad de ventana, segundo aviso + alerta a Recepción). | `cronTimer` del Bot (cada ~30 min). |
-| `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono; el teléfono en cualquiera de sus formas, así completa el **contacto nuevo** que llegó por WhatsApp con su nombre real sin duplicarlo). | `executeBot` (Atender → Nuevo paciente; WhatsApp → Completar ficha). |
+| `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono; el teléfono en cualquiera de sus formas y sin unir DNIs distintos, así completa el **número nuevo** que llegó por WhatsApp sin duplicarlo). | `executeBot` (Atender → Nuevo paciente; Mensajes → Completar ficha). |
 | `som-invitar-paciente` | Invita al paciente al **portal** (invite de Medplum) y entrega el link por WhatsApp/email/QR. **Requiere admin.** | `executeBot` (Atender → Invitar al portal). |
 | `som-limpiar-demo` | **Cron:** borra los datos demo (tag `demo`) con más de 48 h. | `cronTimer` del Bot (cada ~1 h). |
 | `som-enviar-whatsapp` | Envía WhatsApp (Twilio) y registra `Communication`. | `executeBot` por evento o manual. |
-| `som-whatsapp-entrante` | **Webhook de Twilio:** registra los WhatsApp que llegan (paciente por su número o **contacto nuevo** como lead del CRM, adjuntos en `Binary`, **inicio de contacto** para la campanita) y los estados de entrega de los salientes (✓✓). Idempotente por `MessageSid`; rechaza otro `AccountSid`. | URL que llama Twilio (ClientApplication dedicada, ver [`whatsapp.md`](whatsapp.md)). |
-| `som-whatsapp-responder` | **WhatsApp (Recepción):** responde un chat **solo dentro de la ventana de 24 h** del último mensaje del paciente, al número desde el que escribió, y registra el mensaje con la recepcionista como remitente. | `executeBot` (pestaña WhatsApp). |
-| `som-whatsapp-adjunto` | **WhatsApp (Recepción):** entrega la foto, audio o documento de un mensaje del chat (solo de WhatsApp, nunca uno reservado; Recepción no tiene acceso general a `Binary`). | `executeBot` (WhatsApp → Ver adjunto). |
+| `som-whatsapp-entrante` | **Webhook de Twilio:** el WhatsApp entra en la **conversación abierta** del paciente en Mensajes (o abre una, motivo «Otro motivo»); un número nuevo es un lead del CRM y suena la campanita; guarda adjuntos en `Binary`; **responde solo** (acuse / fuera de horario); y registra los estados de entrega (✓✓). Idempotente por `MessageSid`; rechaza otro `AccountSid`. | URL que llama Twilio (ClientApplication dedicada, ver [`whatsapp.md`](whatsapp.md)). |
+| `som-whatsapp-responder` | **Mensajes (Recepción):** después de responder, decide si la respuesta sale también por WhatsApp — solo si el último mensaje del paciente llegó por ahí y la **ventana de 24 h** sigue abierta — y la manda (texto y adjuntos) al número desde el que escribió; marca la burbuja (📱, ✓). | `executeBot` (Mensajes → Enviar). |
 | `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente, presencial o teleconsulta (`modalidad`; la teleconsulta exige el consentimiento de teleconsulta, R-21), y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
 | `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
 | `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
@@ -81,7 +80,7 @@ MercadoPago usan las credenciales propias de SOM.
 |---|---|---|
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | todos los envíos de WhatsApp | para enviar WhatsApp |
 | `TWILIO_WHATSAPP_FROM` | ídem (número de la WABA de EPA Bienestar IA, `whatsapp:+54...`) | para enviar WhatsApp |
-| `TWILIO_WEBHOOK_URL` | todos los envíos de WhatsApp (`StatusCallback`: los ✓✓ del chat). Es la URL de `som-whatsapp-entrante` con las credenciales de su ClientApplication y `?_medplum-prompt-basic-auth=1` ([`whatsapp.md`](whatsapp.md)) | para ver los ✓✓ |
+| `TWILIO_WEBHOOK_URL` | todos los envíos de WhatsApp (`StatusCallback`: los ✓✓ de Mensajes). Es la URL de `som-whatsapp-entrante` con las credenciales de su ClientApplication y `?_medplum-prompt-basic-auth=1` ([`whatsapp.md`](whatsapp.md)) | para ver los ✓✓ |
 | `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar) | opcional |
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
@@ -104,9 +103,10 @@ spamear a nadie. Estados resultantes:
 | El proveedor (Twilio/SES) devuelve error | `entered-in-error` (WhatsApp: con el motivo en `statusReason`) | no |
 
 WhatsApp: `enviarWhatsApp` pasa el teléfono de la ficha a **E.164** (`+549…`: WhatsApp
-exige el 9 de celular; acepta `11 2233-4455`, `011 15 2233-4455`, etc.) y cada envío
-queda en el **chat de WhatsApp** de Recepción (`category` `canal|whatsapp`, con el
-`MessageSid` y sus ✓✓). Ver [`whatsapp.md`](whatsapp.md).
+exige el 9 de celular; acepta `11 2233-4455`, `011 15 2233-4455`, etc.) y guarda el
+`MessageSid` y sus ✓✓. Los avisos automáticos quedan como mensajes sueltos; las
+conversaciones con el paciente (portal y WhatsApp) viven en **Mensajes**. Ver
+[`whatsapp.md`](whatsapp.md).
 
 ### WhatsApp (Twilio + WABA de EPA Bienestar IA)
 

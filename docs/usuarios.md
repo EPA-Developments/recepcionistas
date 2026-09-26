@@ -20,6 +20,11 @@ ejecutar un bot hay que poder leerlo; el que arma el plan GLP-1 queda fuera) y l
 ficha del paciente (`Patient`) **con el `perfil-clinico` oculto**. El banner de
 seguridad es un `Flag` de solo lectura (señal verde/rojo, sin detalle clínico).
 
+Archivos (`Binary`): la recepción los sube y los abre desde **Mensajes** (adjuntos del
+portal y de WhatsApp), por decisión del Dr. D'Alessandro (26/09/2026). Medplum no permite
+buscar ni listar `Binary`: solo se abre un archivo teniendo su link, y los links a
+estudios clínicos están en recursos que la recepción no puede leer.
+
 > ⚠️ La policy protege a un usuario **solo si se le asigna** y **no es admin**
 > (los admin saltean las AccessPolicies).
 

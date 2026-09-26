@@ -322,7 +322,7 @@ async function notificar(
       pacienteRef,
       about: pacienteRef,
       body: cuerpo,
-      // Lleva el resumen clínico: el chat de WhatsApp de Recepción no muestra el texto.
+      // Lleva el resumen clínico: queda con la etiqueta de confidencialidad "R".
       reservado: true,
     });
   } catch (err) {

@@ -19,7 +19,6 @@ import type { Bot, Subscription } from '@medplum/fhirtypes';
 import {
   BOT_SOM_LABORATORIO,
   BOT_SOM_REPORT,
-  BOT_WHATSAPP_ADJUNTO,
   BOT_WHATSAPP_ENTRANTE,
   BOT_WHATSAPP_RESPONDER,
   COD,
@@ -65,10 +64,9 @@ const BOTS: DefBot[] = [
   { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). Solo lectura: no escribe ni envía nada.' },
   // Plan Bienestar 100 Días® (portal: tarjeta de progreso; Recepción: sus tres consultas).
   { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar 100 Días® (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 (100 días, lo lee el portal) con sus tres consultas y las tareas para agendarlas.' },
-  // WhatsApp (Twilio): chat de Recepción (docs/whatsapp.md).
-  { name: BOT_WHATSAPP_ENTRANTE, source: 'src/bots/whatsapp-entrante.ts', dist: 'dist/bots/whatsapp-entrante.js', description: 'WhatsApp (webhook de Twilio): registra los mensajes entrantes (paciente o lead nuevo, adjuntos, inicio de contacto para la campanita) y los estados de entrega de los salientes (✓✓).' },
-  { name: BOT_WHATSAPP_RESPONDER, source: 'src/bots/whatsapp-responder.ts', dist: 'dist/bots/whatsapp-responder.js', description: 'WhatsApp (Recepción): responde un chat dentro de la ventana de 24 h de WhatsApp y registra el mensaje.' },
-  { name: BOT_WHATSAPP_ADJUNTO, source: 'src/bots/whatsapp-adjunto.ts', dist: 'dist/bots/whatsapp-adjunto.js', description: 'WhatsApp (Recepción): entrega la foto, audio o documento de un mensaje del chat (solo de WhatsApp, nunca uno reservado).' },
+  // WhatsApp (Twilio): canal de las conversaciones de Mensajes (docs/whatsapp.md).
+  { name: BOT_WHATSAPP_ENTRANTE, source: 'src/bots/whatsapp-entrante.ts', dist: 'dist/bots/whatsapp-entrante.js', description: 'WhatsApp (webhook de Twilio): el mensaje entra en la conversación abierta del paciente (o abre una), un número nuevo es un lead y suena la campanita, respuestas automáticas (acuse / fuera de horario) y los estados de entrega (✓✓).' },
+  { name: BOT_WHATSAPP_RESPONDER, source: 'src/bots/whatsapp-responder.ts', dist: 'dist/bots/whatsapp-responder.js', description: 'Mensajes (Recepción): manda por WhatsApp la respuesta si el paciente escribió por WhatsApp y la ventana de 24 h sigue abierta (texto y adjuntos).' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */

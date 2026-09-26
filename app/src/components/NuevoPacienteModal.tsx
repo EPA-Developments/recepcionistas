@@ -17,7 +17,7 @@ export function NuevoPacienteModal({
   abierto: boolean;
   onCerrar: () => void;
   onCreado: (patientId: string) => void;
-  /** Datos con los que abre (p. ej. el contacto de un chat de WhatsApp). */
+  /** Datos con los que abre (p. ej. un número nuevo que escribió por WhatsApp). */
   inicial?: { nombre?: string; telefono?: string };
 }): JSX.Element {
   const [nombre, setNombre] = useState('');

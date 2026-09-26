@@ -43,6 +43,13 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   un mensaje del paciente le deja una Novedad `mensaje-nuevo` (`SYSTEM.notificacion`,
   `about` = la conversación) en la campanita. Contrato: `docs/medplum/notificaciones.md`
   del portal.
+  **WhatsApp** es un canal de las mismas conversaciones ([`whatsapp.md`](whatsapp.md)):
+  lo que el paciente escribe por WhatsApp entra como mensaje hijo de su conversación
+  abierta (o de una nueva con motivo `otro`), con la extensión `canal = whatsapp`; las
+  respuestas que salieron por WhatsApp llevan la misma extensión. Las **respuestas
+  automáticas** (acuse / fuera de horario) son hijas con `sender.display` =
+  «Segunda Opinión Médica · respuesta automática» (sin `reference`) y la extensión
+  `auto-respuesta`: el portal las muestra como un mensaje más del equipo.
 - **Segunda opinión.** Bot `som-solicitar` (crea la `ServiceRequest`; exige el
   consentimiento firmado) y bot interno `bot-som-report` (informe), ver [`som.md`](som.md).
 - **Estudios de laboratorio en PDF.** Bot interno `som-procesar-laboratorio`: lo

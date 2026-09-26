@@ -1,6 +1,8 @@
 /**
- * Mensajes: la bandeja de Recepción para las conversaciones que abren los pacientes
- * desde el portal ("Mensajes" en `EPA-Developments/app`, `src/fhir/mensajes.ts`).
+ * Mensajes: la bandeja de Recepción para las conversaciones con los pacientes — las que
+ * abren desde el portal ("Mensajes" en `EPA-Developments/app`, `src/fhir/mensajes.ts`)
+ * y las que llegan por **WhatsApp**, que es un canal de la misma conversación
+ * (`src/lib/whatsapp.ts`, bots `som-whatsapp-entrante` / `som-whatsapp-responder`).
  *
  * Contrato (el mismo modelo que el ThreadInbox/ThreadChat de Medplum):
  *  - Conversación = Communication "topic": sin `partOf`, `subject` = el paciente y
@@ -14,10 +16,25 @@
  * Cuando Recepción responde, el paciente recibe además una Novedad `mensaje-nuevo`
  * (campanita) que abre la conversación; una sola por tanda de respuestas.
  */
-import type { MedplumClient } from '@medplum/core';
-import type { Communication, Patient } from '@medplum/fhirtypes';
+import type { MedplumClient, MedplumRequestOptions } from '@medplum/core';
+import type { Attachment, Communication } from '@medplum/fhirtypes';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { usoDelBorrador } from './borrador.js';
+import {
+  avisosInicioContacto,
+  esInicioContacto,
+  esWhatsApp,
+  nombreDePaciente,
+  tipoAutomatica,
+  vistaPrevia,
+  type AvisoWhatsApp,
+} from './whatsapp.js';
+
+/**
+ * El cliente de la app cachea las búsquedas unos segundos: la bandeja pide siempre lo
+ * último (si no, un mensaje nuevo tardaría en aparecer aunque llegue el aviso en vivo).
+ */
+const SIN_CACHE = { cache: 'no-cache' } as MedplumRequestOptions;
 
 /** Motivos que elige el paciente (mismos códigos y textos que el portal). */
 export const MOTIVOS_MENSAJE: Readonly<Record<string, string>> = {
@@ -42,6 +59,10 @@ export interface ConversacionResumen {
   sinLeer: number;
   /** Última actividad (ISO), para ordenar. */
   actividad: string;
+  /** El último mensaje del paciente llegó por WhatsApp: la respuesta sale por ahí. */
+  porWhatsApp: boolean;
+  /** Primer WhatsApp de un número nuevo, sin leer (el de la campanita). */
+  nuevoContacto: boolean;
 }
 
 export function motivoDe(topic: Communication): { code?: string; titulo: string } {
@@ -63,6 +84,11 @@ export function textoMensaje(m: Communication): string {
     .join('\n');
 }
 
+/** Lo que mandó solo el sistema (acuse / fuera de horario): se ve «🤖 Automática». */
+export function esAutomatica(m: Communication): boolean {
+  return tipoAutomatica(m) !== undefined;
+}
+
 function esNovedad(c: Communication): boolean {
   return (c.category ?? []).some((cc) => cc.coding?.some((cd) => cd.system === SYSTEM.notificacion));
 }
@@ -71,11 +97,6 @@ function porFecha(a: Communication, b: Communication): number {
   return (a.sent ?? '').localeCompare(b.sent ?? '');
 }
 
-function nombre(p: Patient): string {
-  const n = p.name?.[0];
-  const texto = n?.text ?? [...(n?.given ?? []), n?.family].filter(Boolean).join(' ');
-  return texto || 'Paciente';
-}
 
 /**
  * Conversaciones abiertas o cerradas, de la más activa a la menos, con el nombre del
@@ -86,24 +107,28 @@ export async function cargarConversaciones(
   estado: EstadoBandeja,
 ): Promise<ConversacionResumen[]> {
   const topics = (
-    await medplum.searchResources('Communication', {
-      'part-of:missing': 'true',
-      status: estado === 'abiertas' ? 'in-progress' : 'completed',
-      // Solo las que tienen mensajes (como el ThreadInbox): deja afuera las Novedades.
-      '_has:Communication:part-of:_id:not': 'null',
-      _sort: '-_lastUpdated',
-      _count: '100',
-    })
+    await medplum.searchResources(
+      'Communication',
+      {
+        'part-of:missing': 'true',
+        status: estado === 'abiertas' ? 'in-progress' : 'completed',
+        // Solo las que tienen mensajes (como el ThreadInbox): deja afuera las Novedades.
+        '_has:Communication:part-of:_id:not': 'null',
+        _sort: '-_lastUpdated',
+        _count: '100',
+      },
+      SIN_CACHE,
+    )
   ).filter((t) => t.id && !esNovedad(t));
   if (topics.length === 0) {
     return [];
   }
 
-  const mensajes = await medplum.searchResources('Communication', {
-    'part-of': topics.map((t) => `Communication/${t.id}`).join(','),
-    _sort: '-sent',
-    _count: '1000',
-  });
+  const mensajes = await medplum.searchResources(
+    'Communication',
+    { 'part-of': topics.map((t) => `Communication/${t.id}`).join(','), _sort: '-sent', _count: '1000' },
+    SIN_CACHE,
+  );
   const porConversacion = new Map<string, Communication[]>();
   for (const m of mensajes) {
     const ref = m.partOf?.[0]?.reference;
@@ -124,7 +149,7 @@ export async function cargarConversaciones(
     ids.length > 0
       ? await medplum.searchResources('Patient', { _id: ids.join(','), _count: String(ids.length) }).catch(() => [])
       : [];
-  const nombres = new Map(pacientes.map((p) => [`Patient/${p.id}`, nombre(p)]));
+  const nombres = new Map(pacientes.map((p) => [`Patient/${p.id}`, nombreDePaciente(p)]));
 
   const resumenes: ConversacionResumen[] = [];
   for (const topic of topics) {
@@ -134,14 +159,19 @@ export async function cargarConversaciones(
     }
     const ultimo = suyos[suyos.length - 1];
     const pacienteRef = topic.subject?.reference;
+    const delPaciente = suyos.filter(esDelPaciente);
+    const sinLeer = delPaciente.filter((m) => m.status === 'in-progress');
+    const ultimoDelPaciente = delPaciente[delPaciente.length - 1];
     resumenes.push({
       topic,
       pacienteRef,
       paciente: (pacienteRef && nombres.get(pacienteRef)) || topic.subject?.display || 'Paciente',
       motivo: motivoDe(topic),
       ultimo,
-      sinLeer: suyos.filter((m) => esDelPaciente(m) && m.status === 'in-progress').length,
+      sinLeer: sinLeer.length,
       actividad: ultimo?.sent ?? topic.meta?.lastUpdated ?? '',
+      porWhatsApp: Boolean(ultimoDelPaciente && esWhatsApp(ultimoDelPaciente)),
+      nuevoContacto: sinLeer.some(esInicioContacto),
     });
   }
   return resumenes.sort((a, b) => b.actividad.localeCompare(a.actividad));
@@ -149,12 +179,17 @@ export async function cargarConversaciones(
 
 /** Mensajes de una conversación, del más viejo al más nuevo. */
 export async function cargarMensajes(medplum: MedplumClient, topic: Communication): Promise<Communication[]> {
-  const lista = await medplum.searchResources('Communication', {
-    'part-of': `Communication/${topic.id}`,
-    _sort: 'sent',
-    _count: '500',
-  });
+  const lista = await medplum.searchResources(
+    'Communication',
+    { 'part-of': `Communication/${topic.id}`, _sort: 'sent', _count: '500' },
+    SIN_CACHE,
+  );
   return [...lista].sort(porFecha);
+}
+
+/** Una línea del último mensaje para la bandeja (o qué adjunto es). */
+export function vistaPreviaMensaje(m: Communication | undefined): string {
+  return m ? vistaPrevia(m) : '';
 }
 
 /** Marca leídos los mensajes del paciente (`completed` + `received`). */
@@ -200,12 +235,13 @@ export async function responder(
   texto: string,
   anteriores: Communication[],
   borradorSugerido?: string,
+  adjuntos: Attachment[] = [],
 ): Promise<{ mensaje: Communication; aviso?: Communication }> {
   const limpio = texto.trim();
-  if (!limpio) {
+  if (!limpio && adjuntos.length === 0) {
     throw new Error('Escribí la respuesta.');
   }
-  const uso = usoDelBorrador(limpio, borradorSugerido);
+  const uso = limpio ? usoDelBorrador(limpio, borradorSugerido) : undefined;
   const mensaje = await medplum.createResource<Communication>({
     resourceType: 'Communication',
     status: 'in-progress',
@@ -214,11 +250,12 @@ export async function responder(
     recipient: (topic.recipient ?? []).filter((r) => r.reference !== autor.reference),
     partOf: [{ reference: `Communication/${topic.id}` }],
     sent: new Date().toISOString(),
-    payload: [{ contentString: limpio }],
+    payload: [...(limpio ? [{ contentString: limpio }] : []), ...adjuntos.map((a) => ({ contentAttachment: a }))],
     ...(uso ? { extension: [{ url: EXT.borradorUsado, valueCode: uso }] } : {}),
   });
 
-  const ultimoPrevio = [...anteriores].sort(porFecha).pop();
+  // Las respuestas automáticas no cuentan: la primera respuesta de una persona igual avisa.
+  const ultimoPrevio = [...anteriores].filter((m) => !esAutomatica(m)).sort(porFecha).pop();
   if (!topic.subject?.reference?.startsWith('Patient/') || (ultimoPrevio && !esDelPaciente(ultimoPrevio))) {
     return { mensaje };
   }
@@ -282,12 +319,43 @@ export async function cambiarEstado(
   });
 }
 
+async function pendientesDeLeer(medplum: MedplumClient): Promise<Communication[]> {
+  const pendientes = await medplum.searchResources(
+    'Communication',
+    { 'part-of:missing': 'false', status: 'in-progress', _sort: '-sent', _count: '500' },
+    SIN_CACHE,
+  );
+  return pendientes.filter(esDelPaciente);
+}
+
 /** Mensajes de pacientes sin leer en toda la bandeja (el contador de la pestaña). */
 export async function contarSinLeer(medplum: MedplumClient): Promise<number> {
-  const pendientes = await medplum.searchResources('Communication', {
-    'part-of:missing': 'false',
-    status: 'in-progress',
-    _count: '500',
-  });
-  return pendientes.filter(esDelPaciente).length;
+  return (await pendientesDeLeer(medplum)).length;
+}
+
+export interface AvisosMensajes {
+  /** Mensajes de pacientes sin leer (contador de la pestaña "Mensajes"). */
+  sinLeer: number;
+  /** La campanita: el primer WhatsApp de cada número nuevo, sin leer. */
+  nuevosContactos: AvisoWhatsApp[];
+}
+
+/** Lo que revisa la app en vivo: el contador de Mensajes y la campanita (una sola búsqueda). */
+export async function cargarAvisos(medplum: MedplumClient): Promise<AvisosMensajes> {
+  const pendientes = await pendientesDeLeer(medplum);
+  const deNuevos = pendientes.filter(esInicioContacto);
+  const ids = [
+    ...new Set(
+      deNuevos
+        .map((m) => m.subject?.reference)
+        .filter((r): r is string => Boolean(r?.startsWith('Patient/')))
+        .map((r) => r.slice('Patient/'.length)),
+    ),
+  ];
+  const pacientes =
+    ids.length > 0
+      ? await medplum.searchResources('Patient', { _id: ids.join(','), _count: String(ids.length) }).catch(() => [])
+      : [];
+  const nombres = new Map(pacientes.map((p) => [`Patient/${p.id}`, nombreDePaciente(p)]));
+  return { sinLeer: pendientes.length, nuevosContactos: avisosInicioContacto(deNuevos, nombres) };
 }

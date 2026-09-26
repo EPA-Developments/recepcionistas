@@ -17,9 +17,9 @@ import { esSoloNumero, formatoTelefono, haceCuanto, iniciales, type AvisoWhatsAp
 import classes from './CampanaWhatsApp.module.css';
 
 /**
- * La campanita de Recepción: avisa cada WhatsApp de **inicio de contacto** (alguien
- * escribe y no había conversación abierta) que nadie leyó todavía. Tocar un aviso abre
- * ese chat (y leerlo apaga el aviso). Se sacude cuando llega uno nuevo.
+ * La campanita de Recepción: avisa cada WhatsApp de un **número nuevo** (un contacto que
+ * no estaba en SOM) que nadie leyó todavía. Tocar un aviso abre esa conversación en
+ * Mensajes (y leerla apaga el aviso). Se sacude cuando llega uno nuevo.
  */
 export function CampanaWhatsApp({
   avisos,
@@ -28,9 +28,9 @@ export function CampanaWhatsApp({
   onVerTodos,
 }: {
   avisos: AvisoWhatsApp[];
-  /** Todos los mensajes de WhatsApp sin leer (no solo los de contactos nuevos). */
+  /** Todos los mensajes de pacientes sin leer en Mensajes (no solo los de números nuevos). */
   sinLeer: number;
-  onAbrir: (pacienteRef: string) => void;
+  onAbrir: (aviso: AvisoWhatsApp) => void;
   onVerTodos: () => void;
 }): JSX.Element {
   const [abierto, setAbierto] = useState(false);
@@ -57,7 +57,9 @@ export function CampanaWhatsApp({
 
   const cantidad = avisos.length;
   const titulo =
-    cantidad === 0 ? 'Sin contactos nuevos por WhatsApp' : `${cantidad} ${cantidad === 1 ? 'contacto nuevo' : 'contactos nuevos'} por WhatsApp`;
+    cantidad === 0
+      ? 'Sin contactos nuevos por WhatsApp'
+      : `${cantidad} ${cantidad === 1 ? 'contacto nuevo' : 'contactos nuevos'} por WhatsApp`;
 
   return (
     <Popover opened={abierto} onChange={setAbierto} width={360} position="bottom-end" shadow="md" withArrow>
@@ -99,7 +101,7 @@ export function CampanaWhatsApp({
 
         {cantidad === 0 ? (
           <Text size="sm" c="dimmed" p="md">
-            Nada nuevo. La campanita avisa cuando alguien escribe por WhatsApp para iniciar una conversación.
+            Nada nuevo. La campanita avisa cuando un número nuevo escribe por WhatsApp.
           </Text>
         ) : (
           <ScrollArea.Autosize mah={380}>
@@ -112,7 +114,7 @@ export function CampanaWhatsApp({
                 className={classes.item}
                 onClick={() => {
                   setAbierto(false);
-                  onAbrir(a.pacienteRef);
+                  onAbrir(a);
                 }}
               >
                 <Group wrap="nowrap" gap="sm" align="flex-start">
@@ -152,7 +154,7 @@ export function CampanaWhatsApp({
               onVerTodos();
             }}
           >
-            Ver todos los chats
+            Ver Mensajes
           </Button>
           {permiso === 'default' && (
             <Button variant="subtle" size="compact-sm" color="gray" onClick={activarEscritorio}>
