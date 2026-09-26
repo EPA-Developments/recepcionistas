@@ -1,0 +1,41 @@
+/* La campanita se sacude cuando llega un WhatsApp de inicio de contacto. */
+.sacudir {
+  animation: sacudir 0.9s ease-in-out 3;
+  transform-origin: 50% 2px;
+}
+
+@keyframes sacudir {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(16deg);
+  }
+  30% {
+    transform: rotate(-14deg);
+  }
+  45% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(-7deg);
+  }
+  75% {
+    transform: rotate(4deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sacudir {
+    animation: none;
+  }
+}
+
+.item {
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.item:hover {
+  background-color: var(--mantine-color-default-hover);
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, TextInput } from '@mantine/core';
 import { IconInfoCircle, IconUserPlus } from '@tabler/icons-react';
 import { altaPaciente, mensajeError } from '../lib/bots';
@@ -12,10 +12,13 @@ export function NuevoPacienteModal({
   abierto,
   onCerrar,
   onCreado,
+  inicial,
 }: {
   abierto: boolean;
   onCerrar: () => void;
   onCreado: (patientId: string) => void;
+  /** Datos con los que abre (p. ej. el contacto de un chat de WhatsApp). */
+  inicial?: { nombre?: string; telefono?: string };
 }): JSX.Element {
   const [nombre, setNombre] = useState('');
   const [dni, setDni] = useState('');
@@ -23,6 +26,14 @@ export function NuevoPacienteModal({
   const [email, setEmail] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (abierto && inicial) {
+      setNombre(inicial.nombre ?? '');
+      setTelefono(inicial.telefono ?? '');
+    }
+    // Solo al abrir: después manda lo que tipea Recepción.
+  }, [abierto]);
 
   function limpiar(): void {
     setNombre('');

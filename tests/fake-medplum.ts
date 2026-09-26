@@ -1,8 +1,9 @@
 /**
  * MedplumClient en memoria para tests de bots: guarda recursos y resuelve las
- * búsquedas que usan los bots y la app (_id, subject/patient, status, category,
- * code, type, based-on, part-of, part-of:missing, identifier; en los tokens, la coma
- * es OR). No es un servidor FHIR: solo lo necesario para probar la orquestación sin red.
+ * búsquedas que usan los bots y la app (_id, subject/patient, sender, status, category,
+ * code, type, based-on, part-of, part-of:missing, identifier, phone, email; en los tokens, la
+ * coma es OR; `_sort` por `sent`). No es un servidor FHIR: solo lo necesario para
+ * probar la orquestación sin red.
  */
 import type { MedplumClient } from '@medplum/core';
 import type { Resource } from '@medplum/fhirtypes';
@@ -22,7 +23,7 @@ function codingsDe(campo: unknown): Coding[] {
 
 function cumple(r: Registro, param: string, valor: string): boolean {
   // Token con varios valores separados por coma = OR (semántica FHIR).
-  if (['category', 'code', 'type', 'identifier', '_id'].includes(param) && valor.includes(',')) {
+  if (['category', 'code', 'type', 'identifier', '_id', 'phone'].includes(param) && valor.includes(',')) {
     return valor.split(',').some((v) => cumple(r, param, v));
   }
   switch (param) {
@@ -30,6 +31,13 @@ function cumple(r: Registro, param: string, valor: string): boolean {
       return r.id === valor;
     case 'subject':
       return (r.subject as { reference?: string } | undefined)?.reference === valor;
+    case 'sender':
+      return (r.sender as { reference?: string } | undefined)?.reference === valor;
+    case 'phone':
+    case 'email':
+      return ((r.telecom as Array<{ system?: string; value?: string }> | undefined) ?? []).some(
+        (t) => t.system === param && t.value === valor,
+      );
     case 'patient': {
       const ref =
         (r.for as { reference?: string } | undefined)?.reference ??
@@ -87,8 +95,18 @@ export function fakeMedplum(iniciales: Resource[] = []) {
     store.set(clave(r.resourceType, r.id!), copia(r) as Registro);
   }
 
-  const buscar = (tipo: string, query?: unknown): Registro[] =>
-    [...store.values()].filter((r) => r.resourceType === tipo && params(query).every(([k, v]) => cumple(r, k, v)));
+  const buscar = (tipo: string, query?: unknown): Registro[] => {
+    const lista = [...store.values()].filter(
+      (r) => r.resourceType === tipo && params(query).every(([k, v]) => cumple(r, k, v)),
+    );
+    // `_sort` por fecha de envío (lo que usan los chats de WhatsApp); lo demás, sin orden.
+    const orden = params(query).find(([k]) => k === '_sort')?.[1];
+    if (orden === 'sent' || orden === '-sent') {
+      const signo = orden === 'sent' ? 1 : -1;
+      lista.sort((a, b) => signo * String(a.sent ?? '').localeCompare(String(b.sent ?? '')));
+    }
+    return lista;
+  };
 
   const medplum = {
     getProfile: () => ({ meta: { project: 'proyecto-test' } }),
@@ -111,10 +129,24 @@ export function fakeMedplum(iniciales: Resource[] = []) {
       }
       return copia(r);
     },
-    createBinary: async (_data: unknown, _nombre?: string, contentType?: string) => {
-      const nuevo = { resourceType: 'Binary', id: `binary-${++n}`, contentType } as Registro;
+    // Acepta la firma vieja (data, nombre, contentType) y la de opciones ({ data, contentType, securityContext }).
+    createBinary: async (datos: unknown, _nombre?: string, contentType?: string) => {
+      const opciones =
+        datos && typeof datos === 'object' && 'contentType' in datos
+          ? (datos as { contentType: string; securityContext?: unknown; data?: { byteLength?: number } })
+          : undefined;
+      const nuevo = {
+        resourceType: 'Binary',
+        id: `binary-${++n}`,
+        contentType: opciones?.contentType ?? contentType,
+        ...(opciones?.securityContext ? { securityContext: opciones.securityContext } : {}),
+      } as Registro;
       store.set(clave('Binary', nuevo.id!), nuevo);
       return copia(nuevo);
+    },
+    createResourceIfNoneExist: async (r: Resource, query: string) => {
+      const existente = buscar(r.resourceType, query)[0];
+      return existente ? copia(existente) : medplum.createResource(r);
     },
     searchResources: async (tipo: string, query?: unknown) => buscar(tipo, query).map(copia),
     searchOne: async (tipo: string, query?: unknown) => {

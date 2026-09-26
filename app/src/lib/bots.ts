@@ -1,4 +1,4 @@
-import type { Invoice } from '@medplum/fhirtypes';
+import type { Communication, Invoice, Reference } from '@medplum/fhirtypes';
 import type { Modalidad } from '@som/domain/types';
 import type { ConsultaPlanVista } from '@som/lib/plan-bienestar';
 import { medplum } from '../medplum';
@@ -241,4 +241,41 @@ export interface ResultadoBorradorBot {
 export async function borradorRespuesta(hiloId: string): Promise<ResultadoBorradorBot> {
   const id = await botIdPorNombre('som-borrador-respuesta');
   return (await medplum.executeBot(id, { hiloId })) as ResultadoBorradorBot;
+}
+
+export interface ResultadoResponderWhatsApp {
+  ok: boolean;
+  motivo?: string;
+  /** El mensaje registrado (también cuando no salió, para verlo en el chat). */
+  mensaje?: Communication;
+  /** Hasta cuándo se puede responder texto libre (ISO). */
+  ventanaCierra?: string;
+}
+
+/**
+ * Responde un chat de WhatsApp (som-whatsapp-responder). El bot decide si se puede: solo
+ * dentro de las 24 h del último mensaje del paciente (regla de WhatsApp).
+ */
+export async function responderWhatsApp(
+  pacienteRef: string,
+  texto: string,
+  autor?: Reference,
+): Promise<ResultadoResponderWhatsApp> {
+  const id = await botIdPorNombre('som-whatsapp-responder');
+  return (await medplum.executeBot(id, { pacienteRef, texto, autor })) as ResultadoResponderWhatsApp;
+}
+
+export interface AdjuntoWhatsApp {
+  ok: boolean;
+  motivo?: string;
+  contentType?: string;
+  /** El archivo en base64. */
+  data?: string;
+  titulo?: string;
+}
+
+/** Trae la foto, audio o documento de un mensaje del chat (som-whatsapp-adjunto). */
+export async function adjuntoWhatsApp(communicationId: string, indice = 0): Promise<AdjuntoWhatsApp> {
+  const id = await botIdPorNombre('som-whatsapp-adjunto');
+  return (await medplum.executeBot(id, { communicationId, indice })) as AdjuntoWhatsApp;
 }

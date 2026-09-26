@@ -131,6 +131,24 @@
       "id": "",
       "source": "src/bots/borrador-respuesta.ts",
       "dist": "dist/bots/borrador-respuesta.js"
+    },
+    {
+      "name": "som-whatsapp-entrante",
+      "id": "",
+      "source": "src/bots/whatsapp-entrante.ts",
+      "dist": "dist/bots/whatsapp-entrante.js"
+    },
+    {
+      "name": "som-whatsapp-responder",
+      "id": "",
+      "source": "src/bots/whatsapp-responder.ts",
+      "dist": "dist/bots/whatsapp-responder.js"
+    },
+    {
+      "name": "som-whatsapp-adjunto",
+      "id": "",
+      "source": "src/bots/whatsapp-adjunto.ts",
+      "dist": "dist/bots/whatsapp-adjunto.js"
     }
   ]
 }

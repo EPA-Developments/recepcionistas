@@ -14,9 +14,13 @@
  *
  * Para Twilio Sandbox: el número destino debe haber enviado el "join <code>" al
  * número del sandbox, y TWILIO_WHATSAPP_FROM debe ser el del sandbox.
+ *
+ * Al final muestra la URL del webhook de entrada (chat de WhatsApp de Recepción) para
+ * cargar en Twilio: ver docs/whatsapp.md.
  */
 import 'dotenv/config';
 import type { Communication } from '@medplum/fhirtypes';
+import { BOT_WHATSAPP_ENTRANTE } from '../fhir/identifiers.js';
 import { conectarMedplum } from './conexion.js';
 
 async function main(): Promise<void> {
@@ -41,6 +45,9 @@ async function main(): Promise<void> {
   const comm = (await medplum.executeBot(bot.id, { to, template: 'diagnostico', body })) as Communication;
   const status = comm?.status;
   console.log(`\nCommunication creada: ${comm?.id ?? '(sin id)'} · status = ${status ?? '(desconocido)'}`);
+  if (comm?.statusReason?.text) {
+    console.log(`Motivo: ${comm.statusReason.text}`);
+  }
 
   if (status === 'completed') {
     console.log('\n✓ Twilio ACEPTÓ el mensaje (los Project Secrets de Twilio están cargados y son válidos).');
@@ -69,6 +76,19 @@ async function main(): Promise<void> {
     console.error('\n? Estado inesperado. Revisá el recurso Communication y los logs del bot (CloudWatch).');
     process.exitCode = 1;
   }
+
+  // Webhook de entrada (mensajes que llegan + ✓✓): la URL para Twilio y el secret TWILIO_WEBHOOK_URL.
+  const entrante = await medplum.searchOne('Bot', `name:exact=${BOT_WHATSAPP_ENTRANTE}`);
+  console.log('\nChat de WhatsApp de Recepción (mensajes que llegan y ✓✓):');
+  if (entrante?.id) {
+    console.log(
+      `  URL del webhook (Twilio "A message comes in" y secret TWILIO_WEBHOOK_URL), con la ClientApplication "Webhook Twilio":\n` +
+        `    ${baseUrl.replace(/^https:\/\//, 'https://<clientId>:<clientSecret>@').replace(/\/?$/, '/')}fhir/R4/Bot/${entrante.id}/$execute?_medplum-prompt-basic-auth=1`,
+    );
+  } else {
+    console.log(`  Falta el bot "${BOT_WHATSAPP_ENTRANTE}": npm run deploy:bots`);
+  }
+  console.log('  Pasos completos: docs/whatsapp.md');
 }
 
 main().catch((err) => {

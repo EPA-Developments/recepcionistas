@@ -322,6 +322,8 @@ async function notificar(
       pacienteRef,
       about: pacienteRef,
       body: cuerpo,
+      // Lleva el resumen clínico: el chat de WhatsApp de Recepción no muestra el texto.
+      reservado: true,
     });
   } catch (err) {
     console.error('som-report: no se pudo notificar al paciente:', err instanceof Error ? err.message : err);
