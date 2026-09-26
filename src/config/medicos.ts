@@ -10,11 +10,13 @@
  * Precio: el de la consulta del catálogo (R-17), igual para todos los profesionales;
  * acá no hay honorarios.
  *
- * Cargados (Dr. D'Alessandro, 26/09/2026) los tres profesionales que hoy atienden las
- * consultas del Plan Bienestar: nombre, matrícula y especialidad. Quedan **provisorios**
- * y sin horarios hasta recibir de cada uno la disponibilidad semanal y el consultorio.
- * No se inventan datos: un profesional sin
- * `disponibilidad` no genera horarios y no es reservable. Los DNI no van en el código.
+ * Cargados (26/09/2026) los tres profesionales que hoy atienden las consultas del Plan
+ * Bienestar: nombre, matrícula, especialidad y disponibilidad semanal. Consultorio
+ * confirmado solo para el Dr. Barbagelata; la Dra. Gold y el Dr. D'Alessandro quedan
+ * **provisorios** hasta confirmar su consultorio (y, la Dra. Gold, sus horarios).
+ * No se inventan datos: un profesional sin `disponibilidad` no genera horarios y no es
+ * reservable; sin `consultorioCodigo`, lo presencial exige que Recepción elija el
+ * consultorio al reservar (R-22). Los DNI no van en el código.
  */
 import type { Especialidad, Modalidad } from '../domain/types.js';
 import { CODIGO_CONSULTA_PB100D } from './catalogo.js';
@@ -71,8 +73,11 @@ export const MEDICOS: Medico[] = [
     servicios: ['CARDIOLOGIA', CODIGO_CONSULTA_PB100D],
     modalidades: AMBAS,
     seguimientoPB100D: true,
-    disponibilidad: [], // PENDIENTE: días y horarios
-    provisional: true,
+    disponibilidad: [
+      { dia: 2, desde: '14:00', hasta: '18:00' }, // martes
+      { dia: 4, desde: '14:00', hasta: '18:00' }, // jueves
+    ],
+    consultorioCodigo: 'R_CONSULTORIO_1',
   },
   {
     codigo: 'MED_GOLD',
@@ -83,7 +88,11 @@ export const MEDICOS: Medico[] = [
     servicios: [CODIGO_CONSULTA_PB100D],
     modalidades: AMBAS,
     seguimientoPB100D: true,
-    disponibilidad: [], // PENDIENTE: días y horarios
+    disponibilidad: [
+      { dia: 3, desde: '08:00', hasta: '12:00' }, // miércoles
+      { dia: 5, desde: '08:00', hasta: '12:00' }, // viernes
+    ],
+    // PENDIENTE: confirmar horarios (26/09/2026) y consultorio de lo presencial.
     provisional: true,
   },
   {
@@ -95,7 +104,12 @@ export const MEDICOS: Medico[] = [
     servicios: ['CARDIOLOGIA', CODIGO_CONSULTA_PB100D],
     modalidades: AMBAS,
     seguimientoPB100D: true,
-    disponibilidad: [], // PENDIENTE: días y horarios
+    disponibilidad: [
+      { dia: 1, desde: '16:00', hasta: '20:00' }, // lunes
+      { dia: 3, desde: '16:00', hasta: '20:00' }, // miércoles
+      { dia: 5, desde: '16:00', hasta: '20:00' }, // viernes
+    ],
+    // PENDIENTE: consultorio de lo presencial.
     provisional: true,
   },
 ];

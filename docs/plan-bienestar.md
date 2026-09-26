@@ -12,7 +12,8 @@
 
 | | Detalle |
 |---|---|
-| **Consultas programadas** (incluidas en el plan: sin cargo ni seña) | Inicial (día 1), día 50 y final (día 100). Hoy las atienden el Dr. Barbagelata, la Dra. Gold y el Dr. D'Alessandro. |
+| **Consultas programadas** (incluidas en el plan: sin cargo ni seña) | Inicial (día 1), día 50 y final (día 100). Hoy las atienden el Dr. Barbagelata (martes y jueves 14–18, Consultorio 1), la Dra. Gold (miércoles y viernes 08–12) y el Dr. D'Alessandro (lunes, miércoles y viernes 16–20), cada uno con su agenda (R-22). |
+| **Evaluaciones del portal** (días 0, 30, 60 y 100) | Son **evaluaciones** (biomarcadores y cuestionarios que carga la paciente en la app), no consultas: no se agendan ni cuentan como las tres consultas programadas. Confirmado el 26/09/2026. |
 | **Día 1** | Es el de la consulta inicial. Al agendarla, el sistema corre el plan a esa fecha y recalcula las otras dos. |
 | **Ventanas** (R-20) | Día 50 y día 100, ± 7 días. |
 | **Modalidad** (R-21) | Cada consulta puede ser **presencial** o por **teleconsulta** (Jitsi). La teleconsulta es el camino principal. |
