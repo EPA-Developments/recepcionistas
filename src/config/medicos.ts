@@ -13,7 +13,7 @@
  * Cargados (26/09/2026) los tres profesionales que hoy atienden las consultas del Plan
  * Bienestar: nombre, matrícula, especialidad y disponibilidad semanal. Consultorio
  * confirmado solo para el Dr. Barbagelata; la Dra. Gold y el Dr. D'Alessandro quedan
- * **provisorios** hasta confirmar su consultorio (y, la Dra. Gold, sus horarios).
+ * **provisorios** hasta confirmar su consultorio.
  * No se inventan datos: un profesional sin `disponibilidad` no genera horarios y no es
  * reservable; sin `consultorioCodigo`, lo presencial exige que Recepción elija el
  * consultorio al reservar (R-22). Los DNI no van en el código.
@@ -92,7 +92,7 @@ export const MEDICOS: Medico[] = [
       { dia: 3, desde: '08:00', hasta: '12:00' }, // miércoles
       { dia: 5, desde: '08:00', hasta: '12:00' }, // viernes
     ],
-    // PENDIENTE: confirmar horarios (26/09/2026) y consultorio de lo presencial.
+    // Horarios confirmados el 26/09/2026. PENDIENTE: consultorio de lo presencial.
     provisional: true,
   },
   {
