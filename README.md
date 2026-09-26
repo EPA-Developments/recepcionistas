@@ -25,6 +25,7 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Check-in / check-out + estados en el timeline | ✅ bot `som-estado-turno` |
 | Reserva con seña 50% (confirma turno) + WhatsApp | ✅ bots `som-pagar-sena` / `som-link-mercadopago` |
 | Webhook de MercadoPago (confirma turno al pagar) | ✅ bot `som-webhook-mercadopago` |
+| WhatsApp en Recepción (Twilio): chat tipo teléfono, ✓✓, campanita de contactos nuevos | ✅ bots `som-whatsapp-entrante` / `som-whatsapp-responder` / `som-whatsapp-adjunto` ([`docs/whatsapp.md`](docs/whatsapp.md)); plantillas de Meta PENDIENTES |
 | Reportes / tablero (turnos, ingresos, ocupación) | ✅ pantalla Reportes |
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
 | SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |

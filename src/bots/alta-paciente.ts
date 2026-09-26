@@ -3,7 +3,9 @@
  *
  * Crea (o actualiza, sin duplicar) el recurso `Patient` con la demografía mínima:
  * nombre, DNI, teléfono y email. NO da acceso al portal — eso es un paso aparte
- * (`som-invitar-paciente`). Deduplica por DNI y, si no hay, por email/teléfono.
+ * (`som-invitar-paciente`). Deduplica por DNI y, si no hay, por email/teléfono (el
+ * teléfono en cualquiera de sus formas, sin unir a dos personas con DNI distinto: así
+ * completa el contacto que llegó por WhatsApp).
  *
  * No requiere admin del proyecto: la recepción ya tiene permiso de escritura sobre
  * `Patient` por su AccessPolicy.
@@ -13,6 +15,7 @@ import type { ContactPoint, Patient } from '@medplum/fhirtypes';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { normalizarValor } from '../lib/crm.js';
 import { partirNombre, validarEmail } from '../lib/onboarding.js';
+import { aE164AR, variantesTelefonoAR } from '../lib/whatsapp.js';
 
 export interface EntradaAltaPaciente {
   /** Nombre completo (se parte en nombre + apellido). Alternativa a firstName/lastName. */
@@ -68,12 +71,31 @@ async function buscarExistente(
     }
   }
   if (e.telefono) {
-    const p = await medplum.searchOne('Patient', `phone=${encodeURIComponent(e.telefono.trim())}`);
+    // En cualquiera de las formas en que puede estar guardado (p. ej. el lead que creó
+    // el primer WhatsApp del paciente, con "+549…").
+    const e164 = aE164AR(e.telefono);
+    const valores = e164 ? variantesTelefonoAR(e164) : [e.telefono.trim()];
+    const candidatos = await medplum.searchResources('Patient', {
+      phone: [...new Set([e.telefono.trim(), ...valores])].join(','),
+      _count: '10',
+    });
+    // Un teléfono compartido (p. ej. de la familia) no une a dos personas con DNI distinto.
+    const dni = e.dni?.trim();
+    const p = candidatos.find((c) => !dni || !c.identifier?.some((i) => i.system === SYSTEM.dni && i.value !== dni));
     if (p) {
       return p;
     }
   }
   return undefined;
+}
+
+/** El mismo teléfono escrito de otra forma ("11 2233-4455" = "+5491122334455"). */
+function mismoTelefono(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) {
+    return false;
+  }
+  const na = aE164AR(a);
+  return a.trim() === b.trim() || (na !== undefined && na === aE164AR(b));
 }
 
 export async function handler(
@@ -112,11 +134,17 @@ export async function handler(
         identifier.push({ system: SYSTEM.dni, value: e.dni.trim() });
       }
       const nuevosTelecom = telecom(e.telefono, e.email).filter(
-        (n) => !(existente.telecom ?? []).some((t) => t.system === n.system && t.value === n.value),
+        (n) =>
+          !(existente.telecom ?? []).some(
+            (t) => t.system === n.system && (t.value === n.value || (n.system === 'phone' && mismoTelefono(t.value, n.value))),
+          ),
       );
+      // Si solo tenía el apodo del perfil de WhatsApp (un lead), el nombre real va primero.
+      const nombreReal = { use: 'official' as const, text: nombreText, given: [firstName], family: lastName };
+      const soloApodos = (existente.name ?? []).every((n) => n.use === 'nickname');
       const actualizado = await medplum.updateResource<Patient>({
         ...existente,
-        name: existente.name?.length ? existente.name : [{ text: nombreText, given: [firstName], family: lastName }],
+        name: soloApodos ? [nombreReal, ...(existente.name ?? [])] : existente.name,
         identifier,
         telecom: [...(existente.telecom ?? []), ...nuevosTelecom],
         extension: extension.length ? extension : undefined,

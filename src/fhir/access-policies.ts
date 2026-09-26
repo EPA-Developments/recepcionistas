@@ -8,7 +8,15 @@
  * (Flag), nunca el detalle clínico.
  */
 import type { AccessPolicy } from '@medplum/fhirtypes';
-import { BOT_BIENESTAR_INSCRIBIR, BOT_BORRADOR_RESPUESTA, BOT_GLP1_INSCRIBIR, EXT } from './identifiers.js';
+import {
+  BOT_BIENESTAR_INSCRIBIR,
+  BOT_BORRADOR_RESPUESTA,
+  BOT_GLP1_INSCRIBIR,
+  BOT_WHATSAPP_ADJUNTO,
+  BOT_WHATSAPP_ENTRANTE,
+  BOT_WHATSAPP_RESPONDER,
+  EXT,
+} from './identifiers.js';
 
 /**
  * Bots que Recepción puede ejecutar (los que usa la app de recepción, más la
@@ -29,6 +37,8 @@ export const BOTS_RECEPCION = [
   BOT_GLP1_INSCRIBIR,
   BOT_BIENESTAR_INSCRIBIR,
   BOT_BORRADOR_RESPUESTA,
+  BOT_WHATSAPP_RESPONDER,
+  BOT_WHATSAPP_ADJUNTO,
 ] as const;
 
 /** Recepcionista — acceso Operativo: agenda, check-in/out, pagos, comunicación, CRM. */
@@ -67,6 +77,19 @@ export const POLICY_RECEPCIONISTA: AccessPolicy = {
     // Bots: solo los de Recepción (lectura = poder invocarlos).
     ...BOTS_RECEPCION.map((nombre) => ({ resourceType: 'Bot', readonly: true, criteria: `Bot?name=${nombre}` })),
   ],
+};
+
+/**
+ * Webhook de Twilio (WhatsApp): la policy de la ClientApplication cuyas credenciales van
+ * en la URL que llama Twilio. Solo puede ejecutar `som-whatsapp-entrante` (el bot corre
+ * con su propia identidad): si la URL se filtrara, no da acceso a ningún dato.
+ */
+export const NOMBRE_POLICY_WEBHOOK_TWILIO = 'Webhook Twilio — WhatsApp entrante';
+
+export const POLICY_WEBHOOK_TWILIO: AccessPolicy = {
+  resourceType: 'AccessPolicy',
+  name: NOMBRE_POLICY_WEBHOOK_TWILIO,
+  resource: [{ resourceType: 'Bot', readonly: true, criteria: `Bot?name=${BOT_WHATSAPP_ENTRANTE}` }],
 };
 
 /** Director Médico — acceso clínico completo. */
@@ -193,7 +216,12 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
 };
 
 /**
- * Roles del seed. Los roles clínicos propios de SOM (equipo médico) se definen
- * aparte; los del catálogo anterior se retiraron.
+ * Roles del seed (más la policy del webhook de Twilio). Los roles clínicos propios de
+ * SOM (equipo médico) se definen aparte; los del catálogo anterior se retiraron.
  */
-export const ACCESS_POLICIES: AccessPolicy[] = [POLICY_RECEPCIONISTA, POLICY_DIRECTOR_MEDICO, POLICY_PACIENTE_PORTAL];
+export const ACCESS_POLICIES: AccessPolicy[] = [
+  POLICY_RECEPCIONISTA,
+  POLICY_DIRECTOR_MEDICO,
+  POLICY_PACIENTE_PORTAL,
+  POLICY_WEBHOOK_TWILIO,
+];

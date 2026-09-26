@@ -1,0 +1,476 @@
+/*
+ * WhatsApp de Recepción: se ve como en el teléfono (marco, barra de estado, lista de
+ * chats y conversación), con los colores de WhatsApp en modo claro y oscuro.
+ */
+
+.telefono {
+  --wa-verde: #008069;
+  --wa-acento: #00a884;
+  --wa-no-leido: #25d366;
+  --wa-encabezado: #008069;
+  --wa-encabezado-texto: #ffffff;
+  --wa-lista: #ffffff;
+  --wa-lista-hover: #f5f6f6;
+  --wa-lista-activa: #f0f2f5;
+  --wa-divisor: #e9edef;
+  --wa-texto: #111b21;
+  --wa-secundario: #667781;
+  --wa-fondo-chat: #efeae2;
+  --wa-trama: rgba(0, 0, 0, 0.035);
+  --wa-entrante: #ffffff;
+  --wa-saliente: #d9fdd3;
+  --wa-dia: #ffffff;
+  --wa-dia-texto: #54656f;
+  --wa-aviso: #ffeecd;
+  --wa-aviso-texto: #54656f;
+  --wa-compositor: #f0f2f5;
+  --wa-entrada: #ffffff;
+  --wa-tilde: #8696a0;
+  --wa-tilde-leido: #53bdeb;
+  --wa-busqueda: #f0f2f5;
+  --wa-chip: #f0f2f5;
+  --wa-chip-activo: #d9fdd3;
+  --wa-chip-activo-texto: #008069;
+
+  @mixin dark {
+    --wa-encabezado: #202c33;
+    --wa-encabezado-texto: #e9edef;
+    --wa-lista: #111b21;
+    --wa-lista-hover: #202c33;
+    --wa-lista-activa: #2a3942;
+    --wa-divisor: #222d34;
+    --wa-texto: #e9edef;
+    --wa-secundario: #8696a0;
+    --wa-fondo-chat: #0b141a;
+    --wa-trama: rgba(255, 255, 255, 0.025);
+    --wa-entrante: #202c33;
+    --wa-saliente: #005c4b;
+    --wa-dia: #182229;
+    --wa-dia-texto: #8696a0;
+    --wa-aviso: #182229;
+    --wa-aviso-texto: #ffd279;
+    --wa-compositor: #202c33;
+    --wa-entrada: #2a3942;
+    --wa-tilde: #8696a0;
+    --wa-busqueda: #202c33;
+    --wa-chip: #202c33;
+    --wa-chip-activo: #0a332c;
+    --wa-chip-activo-texto: #00a884;
+  }
+
+  width: 100%;
+  max-width: 410px;
+  height: min(820px, calc(100vh - 150px));
+  min-height: 520px;
+  margin-inline: auto;
+  padding: 12px;
+  border-radius: 46px;
+  background: #1b1b1f;
+  box-shadow:
+    0 0 0 2px #3a3a40,
+    0 22px 50px rgba(0, 0, 0, 0.28);
+  position: relative;
+}
+
+.pantalla {
+  height: 100%;
+  border-radius: 36px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--wa-lista);
+  color: var(--wa-texto);
+  position: relative;
+}
+
+/* Barra de estado del teléfono (hora, señal, batería) + la "isla" de la cámara. */
+.estado {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 22px 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--wa-encabezado);
+  color: var(--wa-encabezado-texto);
+  position: relative;
+}
+
+.isla {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 92px;
+  height: 22px;
+  border-radius: 12px;
+  background: #000;
+}
+
+.encabezado {
+  flex-shrink: 0;
+  min-height: 58px;
+  padding: 6px 10px 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--wa-encabezado);
+  color: var(--wa-encabezado-texto);
+}
+
+.encabezadoTitulo {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.botonEncabezado {
+  color: var(--wa-encabezado-texto) !important;
+}
+
+.busqueda {
+  flex-shrink: 0;
+  padding: 8px 12px 4px;
+  background: var(--wa-lista);
+}
+
+.campoBusqueda {
+  background: var(--wa-busqueda) !important;
+  border: none !important;
+  color: var(--wa-texto) !important;
+}
+
+.chips {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px 8px;
+  background: var(--wa-lista);
+  overflow-x: auto;
+}
+
+.chip {
+  border: none;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 13px;
+  background: var(--wa-chip);
+  color: var(--wa-secundario);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chipActivo {
+  background: var(--wa-chip-activo);
+  color: var(--wa-chip-activo-texto);
+  font-weight: 600;
+}
+
+.lista {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--wa-lista);
+}
+
+.itemChat {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.itemChat:hover {
+  background: var(--wa-lista-hover);
+}
+
+.itemChatActivo {
+  background: var(--wa-lista-activa);
+}
+
+.itemCuerpo {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--wa-divisor);
+  margin-bottom: -10px;
+}
+
+.itemFila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.itemNombre {
+  font-size: 16px;
+  color: var(--wa-texto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemHora {
+  font-size: 12px;
+  color: var(--wa-secundario);
+  flex-shrink: 0;
+}
+
+.itemHoraNoLeido {
+  color: var(--wa-no-leido);
+  font-weight: 600;
+}
+
+.itemVista {
+  font-size: 14px;
+  color: var(--wa-secundario);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.contador {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--wa-no-leido);
+  color: #111b21;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.etiquetaNuevo {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--wa-acento);
+  border: 1px solid var(--wa-acento);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+
+.vacio {
+  padding: 28px 22px;
+  text-align: center;
+  color: var(--wa-secundario);
+  font-size: 14px;
+}
+
+/* ─── conversación ─── */
+
+.fondoChat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background-color: var(--wa-fondo-chat);
+  background-image: radial-gradient(var(--wa-trama) 1.2px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+
+.aviso {
+  align-self: center;
+  max-width: 88%;
+  margin: 6px 0 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--wa-aviso);
+  color: var(--wa-aviso-texto);
+  font-size: 12px;
+  text-align: center;
+}
+
+.dia {
+  align-self: center;
+  margin: 10px 0 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--wa-dia);
+  color: var(--wa-dia-texto);
+  font-size: 12px;
+  text-transform: uppercase;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+}
+
+.burbuja {
+  position: relative;
+  max-width: 82%;
+  padding: 6px 8px 4px 9px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  line-height: 1.35;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  color: var(--wa-texto);
+  word-break: break-word;
+}
+
+.entrante {
+  align-self: flex-start;
+  background: var(--wa-entrante);
+}
+
+.saliente {
+  align-self: flex-end;
+  background: var(--wa-saliente);
+}
+
+.separado {
+  margin-top: 8px;
+}
+
+/* La "colita" del primer mensaje de cada tanda. */
+.entrante.colita {
+  border-top-left-radius: 0;
+}
+
+.entrante.colita::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -8px;
+  border-top: 0 solid transparent;
+  border-right: 8px solid var(--wa-entrante);
+  border-bottom: 10px solid transparent;
+}
+
+.saliente.colita {
+  border-top-right-radius: 0;
+}
+
+.saliente.colita::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -8px;
+  border-left: 8px solid var(--wa-saliente);
+  border-bottom: 10px solid transparent;
+}
+
+.textoBurbuja {
+  white-space: pre-wrap;
+}
+
+.reservado {
+  font-style: italic;
+  color: var(--wa-secundario);
+}
+
+.automatico {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wa-acento);
+  margin-bottom: 2px;
+}
+
+.pie {
+  float: right;
+  margin: 6px 0 -2px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--wa-secundario);
+  line-height: 1;
+}
+
+.tilde {
+  color: var(--wa-tilde);
+}
+
+.tildeLeido {
+  color: var(--wa-tilde-leido);
+}
+
+.tildeError {
+  color: #f15c6d;
+}
+
+.adjunto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.05);
+  min-width: 200px;
+}
+
+.imagen {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: zoom-in;
+}
+
+/* ─── compositor ─── */
+
+.ventana {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  text-align: center;
+  background: var(--wa-compositor);
+  color: var(--wa-secundario);
+}
+
+.ventanaCerrada {
+  background: var(--wa-aviso);
+  color: var(--wa-aviso-texto);
+}
+
+.compositor {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px 14px;
+  background: var(--wa-compositor);
+}
+
+.entrada {
+  flex: 1;
+}
+
+.entradaCampo {
+  background: var(--wa-entrada) !important;
+  border: none !important;
+  border-radius: 22px !important;
+  color: var(--wa-texto) !important;
+  padding-inline: 16px !important;
+}
+
+.enviar {
+  flex-shrink: 0;
+  background: var(--wa-acento) !important;
+  color: #ffffff !important;
+}
+
+.enviar:disabled {
+  opacity: 0.45;
+}

@@ -80,6 +80,13 @@ export const EXT = {
   modalidad: `${BASE}/StructureDefinition/modalidad`,
   /** Link de la videollamada (Jitsi) de una teleconsulta. */
   teleconsultaUrl: `${BASE}/StructureDefinition/teleconsulta-url`,
+  // WhatsApp (Twilio) — chat de Recepción.
+  /** Número de WhatsApp (E.164) del otro lado de un mensaje: a dónde se responde. */
+  telefonoWhatsapp: `${BASE}/StructureDefinition/telefono-whatsapp`,
+  /** Estado de entrega de un WhatsApp saliente: `en-cola` | `enviado` | `entregado` | `leido` | `fallido` (los ✓✓). */
+  estadoEntrega: `${BASE}/StructureDefinition/estado-entrega`,
+  /** true en el primer mensaje que llega de un contacto: la campanita lo avisa como contacto nuevo. */
+  inicioContacto: `${BASE}/StructureDefinition/inicio-contacto`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */
@@ -120,6 +127,10 @@ export const SYSTEM = {
   programaGlp1: `${BASE}/Identifier/programa-glp1`,
   /** Identifier de las tareas del Plan Bienestar 100 Días® (una por consulta programada). */
   programaBienestar: `${BASE}/Identifier/programa-bienestar`,
+  /** Canal de una Communication (`Communication.category`), p. ej. `whatsapp`: así se busca el chat. */
+  canal: `${BASE}/CodeSystem/canal`,
+  /** Identifier del mensaje en Twilio (MessageSid): deduplica entrantes y liga los estados de entrega. */
+  twilioMessageSid: `${BASE}/Identifier/twilio-message-sid`,
   /** Consultas programadas del Plan Bienestar 100 Días®: `inicial` | `mitad` | `final`. */
   consultaPlanBienestar: `${BASE}/CodeSystem/consulta-plan-bienestar`,
   /** Grupo de especialidad del catálogo, como lo agrupa el portal ("Cardiología con especialidad", …). */
@@ -228,6 +239,13 @@ export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
 export function urlServicio(codigo: string): string {
   return `${BASE}/ActivityDefinition/${codigo}`;
 }
+
+/** WhatsApp (Twilio): webhook de mensajes entrantes y estados de entrega (lo llama Twilio). */
+export const BOT_WHATSAPP_ENTRANTE = 'som-whatsapp-entrante';
+/** WhatsApp: Recepción responde un chat (dentro de la ventana de 24 h). */
+export const BOT_WHATSAPP_RESPONDER = 'som-whatsapp-responder';
+/** WhatsApp: Recepción ve una foto, audio o documento que mandó el paciente. */
+export const BOT_WHATSAPP_ADJUNTO = 'som-whatsapp-adjunto';
 
 /** Plan Bienestar 100 Días®: plantilla (PlanDefinition) con sus tres consultas programadas. */
 export const PLAN_BIENESTAR_URL = `${BASE}/PlanDefinition/plan-bienestar-100`;

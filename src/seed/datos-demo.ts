@@ -9,14 +9,22 @@
  * `som-limpiar-demo`) borra SOLO lo etiquetado demo: nunca toca datos reales.
  *
  * Genera pacientes, turnos de consulta (varios estados), un Flag de banner de
- * seguridad, cobros y comunicaciones, para ver la app con datos.
+ * seguridad, cobros y chats de WhatsApp (con un contacto nuevo para la campanita),
+ * para ver la app con datos.
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
-import type { Appointment, Patient, Slot } from '@medplum/fhirtypes';
+import type { Appointment, Communication, Patient, Slot } from '@medplum/fhirtypes';
 import { getServicio } from '../config/catalogo.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { META_DEMO, borrarRecursosDemo } from '../bots/_shared.js';
+import {
+  CATEGORIA_WHATSAPP,
+  construirLeadWhatsApp,
+  construirMensajeEntrante,
+  PLANTILLA_RESPUESTA,
+  type EstadoEntrega,
+} from '../lib/whatsapp.js';
 import { conectarMedplum } from './conexion.js';
 
 const TZ = '-03:00';
@@ -174,29 +182,68 @@ async function generar(medplum: MedplumClient): Promise<void> {
   }
   console.log(`  • Cobros (Invoice): ${invoices}`);
 
-  // Comunicaciones (WhatsApp) para Reportes
-  const comms: Array<{ paciente?: Patient; template: string; body: string }> = [
-    { paciente: porNombre.get('Lucía'), template: 'reserva-tentativa', body: 'Segunda Opinión Médica: reservamos tu turno (demo).' },
-    { paciente: porNombre.get('Sofía'), template: 'turno-confirmado', body: 'Segunda Opinión Médica: ¡tu turno quedó confirmado! (demo)' },
-    { paciente: porNombre.get('Diego'), template: 'recordatorio-48h', body: 'Segunda Opinión Médica: te recordamos tu turno (demo).' },
+  // WhatsApp (chat de Recepción y Reportes): avisos automáticos, una charla con
+  // respuesta de Recepción, un mensaje sin leer y un contacto NUEVO que hace sonar la
+  // campanita. Los horarios son relativos a ahora (para ver "Hoy" / "Ayer").
+  const hace = (min: number): string => new Date(Date.now() - min * 60_000).toISOString();
+  const lead = await medplum.createResource<Patient>({
+    ...construirLeadWhatsApp('+5491155550000', 'Carla (demo)'),
+    meta: META_DEMO,
+  });
+  const mensajes: Array<{
+    paciente?: Patient;
+    entrante?: boolean;
+    template?: string;
+    body: string;
+    minutos: number;
+    entrega?: EstadoEntrega;
+    leido?: boolean;
+    inicio?: boolean;
+  }> = [
+    { paciente: porNombre.get('Lucía'), template: 'reserva-tentativa', body: 'Segunda Opinión Médica: reservamos tu turno (demo).', minutos: 26 * 60, entrega: 'leido' },
+    { paciente: porNombre.get('Sofía'), template: 'turno-confirmado', body: 'Segunda Opinión Médica: ¡tu turno quedó confirmado! (demo)', minutos: 25 * 60, entrega: 'leido' },
+    { paciente: porNombre.get('Sofía'), entrante: true, body: '¡Gracias! ¿Tengo que llevar estudios? (demo)', minutos: 25 * 60 - 6, leido: true },
+    { paciente: porNombre.get('Sofía'), template: PLANTILLA_RESPUESTA, body: 'Sí, traé los últimos análisis y el electro si tenés 😊 (demo)', minutos: 25 * 60 - 10, entrega: 'entregado' },
+    { paciente: porNombre.get('Diego'), template: 'recordatorio-48h', body: 'Segunda Opinión Médica: te recordamos tu turno (demo).', minutos: 90, entrega: 'entregado' },
+    { paciente: porNombre.get('Diego'), entrante: true, body: 'Confirmo, ahí estaré 👍 (demo)', minutos: 70 },
+    { paciente: lead, entrante: true, inicio: true, body: 'Hola! Quería saber cómo pedir una segunda opinión con cardiología (demo)', minutos: 5 },
   ];
   let communications = 0;
-  for (const c of comms) {
-    if (!c.paciente) {
+  for (const [i, m] of mensajes.entries()) {
+    const ref = m.paciente?.id ? `Patient/${m.paciente.id}` : undefined;
+    const telefono = m.paciente?.telecom?.find((t) => t.system === 'phone')?.value;
+    if (!ref || !telefono) {
       continue;
     }
-    await medplum.createResource({
-      resourceType: 'Communication',
+    const base = m.entrante
+      ? construirMensajeEntrante({
+          pacienteRef: ref,
+          texto: m.body,
+          adjuntos: [],
+          messageSid: `SMdemo${Date.now()}${i}`,
+          telefono,
+          inicioContacto: Boolean(m.inicio),
+          ahora: hace(m.minutos),
+        })
+      : ({
+          resourceType: 'Communication',
+          status: 'completed',
+          category: [CATEGORIA_WHATSAPP],
+          sent: hace(m.minutos),
+          subject: { reference: ref },
+          recipient: [{ reference: ref }],
+          payload: [{ contentString: m.body }],
+          extension: [
+            { url: EXT.canal, valueCode: 'whatsapp' },
+            { url: EXT.templateUsado, valueString: m.template ?? PLANTILLA_RESPUESTA },
+            { url: EXT.telefonoWhatsapp, valueString: telefono },
+            { url: EXT.estadoEntrega, valueCode: m.entrega ?? 'enviado' },
+          ],
+        } satisfies Communication);
+    await medplum.createResource<Communication>({
+      ...base,
       meta: META_DEMO,
-      status: 'completed',
-      sent: new Date().toISOString(),
-      subject: { reference: `Patient/${c.paciente.id}` },
-      recipient: [{ reference: `Patient/${c.paciente.id}` }],
-      payload: [{ contentString: c.body }],
-      extension: [
-        { url: EXT.canal, valueCode: 'whatsapp' },
-        { url: EXT.templateUsado, valueString: c.template },
-      ],
+      ...(m.entrante && m.leido ? { status: 'completed', received: hace(m.minutos - 1) } : {}),
     });
     communications++;
   }

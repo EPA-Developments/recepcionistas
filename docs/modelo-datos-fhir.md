@@ -16,7 +16,7 @@ Naming: **kebab-case**.
 | **Encounter** | Visita ejecutada (check-in/out); `class` `AMB` o `VR` según la modalidad | — |
 | **ActivityDefinition** | Catálogo: consultas por especialidad, la del Plan Bienestar y el control GLP-1. `topic` = especialidad (SNOMED) + grupo (`CodeSystem/grupo-especialidad`); `useContext` `workflow` = modalidades (v3-ActCode) y `program` = Plan Bienestar. Lo lee el portal | `precio-usd`, `precio-ars`, `regla-pricing-recurso`, `split-som` |
 | **Invoice / ChargeItem** | Cobros y splits | `monto-split-som`, `tc-aplicado`, `es-sena`, `medio-pago` |
-| **Communication** | WhatsApp, emails y campañas del CRM (identifier `campania`) | `canal`, `template-usado` |
+| **Communication** | WhatsApp (chat de Recepción: `category` `canal\|whatsapp`, identifier `twilio-message-sid`), emails y campañas del CRM (identifier `campania`) | `canal`, `template-usado`, `telefono-whatsapp`, `estado-entrega`, `inicio-contacto` ([`whatsapp.md`](whatsapp.md)) |
 | **Group** | Segmentos del CRM (identifier `segmento`; criterios en `characteristic`) | — |
 | **Location** | Recurso físico (consultorio/sala) | (identificado por `SYSTEM.recursoCodigo`) |
 | **Basic** | Configuración (TC vigente) | `tc-aplicado` |

@@ -11,6 +11,14 @@ import { avisoConfirmacion } from '../lib/avisos.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
 import { esConsentimientoTeleconsulta, modalidadDe, teleconsultaUrlDe } from '../lib/teleconsulta.js';
+import {
+  aE164AR,
+  CATEGORIA_WHATSAPP,
+  ETIQUETA_RESERVADO,
+  estadoEntregaDeTwilio,
+  explicarErrorTwilio,
+  type EstadoEntrega,
+} from '../lib/whatsapp.js';
 
 type Secrets = BotEvent['secrets'];
 
@@ -121,9 +129,15 @@ export async function leerTcVigente(medplum: MedplumClient): Promise<number> {
 
 /**
  * Envía un WhatsApp por Twilio y registra la Communication. Resuelve el teléfono
- * desde el paciente si no se pasa `to`. Si faltan credenciales o teléfono, NO
- * envía pero igual deja la Communication (estado 'preparation'). Los secretos de
- * Twilio se leen de event.secrets (Project Secrets de Medplum).
+ * desde el paciente si no se pasa `to` y lo normaliza a E.164 (en Argentina,
+ * `+549…`: WhatsApp no acepta el número como se tipea en la ficha). Si faltan
+ * credenciales o teléfono, NO envía pero igual deja la Communication (estado
+ * 'preparation'). Los secretos de Twilio se leen de event.secrets (Project Secrets
+ * de Medplum).
+ *
+ * La Communication queda en el chat de WhatsApp de Recepción (category
+ * `canal|whatsapp`), con el MessageSid de Twilio y su estado de entrega (los ✓✓, que
+ * actualiza `som-whatsapp-entrante` si está el secret `TWILIO_WEBHOOK_URL`).
  */
 export async function enviarWhatsApp(
   medplum: MedplumClient,
@@ -135,6 +149,13 @@ export async function enviarWhatsApp(
     to?: string;
     identifier?: { system: string; value: string };
     about?: string;
+    /** Quién escribe (p. ej. la recepcionista que responde el chat). */
+    autor?: Communication['sender'];
+    /**
+     * El mensaje lleva información clínica: queda con la etiqueta de confidencialidad
+     * "R" y el chat de Recepción muestra que salió, no el contenido.
+     */
+    reservado?: boolean;
   },
 ): Promise<Communication> {
   let to = params.to;
@@ -142,46 +163,83 @@ export async function enviarWhatsApp(
     const id = params.pacienteRef.split('/')[1];
     if (id) {
       const p = await medplum.readResource('Patient', id).catch(() => undefined);
-      to = p?.telecom?.find((t) => t.system === 'phone' || t.system === 'sms')?.value;
+      const telefonos = p?.telecom?.filter((t) => t.system === 'phone' || t.system === 'sms') ?? [];
+      to = (telefonos.find((t) => t.use === 'mobile') ?? telefonos[0])?.value;
     }
   }
+  const destino = aE164AR(to);
 
   const sid = secrets['TWILIO_ACCOUNT_SID']?.valueString;
   const token = secrets['TWILIO_AUTH_TOKEN']?.valueString;
   const from = secrets['TWILIO_WHATSAPP_FROM']?.valueString;
+  const statusCallback = secrets['TWILIO_WEBHOOK_URL']?.valueString;
 
   let status: Communication['status'] = 'preparation';
-  if (to && sid && token && from) {
+  let messageSid: string | undefined;
+  let entrega: EstadoEntrega | undefined;
+  let motivo: string | undefined = to && !destino ? `El teléfono "${to}" no es un celular válido para WhatsApp.` : undefined;
+  if (destino && sid && token && from) {
     const auth = Buffer.from(`${sid}:${token}`).toString('base64');
     const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: 'POST',
       headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         From: from.startsWith('whatsapp:') ? from : `whatsapp:${from}`,
-        To: `whatsapp:${to}`,
+        To: `whatsapp:${destino}`,
         Body: params.body,
+        ...(statusCallback ? { StatusCallback: statusCallback } : {}),
       }),
     });
+    const respuesta = await leerJson(resp);
     status = resp.ok ? 'completed' : 'entered-in-error';
+    messageSid = typeof respuesta?.sid === 'string' ? respuesta.sid : undefined;
+    entrega = resp.ok ? (estadoEntregaDeTwilio(String(respuesta?.status ?? '')) ?? 'en-cola') : 'fallido';
+    if (!resp.ok) {
+      const codigo = typeof respuesta?.code === 'number' || typeof respuesta?.code === 'string' ? respuesta.code : undefined;
+      motivo =
+        explicarErrorTwilio(codigo) ??
+        `Twilio respondió ${resp.status}${respuesta?.message ? `: ${String(respuesta.message)}` : ''}`;
+      console.error(`enviarWhatsApp: Twilio ${resp.status}${codigo ? ` (${codigo})` : ''}`);
+    }
   }
 
+  const identificadores = [
+    ...(params.identifier ? [params.identifier] : []),
+    ...(messageSid ? [{ system: SYSTEM.twilioMessageSid, value: messageSid }] : []),
+  ];
   return medplum.createResource<Communication>({
     resourceType: 'Communication',
+    ...(params.reservado ? { meta: { security: [ETIQUETA_RESERVADO] } } : {}),
     status,
+    category: [CATEGORIA_WHATSAPP],
     sent: new Date().toISOString(),
-    ...(params.identifier ? { identifier: [params.identifier] } : {}),
+    ...(identificadores.length ? { identifier: identificadores } : {}),
     ...(params.about ? { about: [{ reference: params.about }] } : {}),
     ...(params.pacienteRef
       ? { subject: { reference: params.pacienteRef }, recipient: [{ reference: params.pacienteRef }] }
       : {}),
+    ...(params.autor ? { sender: params.autor } : {}),
+    ...(motivo ? { statusReason: { text: motivo } } : {}),
     // payload solo si hay cuerpo: un payload sin content[x] es FHIR inválido.
     ...(params.body ? { payload: [{ contentString: params.body }] } : {}),
     extension: [
       { url: EXT.canal, valueCode: 'whatsapp' },
       // templateUsado solo si hay template: una extensión sin valor viola ext-1.
       ...(params.template ? [{ url: EXT.templateUsado, valueString: params.template }] : []),
+      ...(destino ? [{ url: EXT.telefonoWhatsapp, valueString: destino }] : []),
+      ...(entrega ? [{ url: EXT.estadoEntrega, valueCode: entrega }] : []),
     ],
   });
+}
+
+/** JSON de una respuesta, o undefined (Twilio puede no devolver cuerpo). */
+async function leerJson(resp: Response): Promise<Record<string, unknown> | undefined> {
+  try {
+    const cuerpo = (await resp.json()) as unknown;
+    return cuerpo && typeof cuerpo === 'object' ? (cuerpo as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

@@ -39,10 +39,11 @@ funcione end-to-end:
 
 ## Estructura
 
-- `app/src/pages/` — una por vista (Agenda, Solicitudes, Mensajes, Controles GLP-1,
-  Atender, Reportes).
-- `app/src/components/` — `Shell` (layout + nav + tema), `Timeline`,
-  `ProximosTurnos`, `ReservaModal`, `SeguimientoGlp1`, `AgendarControlModal`, etc.
+- `app/src/pages/` — una por vista (Agenda, Solicitudes, Mensajes, WhatsApp,
+  Controles GLP-1, Atender, Reportes).
+- `app/src/components/` — `Shell` (layout + nav + tema + campanita), `CampanaWhatsApp`,
+  `Timeline`, `ProximosTurnos`, `ReservaModal`, `SeguimientoGlp1`,
+  `AgendarControlModal`, etc.
 - `app/src/lib/` — orquestación: `bots.ts` (llamadas a los Bots por nombre),
   `timeline.ts`, `estados.ts`.
 - `app/src/theme.ts` — tema Mantine (primario `somAzul`, tono 6 = `#007ce8`;
@@ -55,9 +56,16 @@ funcione end-to-end:
 | **Agenda** | `AgendaDelDia` | Línea de tiempo del día por consultorio/sala y la agenda de teleconsultas, franjas libres clickeables para reservar (en la fila de teleconsultas, solo los servicios que se ofrecen por videollamada) y próximos turnos. El turno muestra si es teleconsulta y su link. |
 | **Solicitudes** | `Solicitudes` | Cola de solicitudes de turno del portal del paciente, para confirmar. |
 | **Mensajes** | `Mensajes` | Bandeja de las conversaciones que abren los pacientes desde "Mensajes" del portal (con motivo obligatorio). *Abiertas / Cerradas*, paciente + motivo + último mensaje + sin leer; a la derecha la conversación y la respuesta (Enter envía, Shift+Enter salto de línea). Abrirla marca leído lo del paciente; responder le deja una Novedad `mensaje-nuevo` en la campanita del portal (una por tanda). **"Sugerir"** pide al bot `som-borrador-respuesta` un borrador (Claude) que cae en el campo de respuesta; nada sale sin tocar Enviar. **"Nueva conversación"**: Recepción le escribe primero a un paciente (paciente + motivo + mensaje; también le llega el aviso). "Ver paciente" abre `Atender`; "Cerrar conversación" / "Reabrir". Se refresca cada 20 s; la pestaña muestra los mensajes sin leer (cada 60 s). Lógica en `src/lib/mensajes.ts`. |
+| **WhatsApp** | `WhatsApp` | El WhatsApp de SOM **como en el teléfono**: lista de chats (buscar, *Todos / No leídos / Contactos nuevos*), conversación con separadores de día, ✓✓ de entrega y lectura, adjuntos (se ven al tocar "Ver", vía `som-whatsapp-adjunto`) y respuesta (Enter envía; la manda `som-whatsapp-responder`, que solo deja dentro de las 24 h del último mensaje del paciente). Al lado, el contacto: **Completar ficha** para un contacto nuevo (alta prellenada con el número), **Abrir en Atender** y hasta cuándo se puede responder. Los avisos automáticos se ven "Automático · …" y los que llevan información clínica, 🔒 sin contenido. Chat abierto: cada 5 s; lista: cada 15 s. Ver [`whatsapp.md`](whatsapp.md). |
 | **GLP-1** | `ControlesGlp1` | Controles del seguimiento GLP-1 por agendar (todos los pacientes), ordenados por ventana y filtrables (*En ventana / Vencidos / Próximos*), con aviso de "traer laboratorio" y la lista de inscriptos que esperan la indicación médica. "Agendar" abre `AgendarControlModal` (consultorio, día y hora; el resto lo pone la tarea). Ver [`glp1.md`](glp1.md). |
 | **Atender paciente** | `Atender` | Busca al paciente y abre su ficha: banner de seguridad, reserva de turno (**Teleconsulta / Presencial** y consulta por especialidad), **Plan Bienestar 100 Días®** (inscribir y agendar sus tres consultas con `AgendarConsultaPlanModal`: modalidad, dónde, día y hora dentro de la ventana; ver [`plan-bienestar.md`](plan-bienestar.md)), seguimiento GLP-1 (inscribir / agendar controles) y cobro. |
 | **Reportes** | `Reportes` | Indicadores de gestión. |
+
+**Campanita (WhatsApp):** en el encabezado, avisa cada WhatsApp de **inicio de
+contacto** sin leer (alguien escribe y no había conversación abierta): contador,
+sacudón al llegar uno nuevo, aviso emergente con "Abrir el chat" y, si se activa, aviso
+del escritorio con la pestaña oculta. Tocar un aviso abre ese chat. Se revisa cada
+15 s; la pestaña WhatsApp y el título del navegador muestran los mensajes sin leer.
 
 El botón **"Atender"** de Solicitudes (**"Ficha"** de GLP-1 y **"Ver paciente"** de Mensajes) abre `Atender`
 con ese paciente ya cargado (`pacienteInicialId`).
