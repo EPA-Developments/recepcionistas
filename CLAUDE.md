@@ -10,9 +10,9 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 2. **Fuente de verdad del catálogo/precios: la lista oficial de Segunda Opinión
    Médica.** Las especialidades, los precios (R-17: consulta por especialidad ARS
    150.000, lista del 26/09/2026), la duración (30 min) y los tres **profesionales**
-   con su disponibilidad semanal (`src/config/medicos.ts`) ya están cargados; falta
-   el **consultorio** del Dr. D'Alessandro y de la Dra. Gold (R-22). No se inventan
-   precios, profesionales, horarios ni reglas: se cargan cuando estén definidos.
+   con su disponibilidad semanal (por modalidad) y consultorio (`src/config/medicos.ts`)
+   ya están cargados (R-22). No se inventan precios, profesionales, horarios ni reglas:
+   se cargan cuando estén definidos.
    (El Manual de Protocolos v9 era de BioWellness y ya no aplica.)
 3. **Privacidad por diseño.** La recepción nunca ve la historia clínica completa;
    solo la señal binaria del banner de seguridad.
@@ -108,10 +108,9 @@ no vende esos servicios. El catálogo vigente son las consultas por especialidad
 (presenciales o por teleconsulta) y las consultas del **Plan Bienestar 100 Días®**
 (marca registrada del Dr. D'Alessandro; ver `docs/plan-bienestar.md`). Las
 especialidades, precios, duraciones, profesionales y su disponibilidad semanal están
-definidos (R-22 validada el 26/09/2026); el **consultorio de dos profesionales, la
-lista de consultorios y el horario del centro** siguen **PENDIENTES** (el horario
-placeholder contiene todas las franjas cargadas, así que la agenda ya genera
-horarios).
+definidos, con consultorio (R-22 validada el 26/09/2026); la **lista de consultorios y
+el horario del centro** siguen **PENDIENTES** (el horario placeholder contiene todas las
+franjas cargadas, así que la agenda ya genera horarios).
 
 Lo demás **no frena el desarrollo**: cargar los Project Secrets de Twilio/SES en
 Medplum (para que confirmaciones y recordatorios **envíen** de verdad; sin ellos

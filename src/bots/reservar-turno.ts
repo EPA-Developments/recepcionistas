@@ -35,7 +35,13 @@ import { getMedico, medicoAtiende, type Medico } from '../config/medicos.js';
 import { RECURSOS_POR_CODIGO, modalidadDeRecurso } from '../config/recursos.js';
 import type { PerfilReserva } from '../config/reglas.js';
 import { COD, EXT, SYSTEM } from '../fhir/identifiers.js';
-import { estaDisponible, identificadorSlotProfesional } from '../lib/agenda-profesional.js';
+import {
+  estaDisponible,
+  extensionesSlotProfesional,
+  identificadorSlotProfesional,
+  modalidadesDisponibles,
+  permiteModalidad,
+} from '../lib/agenda-profesional.js';
 import { avisoReserva } from '../lib/avisos.js';
 import { validarControlSinTarea, validarTareaAgenda, validarVentanaControl } from '../lib/glp1-plan.js';
 import {
@@ -225,7 +231,7 @@ export function validarReserva(ctx: ContextoReserva): ResultadoValidacion {
     if (ctx.disponible === false) {
       partes.push({
         ok: false,
-        bloqueos: [{ regla: 'R-22', nivel: 'bloqueo', mensaje: `${ctx.medico.nombre} no atiende en ese horario.` }],
+        bloqueos: [{ regla: 'R-22', nivel: 'bloqueo', mensaje: `${ctx.medico.nombre} no atiende ${modalidad} en ese horario.` }],
         advertencias: [],
       });
     }
@@ -300,8 +306,13 @@ export async function handler(
   }
   const recurso = recursoCodigo ? RECURSOS_POR_CODIGO.get(recursoCodigo) : undefined;
   const modalidad: Modalidad = recurso ? modalidadDeRecurso(recurso) : medico ? (e.modalidad ?? 'teleconsulta') : 'presencial';
-  // ¿El horario cae en la disponibilidad del profesional? Una franja libre suya lo garantiza.
-  const disponible = medico ? franjaElegida !== undefined || estaDisponible(medico, HORARIO_SEMANAL, inicio, fin) : undefined;
+  // ¿El horario cae en la disponibilidad del profesional, en esa modalidad? Una franja
+  // libre suya lo garantiza si admite la modalidad (las anteriores a R-22, sin marca, admiten todas).
+  const disponible = medico
+    ? franjaElegida
+      ? permiteModalidad(franjaElegida, modalidad)
+      : estaDisponible(medico, HORARIO_SEMANAL, inicio, fin, modalidad)
+    : undefined;
 
   // Tarea de un programa: tiene que ser de este paciente y estar pendiente.
   let tarea: Task | undefined;
@@ -380,7 +391,8 @@ export async function handler(
       inicio,
       fin,
       identificador: (iso) => ({ system: SYSTEM.medico, value: identificadorSlotProfesional(medico.codigo, iso) }),
-      extension: { url: EXT.profesional, valueString: medico.codigo },
+      // Si hay que materializar la franja, con las modalidades de su disponibilidad en ese horario.
+      extension: extensionesSlotProfesional(medico.codigo, modalidadesDisponibles(medico, HORARIO_SEMANAL, inicio, fin)),
     });
     if (!r.ok) {
       return bloqueo('R-22', `${medico.nombre} ya tiene ese horario ocupado. Elegí otro.`);
@@ -399,7 +411,7 @@ export async function handler(
       inicio,
       fin,
       identificador: (iso) => ({ system: SYSTEM.recursoCodigo, value: `${codigo}|${iso}` }),
-      extension: { url: EXT.recursoFisico, valueString: codigo },
+      extension: [{ url: EXT.recursoFisico, valueString: codigo }],
     });
     if (!r.ok) {
       await liberarFranjas(medplum, slots.map((s) => ({ reference: `Slot/${s.id}` })));

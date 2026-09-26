@@ -17,7 +17,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-link-mercadopago` | Genera un link de MercadoPago (Checkout Pro) por el monto de la seña. Antes valida la credencial (Access Token, no Public Key) y el monto (no hay link por $0); si MercadoPago la rechaza (401 / 403 PolicyAgent) lee la cuenta y dice qué corregir. Con `{ diagnosticar: true }` solo revisa credencial y cuenta (`npm run mercadopago:test`). | `executeBot` (botón en turno tentativo). |
 | `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública que llama MercadoPago. |
 | `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp (en teleconsulta, con el link) y manda los avisos de las consultas del **Plan Bienestar** (se abrió la ventana; a mitad de ventana, segundo aviso + alerta a Recepción). | `cronTimer` del Bot (cada ~30 min). |
-| `som-generar-agenda` | **Cron:** materializa los horarios libres (`Slot` de 30 min) de cada profesional para los próximos 45 días, desde su disponibilidad semanal y el horario del centro (R-22). Idempotente (identifier `medico@inicio` + `If-None-Exist`): nunca vuelve a crear libre una franja ya ocupada. Input opcional `{ dias, medicos }`. Sin él la reserva igual funciona (materializa la franja al reservar), pero el portal no ve horarios para ofrecer. | `cronTimer` del Bot (diario) o `executeBot`. |
+| `som-generar-agenda` | **Cron:** materializa los horarios libres (`Slot` de 30 min) de cada profesional para los próximos 45 días, desde su disponibilidad semanal y el horario del centro (R-22). Idempotente (identifier `medico@inicio` + `If-None-Exist`): nunca vuelve a crear libre una franja ya ocupada. Cada franja lleva las modalidades en que se reserva (extensión `modalidad`); si cambió la disponibilidad, las corrige en las que siguen libres. Input opcional `{ dias, medicos }`. Sin él la reserva igual funciona (materializa la franja al reservar), pero el portal no ve horarios para ofrecer. | `cronTimer` del Bot (diario) o `executeBot`. |
 | `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono; el teléfono en cualquiera de sus formas y sin unir DNIs distintos, así completa el **número nuevo** que llegó por WhatsApp sin duplicarlo). | `executeBot` (Atender → Nuevo paciente; Mensajes → Completar ficha). |
 | `som-invitar-paciente` | Invita al paciente al **portal** (invite de Medplum) y entrega el link por WhatsApp/email/QR. **Requiere admin.** | `executeBot` (Atender → Invitar al portal). |
 | `som-limpiar-demo` | **Cron:** borra los datos demo (tag `demo`) con más de 48 h. | `cronTimer` del Bot (cada ~1 h). |
@@ -251,6 +251,10 @@ materializa como `Slot` `free` de 30 min para los próximos 45 días
 
 - **Idempotente:** identifier `{medico}@{inicio}` (sistema `Identifier/medico`) y
   `If-None-Exist`; una franja ya `busy` no se vuelve a crear libre.
+- **Modalidades:** cada franja lleva la extensión `modalidad` (AMB / VR) según la
+  disponibilidad (p. ej. presencial martes y jueves 9–12, teleconsulta el resto); el
+  portal filtra por ella y la reserva la respeta. Si la disponibilidad cambia de
+  modalidad, el cron corrige las franjas que siguen libres; las ocupadas no se tocan.
 - **Cambió la disponibilidad:** las franjas libres que quedaron fuera del nuevo
   horario no se borran solas (podrían tener reservas); se revisan a mano.
 - **Sin cron:** `npm run seed -- --with-slots --dias=N` crea las mismas franjas, y la

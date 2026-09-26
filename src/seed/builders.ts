@@ -26,7 +26,7 @@ import { CODIGO_CONSULTA_PB100D, CODIGO_CONTROL_GLP1, GRUPOS_ESPECIALIDAD, SERVI
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { RECURSOS } from '../config/recursos.js';
 import { TC_DEFAULT } from '../config/tipo-cambio.js';
-import { identificadorSlotProfesional, type SlotProfesionalDescriptor } from '../lib/agenda-profesional.js';
+import { extensionesSlotProfesional, identificadorSlotProfesional, type SlotProfesionalDescriptor } from '../lib/agenda-profesional.js';
 import type { SlotDescriptor } from '../lib/slots.js';
 import { EXTENSIONES } from '../fhir/extensions.js';
 import { ACCESS_POLICIES } from '../fhir/access-policies.js';
@@ -258,7 +258,10 @@ export function buildScheduleProfesional(codigo: string): Schedule {
   };
 }
 
-/** Franja libre de un profesional (identifier `medico@inicio`: el seed y el cron son idempotentes). */
+/**
+ * Franja libre de un profesional (identifier `medico@inicio`: el seed y el cron son
+ * idempotentes), marcada con las modalidades en que se puede reservar (R-22).
+ */
 export function buildSlotProfesional(descriptor: SlotProfesionalDescriptor, scheduleRef: string): Slot {
   return {
     resourceType: 'Slot',
@@ -267,7 +270,7 @@ export function buildSlotProfesional(descriptor: SlotProfesionalDescriptor, sche
     status: 'free',
     start: descriptor.inicio,
     end: descriptor.fin,
-    extension: [{ url: EXT.profesional, valueString: descriptor.medicoCodigo }],
+    extension: extensionesSlotProfesional(descriptor.medicoCodigo, descriptor.modalidades),
   };
 }
 
