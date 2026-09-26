@@ -484,8 +484,8 @@ export interface OcuparFranjas {
   fin: Date;
   /** Identifier determinista de la franja que empieza en `inicioISO` (para no duplicar con el seed/cron). */
   identificador: (inicioISO: string) => Identifier;
-  /** Extensión de pertenencia de la franja (recurso físico o profesional). */
-  extension: Extension;
+  /** Extensiones de la franja si hay que crearla: pertenencia (recurso físico o profesional) y modalidades. */
+  extension: Extension[];
   /** Tamaño de la grilla en minutos (default `SLOT_GRANULARIDAD_MIN`). */
   granularidadMin?: number;
 }
@@ -532,7 +532,7 @@ export async function ocuparFranjas(medplum: MedplumClient, o: OcuparFranjas): P
         status: 'free',
         start: inicioISO,
         end: new Date(Math.min(t + gran, o.fin.getTime())).toISOString(),
-        extension: [o.extension],
+        extension: o.extension,
       },
       `identifier=${identifier.system}|${identifier.value}`,
     );

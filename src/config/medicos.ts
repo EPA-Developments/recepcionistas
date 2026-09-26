@@ -11,9 +11,9 @@
  * acá no hay honorarios.
  *
  * Cargados (26/09/2026) los tres profesionales que hoy atienden las consultas del Plan
- * Bienestar: nombre, matrícula, especialidad y disponibilidad semanal. Consultorio
- * confirmado solo para el Dr. Barbagelata; la Dra. Gold y el Dr. D'Alessandro quedan
- * **provisorios** hasta confirmar su consultorio.
+ * Bienestar: nombre, matrícula, especialidad, disponibilidad semanal y consultorio. Cada
+ * franja puede ser de una sola modalidad (`modalidad`): la Dra. Gold y el Dr. D'Alessandro
+ * atienden presencial martes y jueves de 9 a 12 y teleconsulta en el resto de sus horarios.
  * No se inventan datos: un profesional sin `disponibilidad` no genera horarios y no es
  * reservable; sin `consultorioCodigo`, lo presencial exige que Recepción elija el
  * consultorio al reservar (R-22). Los DNI no van en el código.
@@ -31,6 +31,8 @@ export interface DisponibilidadSemanal {
   desde: string;
   /** "HH:mm" (24 h). */
   hasta: string;
+  /** Si la franja es de una sola modalidad; si falta, vale para todas las del profesional. */
+  modalidad?: Modalidad;
 }
 
 export interface Medico {
@@ -89,11 +91,12 @@ export const MEDICOS: Medico[] = [
     modalidades: AMBAS,
     seguimientoPB100D: true,
     disponibilidad: [
-      { dia: 3, desde: '08:00', hasta: '12:00' }, // miércoles
-      { dia: 5, desde: '08:00', hasta: '12:00' }, // viernes
+      { dia: 2, desde: '09:00', hasta: '12:00', modalidad: 'presencial' }, // martes, Consultorio 1
+      { dia: 3, desde: '08:00', hasta: '12:00', modalidad: 'teleconsulta' }, // miércoles
+      { dia: 4, desde: '09:00', hasta: '12:00', modalidad: 'presencial' }, // jueves, Consultorio 1
+      { dia: 5, desde: '08:00', hasta: '12:00', modalidad: 'teleconsulta' }, // viernes
     ],
-    // Horarios confirmados el 26/09/2026. PENDIENTE: consultorio de lo presencial.
-    provisional: true,
+    consultorioCodigo: 'R_CONSULTORIO_1',
   },
   {
     codigo: 'MED_DALESSANDRO',
@@ -105,14 +108,20 @@ export const MEDICOS: Medico[] = [
     modalidades: AMBAS,
     seguimientoPB100D: true,
     disponibilidad: [
-      { dia: 1, desde: '16:00', hasta: '20:00' }, // lunes
-      { dia: 3, desde: '16:00', hasta: '20:00' }, // miércoles
-      { dia: 5, desde: '16:00', hasta: '20:00' }, // viernes
+      { dia: 1, desde: '16:00', hasta: '20:00', modalidad: 'teleconsulta' }, // lunes
+      { dia: 2, desde: '09:00', hasta: '12:00', modalidad: 'presencial' }, // martes, Consultorio 2
+      { dia: 3, desde: '16:00', hasta: '20:00', modalidad: 'teleconsulta' }, // miércoles
+      { dia: 4, desde: '09:00', hasta: '12:00', modalidad: 'presencial' }, // jueves, Consultorio 2
+      { dia: 5, desde: '16:00', hasta: '20:00', modalidad: 'teleconsulta' }, // viernes
     ],
-    // PENDIENTE: consultorio de lo presencial.
-    provisional: true,
+    consultorioCodigo: 'R_CONSULTORIO_2',
   },
 ];
+
+/** Modalidades en que vale una franja: la suya si es de una sola, si no todas las del profesional. */
+export function modalidadesDeFranja(m: Pick<Medico, 'modalidades'>, d: Pick<DisponibilidadSemanal, 'modalidad'>): Modalidad[] {
+  return d.modalidad ? [d.modalidad] : m.modalidades;
+}
 
 export const MEDICOS_POR_CODIGO: ReadonlyMap<string, Medico> = new Map(MEDICOS.map((m) => [m.codigo, m]));
 

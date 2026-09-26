@@ -10,7 +10,8 @@ import { handler as reservar, type EntradaReserva } from '../src/bots/reservar-t
 import { handler as cambiarEstado } from '../src/bots/estado-turno.js';
 import { handler as generarAgenda } from '../src/bots/generar-agenda.js';
 import { EXT, SYSTEM } from '../src/fhir/identifiers.js';
-import { construirConsentimientoTeleconsulta } from '../src/lib/teleconsulta.js';
+import { construirConsentimientoTeleconsulta, extensionModalidad, modalidadDeCoding } from '../src/lib/teleconsulta.js';
+import type { Modalidad } from '../src/domain/types.js';
 import { fakeMedplum } from './fake-medplum.js';
 
 // Una cardióloga de prueba con agenda: lunes 18–20 (teleconsulta y presencial en el Consultorio 1).
@@ -26,7 +27,10 @@ vi.mock('../src/config/medicos.js', async (importOriginal) => {
       servicios: ['CARDIOLOGIA', 'CONSULTA_PB100D'],
       modalidades: ['presencial', 'teleconsulta'],
       seguimientoPB100D: true,
-      disponibilidad: [{ dia: 1, desde: '18:00', hasta: '20:00' }],
+      disponibilidad: [
+        { dia: 1, desde: '18:00', hasta: '20:00' }, // lunes: las dos modalidades
+        { dia: 2, desde: '09:00', hasta: '12:00', modalidad: 'presencial' }, // martes: solo presencial
+      ],
       consultorioCodigo: 'R_CONSULTORIO_1',
     },
   ];
@@ -89,8 +93,12 @@ function entorno(extra: Resource[] = []) {
   return { ...f, slots, deAgenda, turno };
 }
 
-/** Una franja libre materializada (como las que deja el seed o el cron). */
-function franjaLibre(inicio: string, fin: string): Slot {
+/** Modalidades marcadas en una franja (extensión `modalidad`). */
+const modalidadesDe = (s: Slot | undefined): Modalidad[] =>
+  (s?.extension ?? []).filter((e) => e.url === EXT.modalidad).map((e) => modalidadDeCoding(e.valueCoding)!);
+
+/** Una franja libre materializada (como las que deja el seed o el cron), con sus modalidades si se indican. */
+function franjaLibre(inicio: string, fin: string, modalidades: Modalidad[] = []): Slot {
   return {
     resourceType: 'Slot',
     id: `slot-${inicio}`,
@@ -99,7 +107,8 @@ function franjaLibre(inicio: string, fin: string): Slot {
     status: 'free',
     start: inicio,
     end: fin,
-    extension: [{ url: EXT.profesional, valueString: 'MED_TEST' }],
+    // Sin `modalidades` queda como una franja anterior a R-22 (sin marca: admite las dos).
+    extension: [{ url: EXT.profesional, valueString: 'MED_TEST' }, ...modalidades.map(extensionModalidad)],
     meta: { versionId: '1' },
   };
 }
@@ -172,12 +181,42 @@ describe('Reserva por profesional + horario (sin franja materializada)', () => {
     expect(e.deAgenda('sch-med-test').find((s) => s.identifier?.[0]?.value === `MED_TEST@${LUNES_1830}`)?.status).toBe('busy');
   });
 
-  it('fuera de su disponibilidad (martes) => bloqueo R-22', async () => {
+  it('fuera de su disponibilidad (martes a la tarde) => bloqueo R-22', async () => {
     const e = entorno();
     const r = await reservar(e.medplum, ev({ ...base, medicoCodigo: 'MED_TEST', inicio: '2026-09-29T18:00:00-03:00', modalidad: 'teleconsulta' }));
     expect(r.ok).toBe(false);
-    expect(r.bloqueos.some((b) => b.regla === 'R-22' && /no atiende en ese horario/.test(b.mensaje))).toBe(true);
+    expect(r.bloqueos.some((b) => b.regla === 'R-22' && /no atiende teleconsulta en ese horario/.test(b.mensaje))).toBe(true);
     expect(e.slots()).toEqual([]);
+  });
+
+  it('martes 9–12 es solo presencial: la teleconsulta se bloquea; la presencial entra y la franja queda marcada AMB', async () => {
+    const MARTES_9 = '2026-09-29T09:00:00-03:00';
+    const e = entorno();
+    const tele = await reservar(e.medplum, ev({ ...base, medicoCodigo: 'MED_TEST', inicio: MARTES_9, modalidad: 'teleconsulta' }));
+    expect(tele.ok).toBe(false);
+    expect(tele.bloqueos.some((b) => b.regla === 'R-22' && /no atiende teleconsulta en ese horario/.test(b.mensaje))).toBe(true);
+    expect(e.slots()).toEqual([]);
+
+    const presencial = await reservar(e.medplum, ev({ ...base, medicoCodigo: 'MED_TEST', inicio: MARTES_9, modalidad: 'presencial' }));
+    expect(presencial.ok).toBe(true);
+    const [franja] = e.deAgenda('sch-med-test');
+    expect(franja?.status).toBe('busy');
+    expect(modalidadesDe(franja)).toEqual(['presencial']);
+    // El lunes, en cambio, la franja materializada admite las dos.
+    const lunes = await reservar(e.medplum, ev({ ...base, medicoCodigo: 'MED_TEST', inicio: LUNES_18, modalidad: 'teleconsulta' }));
+    expect(lunes.ok).toBe(true);
+    expect(modalidadesDe(e.deAgenda('sch-med-test').find((s) => s.start === LUNES_18 || new Date(s.start!).toISOString() === new Date(LUNES_18).toISOString()))).toEqual(['presencial', 'teleconsulta']);
+  });
+
+  it('una franja libre marcada solo teleconsulta no se puede reservar presencial (slotId) => bloqueo R-22', async () => {
+    const e = entorno([franjaLibre(LUNES_18, LUNES_1830, ['teleconsulta'])]);
+    const r = await reservar(e.medplum, ev({ ...base, slotId: `slot-${LUNES_18}`, modalidad: 'presencial' }));
+    expect(r.ok).toBe(false);
+    expect(r.bloqueos.some((b) => b.regla === 'R-22' && /no atiende presencial en ese horario/.test(b.mensaje))).toBe(true);
+    expect(e.deAgenda('sch-med-test').map((s) => s.status)).toEqual(['free']);
+    // En teleconsulta sí.
+    const ok = await reservar(e.medplum, ev({ ...base, slotId: `slot-${LUNES_18}`, modalidad: 'teleconsulta' }));
+    expect(ok.ok).toBe(true);
   });
 
   it('una consulta que no atiende (Neurología) => bloqueo R-22', async () => {
@@ -240,13 +279,29 @@ describe('Reserva por recurso (camino de la app de Recepción, sin profesional)'
 });
 
 describe('Cron som-generar-agenda', () => {
-  it('materializa los horarios libres de la disponibilidad y es idempotente', async () => {
+  it('materializa los horarios libres de la disponibilidad, con sus modalidades, y es idempotente', async () => {
     const e = entorno();
     const r1 = await generarAgenda(e.medplum, ev({ dias: 7 }));
-    expect(r1.profesionales).toEqual([{ codigo: 'MED_TEST', franjas: 4 }]); // lunes 18, 18:30, 19, 19:30
-    expect(e.deAgenda('sch-med-test').map((s) => s.status)).toEqual(['free', 'free', 'free', 'free']);
+    expect(r1.profesionales).toEqual([{ codigo: 'MED_TEST', franjas: 10 }]); // lunes 18–20 (4) + martes 9–12 (6)
+    const franjas = e.deAgenda('sch-med-test');
+    expect(franjas).toHaveLength(10);
+    expect(franjas.every((s) => s.status === 'free')).toBe(true);
+    expect(modalidadesDe(franjas.find((s) => s.start === LUNES_18))).toEqual(['presencial', 'teleconsulta']);
+    expect(modalidadesDe(franjas.find((s) => s.start === '2026-09-29T09:00:00-03:00'))).toEqual(['presencial']);
     const r2 = await generarAgenda(e.medplum, ev({ dias: 7 }));
-    expect(r2.profesionales[0]?.franjas).toBe(4);
-    expect(e.deAgenda('sch-med-test')).toHaveLength(4);
+    expect(r2.profesionales).toEqual([{ codigo: 'MED_TEST', franjas: 10 }]);
+    expect(e.deAgenda('sch-med-test')).toHaveLength(10);
+  });
+
+  it('si cambió la modalidad de una franja, corrige las que siguen libres y no toca las ocupadas', async () => {
+    // Una franja vieja del lunes marcada solo teleconsulta (libre) y otra ocupada.
+    const vieja = franjaLibre(LUNES_18, LUNES_1830, ['teleconsulta']);
+    const ocupada: Slot = { ...franjaLibre(LUNES_1830, '2026-09-28T19:00:00-03:00', ['teleconsulta']), status: 'busy' };
+    const e = entorno([vieja, ocupada]);
+    const r = await generarAgenda(e.medplum, ev({ dias: 7 }));
+    expect(r.profesionales).toEqual([{ codigo: 'MED_TEST', franjas: 10, actualizadas: 1 }]);
+    expect(modalidadesDe(e.deAgenda('sch-med-test').find((s) => s.id === vieja.id))).toEqual(['presencial', 'teleconsulta']);
+    expect(e.deAgenda('sch-med-test').find((s) => s.id === ocupada.id)).toMatchObject({ status: 'busy' });
+    expect(modalidadesDe(e.deAgenda('sch-med-test').find((s) => s.id === ocupada.id))).toEqual(['teleconsulta']);
   });
 });

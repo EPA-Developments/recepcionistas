@@ -7,13 +7,29 @@
  * que abarca; la teleconsulta no ocupa consultorio (R-21), lo presencial además ocupa
  * el suyo (R-07).
  *
+ * Cada franja de la disponibilidad puede ser de una sola modalidad (p. ej. presencial
+ * en el consultorio martes y jueves, teleconsulta el resto): los horarios llevan las
+ * modalidades en que se pueden reservar (extensión `modalidad` del `Slot`).
+ *
  * Zona horaria: Argentina (UTC-3, sin DST), como `src/lib/slots.ts`.
  */
-import type { DisponibilidadSemanal, Medico } from '../config/medicos.js';
+import type { Extension } from '@medplum/fhirtypes';
+import { modalidadesDeFranja, type DisponibilidadSemanal, type Medico } from '../config/medicos.js';
 import { SLOT_GRANULARIDAD_MIN, type FranjaHoraria, type HorarioDia } from '../config/horario.js';
+import type { Modalidad } from '../domain/types.js';
+import { EXT } from '../fhir/identifiers.js';
 import { OFFSET_ARG, hhmmAMin, minAHHMM, ymd, type OpcionesSlots } from './slots.js';
+import { MODALIDADES, extensionModalidad, modalidadDeCoding } from './teleconsulta.js';
 
 const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
+
+/** Lo que hace falta de un profesional para calcular su agenda. */
+export type MedicoAgenda = Pick<Medico, 'disponibilidad' | 'modalidades'>;
+
+/** Franja de un día con las modalidades en que se puede reservar. */
+export interface FranjaProfesional extends FranjaHoraria {
+  modalidades: Modalidad[];
+}
 
 export interface SlotProfesionalDescriptor {
   medicoCodigo: string;
@@ -22,6 +38,8 @@ export interface SlotProfesionalDescriptor {
   /** Fin en ISO con offset de Argentina. */
   fin: string;
   estado: 'free';
+  /** Modalidades en que se puede reservar esa franja. */
+  modalidades: Modalidad[];
 }
 
 interface Intervalo {
@@ -48,38 +66,50 @@ function aIntervalos(franjas: Pick<FranjaHoraria, 'desde' | 'hasta'>[]): Interva
   return franjas.map((f) => ({ desde: hhmmAMin(f.desde), hasta: hhmmAMin(f.hasta) })).filter((i) => i.desde < i.hasta);
 }
 
+/** Unión de modalidades, en el orden canónico. */
+function unirModalidades(a: Modalidad[], b: Modalidad[]): Modalidad[] {
+  return MODALIDADES.filter((m) => a.includes(m) || b.includes(m));
+}
+
 /**
  * Franjas en que el profesional atiende un día de la semana: su disponibilidad
- * dentro del horario del centro. Vacío si ese día no atiende o el centro cierra.
+ * dentro del horario del centro, cada una con sus modalidades. Con `modalidad`, solo
+ * las franjas que la admiten. Vacío si ese día no atiende o el centro cierra.
  */
-export function franjasDelDia(
-  medico: Pick<Medico, 'disponibilidad'>,
-  horario: HorarioDia[],
-  dia: number,
-): FranjaHoraria[] {
+export function franjasDelDia(medico: MedicoAgenda, horario: HorarioDia[], dia: number, modalidad?: Modalidad): FranjaProfesional[] {
   const centro = horario.find((h) => h.dia === dia);
   if (!centro?.abierto) {
     return [];
   }
-  const propias = medico.disponibilidad.filter((d) => d.dia === dia);
-  return intersectar(aIntervalos(propias), aIntervalos(centro.franjas)).map((i) => ({
-    desde: minAHHMM(i.desde),
-    hasta: minAHHMM(i.hasta),
-  }));
+  const out: FranjaProfesional[] = [];
+  for (const d of medico.disponibilidad) {
+    if (d.dia !== dia) {
+      continue;
+    }
+    const modalidades = modalidadesDeFranja(medico, d);
+    if (modalidad && !modalidades.includes(modalidad)) {
+      continue;
+    }
+    for (const i of intersectar(aIntervalos([d]), aIntervalos(centro.franjas))) {
+      out.push({ desde: minAHHMM(i.desde), hasta: minAHHMM(i.hasta), modalidades });
+    }
+  }
+  return out.sort((p, q) => hhmmAMin(p.desde) - hhmmAMin(q.desde));
 }
 
 /**
  * Horarios libres de un profesional para `opts.dias` días desde `opts.desde`, de
- * `granularidadMin` cada uno, dentro de sus franjas de cada día.
+ * `granularidadMin` cada uno, dentro de sus franjas de cada día. Si dos franjas se
+ * superponen, el horario queda una sola vez con la unión de sus modalidades.
  */
 export function generarSlotsProfesional(
-  medico: Pick<Medico, 'codigo' | 'disponibilidad'>,
+  medico: Pick<Medico, 'codigo'> & MedicoAgenda,
   horario: HorarioDia[],
   opts: OpcionesSlots,
 ): SlotProfesionalDescriptor[] {
   const gran = opts.granularidadMin ?? SLOT_GRANULARIDAD_MIN;
   const base = new Date(Date.UTC(opts.desde.getUTCFullYear(), opts.desde.getUTCMonth(), opts.desde.getUTCDate()));
-  const slots: SlotProfesionalDescriptor[] = [];
+  const porInicio = new Map<string, SlotProfesionalDescriptor>();
   for (let i = 0; i < opts.dias; i++) {
     const dia = new Date(base.getTime() + i * 24 * 60 * 60 * 1000);
     const fecha = ymd(dia);
@@ -87,21 +117,28 @@ export function generarSlotsProfesional(
       const desdeMin = hhmmAMin(franja.desde);
       const hastaMin = hhmmAMin(franja.hasta);
       for (let t = desdeMin; t + gran <= hastaMin; t += gran) {
-        slots.push({
+        const inicio = `${fecha}T${minAHHMM(t)}:00${OFFSET_ARG}`;
+        const previo = porInicio.get(inicio);
+        if (previo) {
+          previo.modalidades = unirModalidades(previo.modalidades, franja.modalidades);
+          continue;
+        }
+        porInicio.set(inicio, {
           medicoCodigo: medico.codigo,
-          inicio: `${fecha}T${minAHHMM(t)}:00${OFFSET_ARG}`,
+          inicio,
           fin: `${fecha}T${minAHHMM(t + gran)}:00${OFFSET_ARG}`,
           estado: 'free',
+          modalidades: [...franja.modalidades],
         });
       }
     }
   }
-  return slots;
+  return [...porInicio.values()];
 }
 
 /** Horarios libres de todos los profesionales (para el seed y el cron de agenda). */
 export function generarSlotsProfesionales(
-  medicos: Pick<Medico, 'codigo' | 'disponibilidad'>[],
+  medicos: Array<Pick<Medico, 'codigo'> & MedicoAgenda>,
   horario: HorarioDia[],
   opts: OpcionesSlots,
 ): SlotProfesionalDescriptor[] {
@@ -115,17 +152,27 @@ function enArgentina(d: Date): { dia: number; minutos: number } {
 }
 
 /**
- * ¿El intervalo [inicio, fin) cae entero dentro de una franja del profesional (y del
- * centro) ese día? Es la regla que aplica la reserva cuando no hay un `Slot` libre
- * materializado que la respalde.
+ * Modalidades en que el profesional puede atender el intervalo [inicio, fin): las de
+ * las franjas suyas (y del centro) que lo cubren entero ese día. Vacío si no atiende.
  */
-export function estaDisponible(medico: Pick<Medico, 'disponibilidad'>, horario: HorarioDia[], inicio: Date, fin: Date): boolean {
+export function modalidadesDisponibles(medico: MedicoAgenda, horario: HorarioDia[], inicio: Date, fin: Date): Modalidad[] {
   const a = enArgentina(inicio);
   const b = enArgentina(new Date(fin.getTime() - 1));
   if (a.dia !== b.dia || fin.getTime() <= inicio.getTime()) {
-    return false;
+    return [];
   }
-  return franjasDelDia(medico, horario, a.dia).some((f) => hhmmAMin(f.desde) <= a.minutos && b.minutos < hhmmAMin(f.hasta));
+  const cubre = (f: FranjaProfesional): boolean => hhmmAMin(f.desde) <= a.minutos && b.minutos < hhmmAMin(f.hasta);
+  return MODALIDADES.filter((m) => franjasDelDia(medico, horario, a.dia, m).some(cubre));
+}
+
+/**
+ * ¿El intervalo [inicio, fin) cae entero dentro de una franja del profesional (y del
+ * centro) ese día, en esa modalidad (o en alguna, si no se indica)? Es la regla que
+ * aplica la reserva cuando no hay un `Slot` libre materializado que la respalde.
+ */
+export function estaDisponible(medico: MedicoAgenda, horario: HorarioDia[], inicio: Date, fin: Date, modalidad?: Modalidad): boolean {
+  const modalidades = modalidadesDisponibles(medico, horario, inicio, fin);
+  return modalidad ? modalidades.includes(modalidad) : modalidades.length > 0;
 }
 
 /**
@@ -135,6 +182,30 @@ export function estaDisponible(medico: Pick<Medico, 'disponibilidad'>, horario: 
  */
 export function identificadorSlotProfesional(medicoCodigo: string, inicioISO: string): string {
   return `${medicoCodigo}@${inicioISO}`;
+}
+
+/** Extensiones de una franja de profesional: a quién pertenece y en qué modalidades se reserva. */
+export function extensionesSlotProfesional(medicoCodigo: string, modalidades: Modalidad[]): Extension[] {
+  return [{ url: EXT.profesional, valueString: medicoCodigo }, ...modalidades.map(extensionModalidad)];
+}
+
+/** Modalidades marcadas en una franja (extensión `modalidad`); vacío = sin marca. */
+export function modalidadesDeSlot(s: { extension?: Extension[] }): Modalidad[] {
+  return (s.extension ?? [])
+    .filter((e) => e.url === EXT.modalidad)
+    .map((e) => modalidadDeCoding(e.valueCoding))
+    .filter((m): m is Modalidad => m !== undefined);
+}
+
+/** ¿La franja admite esa modalidad? Una franja sin marca (anterior a R-22) admite todas. */
+export function permiteModalidad(s: { extension?: Extension[] }, modalidad: Modalidad): boolean {
+  const marcadas = modalidadesDeSlot(s);
+  return marcadas.length === 0 || marcadas.includes(modalidad);
+}
+
+/** ¿Dos listas de modalidades son la misma (sin importar el orden)? */
+export function mismasModalidades(a: Modalidad[], b: Modalidad[]): boolean {
+  return a.length === b.length && a.every((m) => b.includes(m));
 }
 
 export type { DisponibilidadSemanal };
