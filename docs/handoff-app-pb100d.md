@@ -79,9 +79,9 @@ especialidad. Todo sale de FHIR (data-driven): nada de listas de servicios escri
    - Quiénes atienden una consulta: `PractitionerRole?active=true&role=…/CodeSystem/servicio|<código>`
      (`practitioner.display` = nombre; `specialty` SNOMED; la extensión `…/StructureDefinition/modalidad`
      aparece una vez por modalidad que atiende; `code` con `…/CodeSystem/rol-profesional|seguimiento-pb100d`
-     = atiende las consultas del plan). El código del profesional: `identifier` `…/Identifier/medico`
+     = atiende las consultas del plan). El código del profesional: `identifier` `…/CodeSystem/medico`
      (`ROL_<código>` → `<código>`).
-   - Su agenda: `Schedule?identifier=…/Identifier/medico|SCH_<código>`; horarios libres:
+   - Su agenda: `Schedule?identifier=…/CodeSystem/medico|SCH_<código>`; horarios libres:
      `Slot?schedule=Schedule/{id}&status=free&start=ge{ahora}&_sort=start&_count=200` (franjas de
      30 min, `start`/`end` con offset `-03:00`). Cada franja trae la extensión
      `…/StructureDefinition/modalidad` una vez por modalidad en que se puede reservar (`VR`
