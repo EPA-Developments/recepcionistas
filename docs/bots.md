@@ -250,7 +250,7 @@ materializa como `Slot` `free` de 30 min para los próximos 45 días
 (`DIAS_AGENDA_ADELANTE`), y es lo que el portal lista para ofrecer horarios:
 `Slot?schedule=Schedule/{id}&status=free&start=ge{ahora}`.
 
-- **Idempotente:** identifier `{medico}@{inicio}` (sistema `Identifier/medico`) y
+- **Idempotente:** identifier `{medico}@{inicio}` (sistema `CodeSystem/medico`) y
   `If-None-Exist`; una franja ya `busy` no se vuelve a crear libre.
 - **Modalidades:** cada franja lleva la extensión `modalidad` (AMB / VR) según la
   disponibilidad (p. ej. presencial martes y jueves 9–12, teleconsulta el resto); el

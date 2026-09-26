@@ -1,5 +1,5 @@
 {
-  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Fuente de verdad: src/fhir/access-policies.ts. PENDIENTE re-sincronizar el espejo del portal (PractitionerRole y Location de lectura; bot som-reservar-portal).",
+  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Fuente de verdad: src/fhir/access-policies.ts; el espejo del portal se sincroniza en el PR del portal (ActivityDefinition, PractitionerRole y Location de lectura; bot som-reservar-portal).",
   "name": "Paciente SOM — Portal",
   "resource": [
     {
@@ -29,6 +29,10 @@
     {
       "resourceType": "Binary",
       "criteria": "Binary?_compartment=%patient"
+    },
+    {
+      "resourceType": "Subscription",
+      "criteria": "Subscription?type=websocket"
     },
     {
       "resourceType": "CarePlan",

@@ -156,6 +156,9 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     // El PDF que sube desde "Enviar estudios en PDF" (Binary con securityContext = el
     // paciente, que lo pone en su compartimento).
     { resourceType: 'Binary', criteria: 'Binary?_compartment=%patient' },
+    // Novedades en tiempo real del portal (campanita, Mensajes): su propia Subscription
+    // WebSocket. No puede tocar las Subscriptions rest-hook de los bots.
+    { resourceType: 'Subscription', criteria: 'Subscription?type=websocket' },
 
     // Planes de cuidado: lee todos los suyos (Plan Bienestar, seguimiento GLP-1, …);
     // escribe solo el Plan Bienestar, que inicia el propio paciente.
