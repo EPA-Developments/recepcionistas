@@ -15,6 +15,7 @@ import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Appointment, CarePlan, Encounter, Task } from '@medplum/fhirtypes';
 import { leerTareaConsultaPlan, marcarActividad } from '../lib/plan-bienestar.js';
 import { codingModalidad, modalidadDe } from '../lib/teleconsulta.js';
+import { liberarFranjas } from './_shared.js';
 
 export type EstadoTurno = 'arrived' | 'checked-in' | 'fulfilled' | 'cancelled';
 
@@ -43,17 +44,9 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaEst
     await actualizarPlanBienestar(medplum, appt, estado);
   }
 
-  // Liberar la(s) sala(s) al terminar.
+  // Liberar las franjas (del profesional y del consultorio) al terminar: vuelven a estar libres.
   if (ESTADOS_QUE_LIBERAN.has(estado)) {
-    for (const s of appt.slot ?? []) {
-      const id = s.reference?.split('/')[1];
-      if (!id) {
-        continue;
-      }
-      const slot = await medplum.readResource('Slot', id);
-      slot.status = 'free';
-      await medplum.updateResource(slot);
-    }
+    await liberarFranjas(medplum, appt.slot);
   }
 
   return actualizado;

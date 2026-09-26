@@ -67,7 +67,8 @@ consultas del plan con sus ventanas (R-20), teleconsulta con Jitsi y consentimie
 
 | # | Tema | Detalle | Estado |
 |---|---|---|---|
-| 1 | **Calendario: agendas por profesional** | Propuesta: una agenda (`Schedule`) por profesional (`PractitionerRole`) y otra por consultorio para lo presencial; los "calendarios" del Plan Bienestar (presencial / virtual) y de Especialidades son **vistas** de esas agendas, no agendas separadas (así no se da dos veces la misma hora). Retira la agenda virtual transitoria `R_TELEMEDICINA` (capacidad 1). | Próximo slice (necesita la lista de profesionales) |
+| 1 | **Calendario: agendas por profesional** | **Hecho (R-22):** una agenda (`Schedule`) por profesional (`PractitionerRole`) y otra por consultorio para lo presencial; los "calendarios" del Plan Bienestar y de Especialidades son **vistas** de esas agendas (no se da dos veces la misma hora); la reserva ocupa franjas con escritura condicional; cron `som-generar-agenda`. Queda retirar la agenda virtual transitoria `R_TELEMEDICINA` cuando los profesionales tengan disponibilidad. | Hecho; retiro de `R_TELEMEDICINA` pendiente |
+| 1b | **Disponibilidad y consultorio de cada profesional** ⚠️ | Cargados (26/09/2026) el Dr. Barbagelata (Cardiología), la Dra. Gold (Clínica Médica) y el Dr. D'Alessandro (Cardiología), **provisorios y sin horarios**: hace falta de cada uno los días y horarios en que atiende (`disponibilidad`) y el consultorio de lo presencial (`consultorioCodigo`), en `src/config/medicos.ts`. Sin eso no hay horarios para ofrecer ni se puede reservar por profesional. Depende también del horario real del centro (ver *Agenda*). | **Bloqueante** para reservar por horario |
 | 2 | **Jitsi** | Cargar el Project Secret `JITSI_BASE_URL` (https). Si el Jitsi de SOM usa autenticación por token (JWT), sumar la firma del link (`JITSI_APP_ID` / `JITSI_APP_SECRET`). | A confirmar |
 | 3 | **Texto del consentimiento de teleconsulta** | Genérico, uno por paciente; lo muestra y lo registra el portal (`Consent`). Lo redactan los médicos de SOM / legales. | A definir |
 | 4 | **Portal del paciente** | "Pedir un turno" con los dos caminos, el consentimiento, el link en "Mis turnos" y el espejo de la policy (`ActivityDefinition` de solo lectura). Prompt listo: [`handoff-app-pb100d.md`](handoff-app-pb100d.md). | Próximo slice (portal) |
@@ -78,8 +79,9 @@ consultas del plan con sus ventanas (R-20), teleconsulta con Jitsi y consentimie
 
 Horario de atención: L-V 08-22, Sáb 08-20 (`src/config/horario.ts`) — heredado y
 marcado como **provisional** (`HORARIO_ES_PLACEHOLDER`): definir el horario real de
-SOM (CABA). Para cargar la agenda:
-`npm run seed -- --with-slots --dias=14`.
+SOM (CABA). Para cargar la agenda (salas y profesionales con disponibilidad):
+`npm run seed -- --with-slots --dias=14`; en producción la mantiene el cron
+`som-generar-agenda` (45 días hacia adelante).
 
 ## Roles
 

@@ -30,9 +30,10 @@ const SPECS: SpecExtension[] = [
   { url: EXT.tipoContrato, nombre: 'tipo-contrato', contexto: ['Practitioner'], tipoValor: 'code', descripcion: 'Tipo de contrato del profesional.' },
   // Schedule / Slot
   { url: EXT.recursoFisico, nombre: 'recurso-fisico', contexto: ['Schedule', 'Slot'], tipoValor: 'string', descripcion: 'Código del recurso físico al que pertenece la franja.' },
+  { url: EXT.profesional, nombre: 'profesional', contexto: ['Schedule', 'Slot', 'Appointment'], tipoValor: 'string', descripcion: 'Código del profesional (CodeSystem/medico) dueño de la agenda, la franja o el turno.' },
   // Appointment
   { url: EXT.ocupantes, nombre: 'ocupantes', contexto: ['Appointment'], tipoValor: 'integer', descripcion: 'Cantidad de ocupantes.' },
-  { url: EXT.modalidad, nombre: 'modalidad', contexto: ['Appointment', 'Task'], tipoValor: 'Coding', descripcion: 'Modalidad de atención (R-21): v3-ActCode AMB (presencial) | VR (teleconsulta), el mismo código que va en Encounter.class.' },
+  { url: EXT.modalidad, nombre: 'modalidad', contexto: ['Appointment', 'Task', 'PractitionerRole'], tipoValor: 'Coding', descripcion: 'Modalidad de atención (R-21): v3-ActCode AMB (presencial) | VR (teleconsulta), el mismo código que va en Encounter.class. En PractitionerRole, las modalidades en que atiende el profesional.' },
   { url: EXT.teleconsultaUrl, nombre: 'teleconsulta-url', contexto: ['Appointment'], tipoValor: 'url', descripcion: 'Link de la videollamada (Jitsi) de la teleconsulta.' },
   // ActivityDefinition (catálogo)
   { url: EXT.precioUsd, nombre: 'precio-usd', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en USD.' },

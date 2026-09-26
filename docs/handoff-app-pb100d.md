@@ -72,7 +72,23 @@ especialidad. Todo sale de FHIR (data-driven): nada de listas de servicios escri
    del consentimiento informado de la segunda opinión (DocumentReference LOINC 59284-0).
 5. TURNOS: en `Appointment`, la modalidad está en la extensión `…/StructureDefinition/modalidad`
    (`valueCoding` v3-ActCode `VR` = teleconsulta, `AMB` = presencial) y el link en
-   `…/StructureDefinition/teleconsulta-url` (`valueUrl`).
+   `…/StructureDefinition/teleconsulta-url` (`valueUrl`). El profesional va en `participant`
+   (`Practitioner`) y en la extensión `…/StructureDefinition/profesional` (`valueString` = su código).
+6. PROFESIONALES Y HORARIOS (lectura; R-22, para el flujo Especialidad → Profesional → Horario
+   que reemplaza a "Preferencia de horario" en texto libre):
+   - Quiénes atienden una consulta: `PractitionerRole?active=true&role=…/CodeSystem/servicio|<código>`
+     (`practitioner.display` = nombre; `specialty` SNOMED; la extensión `…/StructureDefinition/modalidad`
+     aparece una vez por modalidad que atiende; `code` con `…/CodeSystem/rol-profesional|seguimiento-pb100d`
+     = atiende las consultas del plan). El código del profesional: `identifier` `…/Identifier/medico`
+     (`ROL_<código>` → `<código>`).
+   - Su agenda: `Schedule?identifier=…/Identifier/medico|SCH_<código>`; horarios libres:
+     `Slot?schedule=Schedule/{id}&status=free&start=ge{ahora}&_sort=start&_count=200` (franjas de
+     30 min, `start`/`end` con offset `-03:00`). Mostrá solo los que caen dentro de la ventana de
+     la consulta del plan (Contrato 2). Un profesional sin franjas libres todavía no tiene
+     disponibilidad cargada: no se ofrece.
+   - Reservar el horario elegido (bot ejecutable por la paciente, seña del 50 % y retención de
+     30 min) es el **próximo slice** de Recepción; hasta entonces "Pedir" sigue siendo
+     `som-solicitar-turno` (Contrato 3) y podés mandar el horario elegido en `preferenciaInicio`.
 
 ## Tareas
 1. GetCarePage: dos tarjetas —"Consulta por videollamada" (primero) y "Consulta en el

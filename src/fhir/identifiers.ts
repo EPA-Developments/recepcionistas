@@ -28,6 +28,8 @@ export const EXT = {
   tipoContrato: `${BASE}/StructureDefinition/tipo-contrato`,
   // Schedule / Slot
   recursoFisico: `${BASE}/StructureDefinition/recurso-fisico`,
+  /** Código del profesional (`SYSTEM.medico`) dueño de la agenda / franja / turno. */
+  profesional: `${BASE}/StructureDefinition/profesional`,
   // Appointment
   ocupantes: `${BASE}/StructureDefinition/ocupantes`,
   /** Tipo de ítem del turno (hoy solo "servicio"), para calcular la seña. */
@@ -98,6 +100,10 @@ export const SYSTEM = {
   servicioCodigo: `${BASE}/CodeSystem/servicio`,
   recursoCodigo: `${BASE}/CodeSystem/recurso-fisico`,
   medico: `${BASE}/CodeSystem/medico`,
+  /** Matrícula profesional (p. ej. "MN 123456"), como Identifier del Practitioner. */
+  matricula: `${BASE}/Identifier/matricula`,
+  /** Rol del profesional en SOM (`PractitionerRole.code`): atiende consultas, seguimiento del Plan Bienestar. */
+  rolProfesional: `${BASE}/CodeSystem/rol-profesional`,
   /** Identifier de Invoice (para deduplicar señas: manual o por pago MP). */
   invoice: `${BASE}/Identifier/invoice`,
   /** Identifier de Communication (para deduplicar recordatorios automáticos). */
@@ -181,6 +187,10 @@ export const COD = {
   agendarConsultaPb100d: 'agendar-consulta-pb100d',
   /** Consent.policyRule (`CodeSystem/consentimiento`) del consentimiento de teleconsulta, genérico (R-21). */
   consentimientoTeleconsulta: 'teleconsulta',
+  /** PractitionerRole.code: atiende consultas por especialidad del catálogo. */
+  rolAtiendeConsultas: 'atiende-consultas',
+  /** PractitionerRole.code: hace el seguimiento del Plan Bienestar 100 Días® (consultas 1, 50 y 100). */
+  rolSeguimientoPb100d: 'seguimiento-pb100d',
   /** DocumentReference.category del PDF de laboratorio que manda el paciente. */
   resultadoLaboratorio: 'resultado-laboratorio',
   /** Task del equipo: revisar a mano un PDF de laboratorio que no se pudo procesar. */

@@ -17,15 +17,25 @@
  *    en el plan: el turno queda confirmado, sin seña.
  * El control GLP-1 y la consulta del plan sin su tarea se bloquean. Una consulta por
  * especialidad (con cargo) de un paciente con el plan activo queda ligada al plan.
+ *
+ * Agenda por profesional (R-22): con `medicoCodigo` (o `slotId` de una franja suya) el
+ * turno ocupa las franjas libres del profesional —las que generan su disponibilidad y el
+ * cron— con escritura condicional, así dos reservas simultáneas no toman la misma hora.
+ * La teleconsulta no ocupa consultorio; lo presencial ocupa además el del profesional
+ * (o el que se pida), con la capacidad de siempre (R-07). Sin `medicoCodigo` sigue el
+ * camino por recurso de la app de Recepción.
  */
 import { randomBytes } from 'node:crypto';
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Appointment, AppointmentParticipant, CarePlan, Extension, Reference, Slot, Task } from '@medplum/fhirtypes';
 import type { Modalidad, Servicio } from '../domain/types.js';
 import { getServicio, nombreSegunModalidad } from '../config/catalogo.js';
+import { HORARIO_SEMANAL } from '../config/horario.js';
+import { getMedico, medicoAtiende, type Medico } from '../config/medicos.js';
 import { RECURSOS_POR_CODIGO, modalidadDeRecurso } from '../config/recursos.js';
 import type { PerfilReserva } from '../config/reglas.js';
 import { COD, EXT, SYSTEM } from '../fhir/identifiers.js';
+import { estaDisponible, identificadorSlotProfesional } from '../lib/agenda-profesional.js';
 import { avisoReserva } from '../lib/avisos.js';
 import { validarControlSinTarea, validarTareaAgenda, validarVentanaControl } from '../lib/glp1-plan.js';
 import {
@@ -52,16 +62,32 @@ import {
   validarConsentimientoTeleconsulta,
   validarModalidadServicio,
 } from '../lib/teleconsulta.js';
-import { cargarReservasDelDia, enviarWhatsApp, scheduleIdDeRecurso, tieneConsentimientoTeleconsulta } from './_shared.js';
+import {
+  cargarReservasDelDia,
+  enviarWhatsApp,
+  liberarFranjas,
+  ocuparFranjas,
+  scheduleIdDeProfesional,
+  scheduleIdDeRecurso,
+  tieneConsentimientoTeleconsulta,
+} from './_shared.js';
 
 const SNOMED = 'http://snomed.info/sct';
 
 export interface EntradaReserva {
   pacienteRef: string; // "Patient/123"
   servicioCodigo: string;
-  recursoCodigo: string;
-  /** Inicio del turno en ISO (con offset de Argentina). */
-  inicio: string;
+  /**
+   * Consultorio / sala / agenda virtual. Obligatorio sin profesional; con profesional,
+   * en presencial se toma su consultorio si no se manda, y en teleconsulta no hace falta.
+   */
+  recursoCodigo?: string;
+  /** Profesional que atiende (agenda por profesional, R-22). */
+  medicoCodigo?: string;
+  /** Franja libre elegida (Slot de la agenda de un profesional): fija profesional e inicio. */
+  slotId?: string;
+  /** Inicio del turno en ISO (con offset de Argentina). Con `slotId`, el de la franja. */
+  inicio?: string;
   /** Modalidad que se quiere (R-21). Si se manda, tiene que coincidir con la del recurso. */
   modalidad?: Modalidad;
   ocupantes?: number;
@@ -82,13 +108,22 @@ export interface ResultadoReserva extends ResultadoValidacion {
   teleconsultaUrl?: string;
   /** Incluida en el Plan Bienestar: el turno queda confirmado, sin seña. */
   incluida?: boolean;
+  /** Profesional del turno (agenda por profesional). */
+  medicoCodigo?: string;
+  /** Todas las franjas que ocupa (del profesional y, en presencial, del consultorio). */
+  slotIds?: string[];
 }
 
 export interface ContextoReserva {
   servicio: Servicio;
   inicio: Date;
   fin: Date;
-  recursoCodigo: string;
+  /** Recurso físico (o agenda virtual). Puede faltar en teleconsulta con profesional. */
+  recursoCodigo?: string;
+  /** Profesional que atiende (R-22). */
+  medico?: Pick<Medico, 'nombre' | 'servicios' | 'modalidades' | 'disponibilidad'>;
+  /** ¿El horario cae en la disponibilidad del profesional? (R-22; lo calcula el handler). */
+  disponible?: boolean;
   /** Turnos ya ocupados (de hoy), de todos los recursos, para capacidad. */
   reservasExistentes: ReservaRecurso[];
   perfil?: PerfilReserva;
@@ -116,44 +151,84 @@ export function validarReserva(ctx: ContextoReserva): ResultadoValidacion {
     });
   }
 
-  const recurso = RECURSOS_POR_CODIGO.get(ctx.recursoCodigo);
-  if (!recurso) {
+  const recurso = ctx.recursoCodigo ? RECURSOS_POR_CODIGO.get(ctx.recursoCodigo) : undefined;
+  if (ctx.recursoCodigo && !recurso) {
     partes.push({
       ok: false,
       bloqueos: [{ regla: 'R-07', nivel: 'bloqueo', mensaje: `El recurso ${ctx.recursoCodigo} no existe.` }],
       advertencias: [],
     });
   }
+  if (!ctx.recursoCodigo && !ctx.medico) {
+    partes.push({
+      ok: false,
+      bloqueos: [{ regla: 'R-07', nivel: 'bloqueo', mensaje: 'Falta dónde agendar: un consultorio o un profesional.' }],
+      advertencias: [],
+    });
+  }
 
-  const nueva: ReservaRecurso = { recursoCodigo: ctx.recursoCodigo, inicio: ctx.inicio, fin: ctx.fin };
-  partes.push(validarRecursos([...ctx.reservasExistentes, nueva]));
+  if (ctx.recursoCodigo) {
+    const nueva: ReservaRecurso = { recursoCodigo: ctx.recursoCodigo, inicio: ctx.inicio, fin: ctx.fin };
+    partes.push(validarRecursos([...ctx.reservasExistentes, nueva]));
+  }
 
   if (ctx.perfil) {
     partes.push(validarVentanaReserva(ctx.perfil, ctx.ahora, ctx.inicio));
   }
 
-  // R-21: la modalidad la da el recurso; el servicio tiene que ofrecerla y la
-  // teleconsulta exige el consentimiento firmado.
-  if (recurso) {
-    const modalidad = modalidadDeRecurso(recurso);
-    if (ctx.modalidad && ctx.modalidad !== modalidad) {
+  // Modalidad (R-21): la da el recurso; sin recurso (teleconsulta con profesional), la pedida.
+  const modalidad: Modalidad = recurso ? modalidadDeRecurso(recurso) : (ctx.modalidad ?? 'teleconsulta');
+  if (recurso && ctx.modalidad && ctx.modalidad !== modalidad) {
+    partes.push({
+      ok: false,
+      bloqueos: [
+        {
+          regla: 'R-21',
+          nivel: 'bloqueo',
+          mensaje:
+            ctx.modalidad === 'teleconsulta'
+              ? 'La teleconsulta se agenda en la agenda de teleconsultas, no en un consultorio.'
+              : `${recurso.nombre} es para teleconsultas: elegí un consultorio.`,
+        },
+      ],
+      advertencias: [],
+    });
+  }
+  if (!recurso && ctx.medico && modalidad === 'presencial') {
+    partes.push({
+      ok: false,
+      bloqueos: [{ regla: 'R-22', nivel: 'bloqueo', mensaje: 'La consulta presencial necesita un consultorio.' }],
+      advertencias: [],
+    });
+  }
+  if (recurso || ctx.medico) {
+    // R-21: el servicio tiene que ofrecer la modalidad y la teleconsulta exige el consentimiento.
+    partes.push(validarModalidadServicio(ctx.servicio, modalidad));
+    partes.push(validarConsentimientoTeleconsulta(modalidad, ctx.consentimientoTeleconsulta === true));
+  }
+
+  // R-22: el profesional atiende esa consulta en esa modalidad y en ese horario.
+  if (ctx.medico) {
+    if (!medicoAtiende(ctx.medico, ctx.servicio.codigo, modalidad)) {
       partes.push({
         ok: false,
         bloqueos: [
           {
-            regla: 'R-21',
+            regla: 'R-22',
             nivel: 'bloqueo',
-            mensaje:
-              ctx.modalidad === 'teleconsulta'
-                ? 'La teleconsulta se agenda en la agenda de teleconsultas, no en un consultorio.'
-                : `${recurso.nombre} es para teleconsultas: elegí un consultorio.`,
+            mensaje: `${ctx.medico.nombre} no atiende ${nombreSegunModalidad(ctx.servicio, modalidad).toLowerCase()}.`,
           },
         ],
         advertencias: [],
       });
     }
-    partes.push(validarModalidadServicio(ctx.servicio, modalidad));
-    partes.push(validarConsentimientoTeleconsulta(modalidad, ctx.consentimientoTeleconsulta === true));
+    if (ctx.disponible === false) {
+      partes.push({
+        ok: false,
+        bloqueos: [{ regla: 'R-22', nivel: 'bloqueo', mensaje: `${ctx.medico.nombre} no atiende en ese horario.` }],
+        advertencias: [],
+      });
+    }
   }
 
   // R-19: el control GLP-1 va atado a su tarea (y a la ventana que calculó el programa).
@@ -187,11 +262,46 @@ export async function handler(
 ): Promise<ResultadoReserva> {
   const e = event.input;
   const servicio = getServicio(e.servicioCodigo);
-  const inicio = new Date(e.inicio);
-  const fin = new Date(inicio.getTime() + servicio.duracionMin * 60_000);
   const ahora = new Date();
-  const recurso = RECURSOS_POR_CODIGO.get(e.recursoCodigo);
-  const modalidad: Modalidad = recurso ? modalidadDeRecurso(recurso) : 'presencial';
+
+  // Agenda por profesional (R-22): por franja elegida o por profesional + inicio.
+  let franjaElegida: Slot | undefined;
+  let medicoCodigo = e.medicoCodigo;
+  if (e.slotId) {
+    franjaElegida = await medplum.readResource('Slot', e.slotId).catch(() => undefined);
+    if (!franjaElegida?.start) {
+      return bloqueo('R-22', 'Ese horario ya no existe. Elegí otro.');
+    }
+    if (franjaElegida.status !== 'free') {
+      return bloqueo('R-22', 'Ese horario ya está ocupado. Elegí otro.');
+    }
+    const dueno = franjaElegida.extension?.find((x) => x.url === EXT.profesional)?.valueString;
+    if (!dueno || (medicoCodigo && medicoCodigo !== dueno)) {
+      return bloqueo('R-22', 'Ese horario no es de la agenda del profesional elegido.');
+    }
+    medicoCodigo = dueno;
+  }
+  const medico = medicoCodigo ? getMedico(medicoCodigo) : undefined;
+  if (medicoCodigo && !medico) {
+    return bloqueo('R-22', 'El profesional no existe.');
+  }
+  const inicioISO = franjaElegida?.start ?? e.inicio;
+  if (!inicioISO) {
+    return bloqueo('R-13', 'Falta el horario del turno.');
+  }
+  const inicio = new Date(inicioISO);
+  const fin = new Date(inicio.getTime() + servicio.duracionMin * 60_000);
+
+  // Modalidad (R-21): la del recurso; con profesional y sin recurso, la pedida (teleconsulta
+  // por defecto). En presencial con profesional, el consultorio es el suyo si no se manda.
+  let recursoCodigo = e.recursoCodigo;
+  if (medico && !recursoCodigo && e.modalidad === 'presencial') {
+    recursoCodigo = medico.consultorioCodigo;
+  }
+  const recurso = recursoCodigo ? RECURSOS_POR_CODIGO.get(recursoCodigo) : undefined;
+  const modalidad: Modalidad = recurso ? modalidadDeRecurso(recurso) : medico ? (e.modalidad ?? 'teleconsulta') : 'presencial';
+  // ¿El horario cae en la disponibilidad del profesional? Una franja libre suya lo garantiza.
+  const disponible = medico ? franjaElegida !== undefined || estaDisponible(medico, HORARIO_SEMANAL, inicio, fin) : undefined;
 
   // Tarea de un programa: tiene que ser de este paciente y estar pendiente.
   let tarea: Task | undefined;
@@ -239,7 +349,9 @@ export async function handler(
     servicio,
     inicio,
     fin,
-    recursoCodigo: e.recursoCodigo,
+    recursoCodigo,
+    medico,
+    disponible,
     reservasExistentes,
     perfil: e.perfil,
     ahora,
@@ -253,19 +365,48 @@ export async function handler(
     return { ...resultado, creado: false, modalidad };
   }
 
-  // Crear Slot ocupado + Appointment.
-  const scheduleId = await scheduleIdDeRecurso(medplum, e.recursoCodigo);
-  if (!scheduleId) {
-    return {
-      ok: false,
-      bloqueos: [{ regla: 'R-07', nivel: 'bloqueo', mensaje: `El recurso ${e.recursoCodigo} no tiene agenda (Schedule).` }],
-      advertencias: resultado.advertencias,
-      creado: false,
-      modalidad,
-    };
-  }
-
   const advertencias = [...resultado.advertencias];
+
+  // Ocupar las franjas: primero las del profesional (su agenda), después las del
+  // consultorio (presencial). Si alguna ya está tomada, se libera lo ocupado y se avisa.
+  const slots: Slot[] = [];
+  if (medico) {
+    const scheduleProfesional = await scheduleIdDeProfesional(medplum, medico.codigo);
+    if (!scheduleProfesional) {
+      return bloqueo('R-22', `${medico.nombre} todavía no tiene agenda cargada (Schedule).`);
+    }
+    const r = await ocuparFranjas(medplum, {
+      scheduleId: scheduleProfesional,
+      inicio,
+      fin,
+      identificador: (iso) => ({ system: SYSTEM.medico, value: identificadorSlotProfesional(medico.codigo, iso) }),
+      extension: { url: EXT.profesional, valueString: medico.codigo },
+    });
+    if (!r.ok) {
+      return bloqueo('R-22', `${medico.nombre} ya tiene ese horario ocupado. Elegí otro.`);
+    }
+    slots.push(...r.slots);
+  }
+  if (recursoCodigo) {
+    const scheduleId = await scheduleIdDeRecurso(medplum, recursoCodigo);
+    if (!scheduleId) {
+      await liberarFranjas(medplum, slots.map((s) => ({ reference: `Slot/${s.id}` })));
+      return bloqueo('R-07', `El recurso ${recursoCodigo} no tiene agenda (Schedule).`);
+    }
+    const codigo = recursoCodigo;
+    const r = await ocuparFranjas(medplum, {
+      scheduleId,
+      inicio,
+      fin,
+      identificador: (iso) => ({ system: SYSTEM.recursoCodigo, value: `${codigo}|${iso}` }),
+      extension: { url: EXT.recursoFisico, valueString: codigo },
+    });
+    if (!r.ok) {
+      await liberarFranjas(medplum, slots.map((s) => ({ reference: `Slot/${s.id}` })));
+      return bloqueo('R-07', `${recurso?.nombre ?? recursoCodigo} ya está ocupado en ese horario.`);
+    }
+    slots.push(...r.slots);
+  }
 
   // Teleconsulta: una sala nueva del Jitsi de SOM por turno.
   let teleconsultaUrl: string | undefined;
@@ -280,23 +421,21 @@ export async function handler(
     }
   }
 
-  const slot: Slot = await medplum.createResource<Slot>({
-    resourceType: 'Slot',
-    status: 'busy',
-    schedule: { reference: `Schedule/${scheduleId}` },
-    start: inicio.toISOString(),
-    end: fin.toISOString(),
-    extension: [{ url: EXT.recursoFisico, valueString: e.recursoCodigo }],
-  });
-
   const participant: AppointmentParticipant[] = [{ actor: { reference: e.pacienteRef }, status: 'accepted' }];
-  // Consultas con médico asignado: sumar al profesional como participante.
-  if (servicio.practitionerCodigo) {
-    const pract = await medplum.searchOne('Practitioner', `identifier=${SYSTEM.medico}|${servicio.practitionerCodigo}`);
+  // El profesional que atiende, como participante (la videollamada le da el rol por esto).
+  const codigoProfesional = medico?.codigo ?? servicio.practitionerCodigo;
+  if (codigoProfesional) {
+    const pract = await medplum.searchOne('Practitioner', `identifier=${SYSTEM.medico}|${codigoProfesional}`);
     if (pract?.id) {
       participant.push({
-        actor: { reference: `Practitioner/${pract.id}`, display: pract.name?.[0]?.text },
+        actor: { reference: `Practitioner/${pract.id}`, display: pract.name?.[0]?.text ?? medico?.nombre },
         status: 'accepted',
+      });
+    } else {
+      advertencias.push({
+        regla: 'R-22',
+        nivel: 'advertencia',
+        mensaje: `El profesional ${medico?.nombre ?? codigoProfesional} no está cargado en Medplum (falta el seed): el turno queda sin profesional.`,
       });
     }
   }
@@ -319,7 +458,8 @@ export async function handler(
     ...(planExtra?.id ? [{ reference: `CarePlan/${planExtra.id}` }] : []),
   ];
   const extension: Extension[] = [
-    { url: EXT.recursoFisico, valueString: e.recursoCodigo },
+    ...(recursoCodigo ? [{ url: EXT.recursoFisico, valueString: recursoCodigo }] : []),
+    ...(medico ? [{ url: EXT.profesional, valueString: medico.codigo }] : []),
     { url: EXT.ocupantes, valueInteger: e.ocupantes ?? 1 },
     { url: EXT.itemTipo, valueCode: 'servicio' },
     { url: EXT.itemCodigo, valueString: e.servicioCodigo },
@@ -346,7 +486,7 @@ export async function handler(
       : {}),
     start: inicio.toISOString(),
     end: fin.toISOString(),
-    slot: [{ reference: `Slot/${slot.id}` }],
+    slot: slots.map((s) => ({ reference: `Slot/${s.id}` })),
     participant,
     ...(supportingInformation.length ? { supportingInformation } : {}),
     extension,
@@ -402,9 +542,11 @@ export async function handler(
     advertencias,
     creado: true,
     appointmentId: appointment.id,
-    slotId: slot.id,
+    slotId: slots[0]?.id,
+    slotIds: slots.map((s) => s.id!),
     modalidad,
     ...(teleconsultaUrl ? { teleconsultaUrl } : {}),
     incluida,
+    ...(medico ? { medicoCodigo: medico.codigo } : {}),
   };
 }

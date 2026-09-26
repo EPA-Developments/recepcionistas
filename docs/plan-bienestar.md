@@ -92,7 +92,8 @@ día X/100).
 | Regla | Qué | Dónde |
 |---|---|---|
 | **R-20** | La consulta del plan se agenda **solo desde su tarea**, en su ventana (antes: bloqueo; después: advertencia). La del día 50 y la final esperan a que esté agendada la inicial. Incluida en el plan: turno confirmado sin seña (el cobro de seña la rechaza). | `validarTareaConsultaPlan`, `validarVentanaConsultaPlan`, `validarConsultaPlanSinTarea` (`src/lib/plan-bienestar.ts`) |
-| **R-21** | La modalidad la da el recurso (la agenda virtual es teleconsulta); el servicio tiene que ofrecerla; la teleconsulta exige el **consentimiento de teleconsulta** firmado. | `validarModalidadServicio`, `validarConsentimientoTeleconsulta` (`src/lib/teleconsulta.ts`), `som-reservar-turno`, `som-solicitar-turno` |
+| **R-21** | La modalidad la da el recurso (la agenda virtual es teleconsulta) o el pedido, al reservar por profesional; el servicio y el profesional tienen que ofrecerla; la teleconsulta exige el **consentimiento de teleconsulta** firmado. | `validarModalidadServicio`, `validarConsentimientoTeleconsulta` (`src/lib/teleconsulta.ts`), `som-reservar-turno`, `som-solicitar-turno` |
+| **R-22** | Las consultas del plan las atienden los profesionales con `seguimientoPB100D` (hoy los tres cargados), cada uno con su agenda de horarios de 30 min; la reserva ocupa la franja libre del profesional (y del consultorio si es presencial). | `medicosSeguimientoPB100D` (`src/config/medicos.ts`), `src/lib/agenda-profesional.ts`, `som-reservar-turno`, cron `som-generar-agenda` — ver [`reglas-negocio.md`](reglas-negocio.md) |
 
 ## Teleconsulta
 
@@ -145,7 +146,8 @@ Namespace `https://segundaopinionmedica.org/fhir` (`src/fhir/identifiers.ts`).
 | `ActivityDefinition` | Catálogo: 12 consultas por especialidad, la consulta del plan (`CONSULTA_PB100D`) y el control GLP-1 | `topic` (SNOMED + `CodeSystem/grupo-especialidad`), `useContext` `workflow` (v3-ActCode `AMB`/`VR`) y `program` (la del plan). Buscable: `ActivityDefinition?context=http://terminology.hl7.org/CodeSystem/v3-ActCode\|VR` |
 | `CarePlan` | El plan del paciente | category `care-plans\|plan-bienestar-100` y `period` de 100 días (contrato del portal, sin cambios); `instantiatesCanonical` a la plantilla; una `activity` por consulta (`detail.code` `CodeSystem/consulta-plan-bienestar`, ventana en `scheduledPeriod`, estado `not-started` → `scheduled` → `completed`) y las consultas extra como `activity.reference` → `Appointment` |
 | `Task` | Tarea de Recepción: agendar una consulta del plan | `code` `task-tipo\|agendar-consulta-pb100d`, identifier `…/Identifier/programa-bienestar\|{carePlanId}:{consulta}`, `basedOn` el CarePlan, `restriction.period` (ventana), `input` `consulta`/`dia`/`servicio`, `output` → `Appointment` |
-| `Appointment` | El turno | `serviceType` (`CodeSystem/servicio`), `specialty` (SNOMED), extensiones `modalidad` (v3-ActCode) y `teleconsulta-url`; consulta del plan: `status=booked` y `supportingInformation` → Task + CarePlan |
+| `PractitionerRole` / `Schedule` / `Slot` | El profesional y su agenda (R-22) | `PractitionerRole.code` incluye `rol-profesional\|seguimiento-pb100d` y `servicio\|CONSULTA_PB100D`; `Schedule` identifier `Identifier/medico\|SCH_{codigo}`; `Slot` libres de 30 min (`status=free`), identifier `{codigo}@{inicio}`. Horarios disponibles: `Slot?schedule=Schedule/{id}&status=free&start=ge{ahora}` |
+| `Appointment` | El turno | `serviceType` (`CodeSystem/servicio`), `specialty` (SNOMED), `participant` → Practitioner, `slot` → sus franjas, extensiones `modalidad` (v3-ActCode), `profesional` y `teleconsulta-url`; consulta del plan: `status=booked` y `supportingInformation` → Task + CarePlan |
 | `Encounter` | La visita | `class` = `AMB` o `VR` según la modalidad |
 | `Consent` | Consentimiento de teleconsulta | `policyRule` `CodeSystem/consentimiento\|teleconsulta` |
 | `Communication` | Avisos | identifier `pb100d-{apertura\|mitad}-{tarea}` (idempotencia) |

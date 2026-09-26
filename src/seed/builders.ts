@@ -12,18 +12,20 @@ import type {
   ObservationDefinition,
   PlanDefinition,
   Practitioner,
+  PractitionerRole,
   Schedule,
   Slot,
   StructureDefinition,
   UsageContext,
 } from '@medplum/fhirtypes';
 import type { Servicio } from '../domain/types.js';
-import { MEDICOS } from '../config/medicos.js';
+import { MEDICOS, type Medico } from '../config/medicos.js';
 import { BIOMARCADORES, PANEL_DISPLAY, type Biomarcador } from '../config/biomarcadores.js';
-import { CODIGO_CONTROL_GLP1, GRUPOS_ESPECIALIDAD, SERVICIOS } from '../config/catalogo.js';
+import { CODIGO_CONSULTA_PB100D, CODIGO_CONTROL_GLP1, GRUPOS_ESPECIALIDAD, SERVICIOS } from '../config/catalogo.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { RECURSOS } from '../config/recursos.js';
 import { TC_DEFAULT } from '../config/tipo-cambio.js';
+import { identificadorSlotProfesional, type SlotProfesionalDescriptor } from '../lib/agenda-profesional.js';
 import type { SlotDescriptor } from '../lib/slots.js';
 import { EXTENSIONES } from '../fhir/extensions.js';
 import { ACCESS_POLICIES } from '../fhir/access-policies.js';
@@ -162,9 +164,109 @@ export function buildPractitioner(codigo: string): Practitioner {
   const m = MEDICOS.find((x) => x.codigo === codigo)!;
   return {
     resourceType: 'Practitioner',
-    identifier: [{ system: SYSTEM.medico, value: m.codigo }],
+    identifier: [
+      { system: SYSTEM.medico, value: m.codigo },
+      ...(m.matricula ? [{ system: SYSTEM.matricula, value: m.matricula }] : []),
+      ...(m.matriculaProvincial ? [{ system: SYSTEM.matricula, value: m.matriculaProvincial }] : []),
+    ],
     name: [{ text: m.nombre }],
+    active: true,
+    ...(m.especialidad.snomed || m.especialidad.nombre
+      ? {
+          qualification: [
+            {
+              code: {
+                ...(m.especialidad.snomed
+                  ? { coding: [{ system: SNOMED, code: m.especialidad.snomed, display: m.especialidad.snomedDisplay }] }
+                  : {}),
+                text: m.especialidad.nombre,
+              },
+            },
+          ],
+        }
+      : {}),
     extension: [{ url: EXT.tipoContrato, valueCode: m.esDirector ? 'director-medico' : 'prescriptor' }],
+  };
+}
+
+/** Referencia condicional al Practitioner de un profesional (por identifier). */
+export function refPractitioner(m: Pick<Medico, 'codigo' | 'nombre'>): { reference: string; display: string } {
+  return { reference: `Practitioner?identifier=${SYSTEM.medico}|${m.codigo}`, display: m.nombre };
+}
+
+const DIAS_FHIR = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+/**
+ * Rol del profesional en SOM: su especialidad (SNOMED, buscable con `specialty`), qué
+ * hace (`code`: atiende consultas / seguimiento del Plan Bienestar), en qué modalidades
+ * (extensión `modalidad`, v3-ActCode), qué consultas atiende (`healthcareService` no:
+ * el catálogo es ActivityDefinition, así que van como `code` con `SYSTEM.servicioCodigo`),
+ * su disponibilidad semanal (`availableTime`) y su consultorio (`location`). El portal
+ * arma "Especialidad → Profesional" leyendo esto.
+ */
+export function buildPractitionerRole(codigo: string): PractitionerRole {
+  const m = MEDICOS.find((x) => x.codigo === codigo)!;
+  const rol: PractitionerRole = {
+    resourceType: 'PractitionerRole',
+    identifier: [{ system: SYSTEM.medico, value: `ROL_${m.codigo}` }],
+    active: true,
+    practitioner: refPractitioner(m),
+    code: [
+      ...(m.servicios.some((s) => s !== CODIGO_CONSULTA_PB100D)
+        ? [{ coding: [{ system: SYSTEM.rolProfesional, code: COD.rolAtiendeConsultas, display: 'Atiende consultas' }] }]
+        : []),
+      ...(m.seguimientoPB100D
+        ? [{ coding: [{ system: SYSTEM.rolProfesional, code: COD.rolSeguimientoPb100d, display: `Seguimiento del ${NOMBRE_PLAN_BIENESTAR}` }] }]
+        : []),
+      ...m.servicios.map((s) => ({ coding: [{ system: SYSTEM.servicioCodigo, code: s }] })),
+    ],
+    specialty: [
+      {
+        ...(m.especialidad.snomed
+          ? { coding: [{ system: SNOMED, code: m.especialidad.snomed, display: m.especialidad.snomedDisplay }] }
+          : {}),
+        text: m.especialidad.nombre,
+      },
+    ],
+    ...(m.consultorioCodigo
+      ? { location: [{ reference: `Location?identifier=${SYSTEM.recursoCodigo}|${m.consultorioCodigo}` }] }
+      : {}),
+    ...(m.disponibilidad.length
+      ? {
+          availableTime: m.disponibilidad.map((d) => ({
+            daysOfWeek: [DIAS_FHIR[d.dia]!],
+            availableStartTime: `${d.desde}:00`,
+            availableEndTime: `${d.hasta}:00`,
+          })),
+        }
+      : {}),
+    extension: m.modalidades.map((mod) => ({ url: EXT.modalidad, valueCoding: codingModalidad(mod) })),
+  };
+  return rol;
+}
+
+/** Agenda propia del profesional: los turnos ocupan sus franjas, no las de un consultorio. */
+export function buildScheduleProfesional(codigo: string): Schedule {
+  const m = MEDICOS.find((x) => x.codigo === codigo)!;
+  return {
+    resourceType: 'Schedule',
+    identifier: [{ system: SYSTEM.medico, value: `SCH_${m.codigo}` }],
+    active: true,
+    actor: [refPractitioner(m)],
+    extension: [{ url: EXT.profesional, valueString: m.codigo }],
+  };
+}
+
+/** Franja libre de un profesional (identifier `medico@inicio`: el seed y el cron son idempotentes). */
+export function buildSlotProfesional(descriptor: SlotProfesionalDescriptor, scheduleRef: string): Slot {
+  return {
+    resourceType: 'Slot',
+    identifier: [{ system: SYSTEM.medico, value: identificadorSlotProfesional(descriptor.medicoCodigo, descriptor.inicio) }],
+    schedule: { reference: scheduleRef },
+    status: 'free',
+    start: descriptor.inicio,
+    end: descriptor.fin,
+    extension: [{ url: EXT.profesional, valueString: descriptor.medicoCodigo }],
   };
 }
 
@@ -223,8 +325,10 @@ export interface RecursosSeed {
   activityDefinitions: ActivityDefinition[];
   planDefinitions: PlanDefinition[];
   locations: Location[];
+  /** Agendas de los recursos físicos y de cada profesional. */
   schedules: Schedule[];
   practitioners: Practitioner[];
+  practitionerRoles: PractitionerRole[];
   observationDefinitions: ObservationDefinition[];
 }
 
@@ -237,8 +341,9 @@ export function buildSeed(): RecursosSeed {
     activityDefinitions: SERVICIOS.map(buildActivityDefinition),
     planDefinitions: [buildPlanDefinitionGlp1(), buildPlanDefinitionBienestar()],
     locations: RECURSOS.map((r) => buildLocation(r.codigo)),
-    schedules: RECURSOS.map((r) => buildSchedule(r.codigo)),
+    schedules: [...RECURSOS.map((r) => buildSchedule(r.codigo)), ...MEDICOS.map((m) => buildScheduleProfesional(m.codigo))],
     practitioners: MEDICOS.map((m) => buildPractitioner(m.codigo)),
+    practitionerRoles: MEDICOS.map((m) => buildPractitionerRole(m.codigo)),
     observationDefinitions: BIOMARCADORES.map(buildObservationDefinition),
   };
 }

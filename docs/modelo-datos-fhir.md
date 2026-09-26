@@ -10,11 +10,11 @@ Naming: **kebab-case**.
 | Recurso FHIR | Uso | Extensiones custom |
 |---|---|---|
 | **Patient** | Ficha del paciente / lead del CRM | `tipo-cliente`, `perfil-clinico`, `origen-lead`, `perfil-interes`, `ciclo-vida-cliente`, `patient-origin` (lo escribe la invitación), `onboarding-completed` (lo escribe el portal) |
-| **Practitioner** | Médicos | `split-porcentaje`, `tipo-contrato` |
-| **Schedule / Slot** | Disponibilidad de consultorios/salas y de la agenda de teleconsultas | `recurso-fisico` |
-| **Appointment** | Turno reservado (`serviceType` = servicio del catálogo; `specialty` SNOMED; consulta del Plan Bienestar: `supportingInformation` → su Task y su CarePlan) | `ocupantes`, `item-tipo`, `item-codigo`, `modalidad` (v3-ActCode `AMB`/`VR`), `teleconsulta-url` |
+| **Practitioner / PractitionerRole** | Médicos (`src/config/medicos.ts`): identifier `Identifier/medico`, matrícula(s) en `identifier` `Identifier/matricula`, `qualification` SNOMED. Su rol: especialidad SNOMED (`specialty`), consultas que atiende (`code` `CodeSystem/servicio`) y si hace el seguimiento del plan (`CodeSystem/rol-profesional`), consultorio (`location`), disponibilidad semanal (`availableTime`) | `split-porcentaje`, `tipo-contrato`; en el rol, `modalidad` (una por modalidad que atiende) |
+| **Schedule / Slot** | Agendas: una por consultorio/sala (`recurso-fisico`) y **una por profesional** (R-22; identifier `Identifier/medico\|SCH_{codigo}`, `actor` el Practitioner). Las franjas del profesional son de 30 min, identifier `{medico}@{inicio}`, `free` → `busy` al reservar; el turno referencia todas sus franjas en `Appointment.slot` | `recurso-fisico`, `profesional` |
+| **Appointment** | Turno reservado (`serviceType` = servicio del catálogo; `specialty` SNOMED; `participant` el Practitioner; consulta del Plan Bienestar: `supportingInformation` → su Task y su CarePlan) | `ocupantes`, `item-tipo`, `item-codigo`, `modalidad` (v3-ActCode `AMB`/`VR`), `teleconsulta-url`, `profesional`, `recurso-fisico` |
 | **Encounter** | Visita ejecutada (check-in/out); `class` `AMB` o `VR` según la modalidad | — |
-| **ActivityDefinition** | Catálogo: consultas por especialidad, la del Plan Bienestar y el control GLP-1. `topic` = especialidad (SNOMED) + grupo (`CodeSystem/grupo-especialidad`); `useContext` `workflow` = modalidades (v3-ActCode) y `program` = Plan Bienestar. Lo lee el portal | `precio-usd`, `precio-ars`, `regla-pricing-recurso`, `split-som` |
+| **ActivityDefinition** | Catálogo: consultas por especialidad, la del Plan Bienestar y el control GLP-1. `topic` = especialidad (SNOMED) + grupo (`CodeSystem/grupo-especialidad`); `useContext` `workflow` = modalidades (v3-ActCode) y `program` = Plan Bienestar. Lo lee el portal | `precio-usd`, `precio-ars`, `valor-referencia-ars` (lo que el plan presupuesta por una consulta incluida), `regla-pricing-recurso`, `split-som` |
 | **Invoice / ChargeItem** | Cobros y splits | `monto-split-som`, `tc-aplicado`, `es-sena`, `medio-pago` |
 | **Communication** | Mensajes (conversaciones con el paciente por el portal y **WhatsApp**: topic + hijas con `partOf`), avisos automáticos por WhatsApp (sueltos, `category` `canal\|whatsapp`, identifier `twilio-message-sid`), emails y campañas del CRM (identifier `campania`) | `canal`, `template-usado`, `telefono-whatsapp`, `estado-entrega`, `inicio-contacto`, `auto-respuesta`, `borrador-usado` ([`whatsapp.md`](whatsapp.md)) |
 | **Group** | Segmentos del CRM (identifier `segmento`; criterios en `characteristic`) | — |
@@ -34,10 +34,17 @@ Naming: **kebab-case**.
 ## Decisiones de modelado
 
 - **Catálogo:** los servicios se modelan como `ActivityDefinition` (precio en
-  `precio-usd`/`precio-ars`) y los profesionales como `Practitioner`. Las
-  especialidades las definieron el Dr. D'Alessandro y el Dr. Barbagelata (12
-  consultas + la del Plan Bienestar + el control GLP-1); precios y profesionales
-  siguen PENDIENTES.
+  `precio-usd`/`precio-ars`) y los profesionales como `Practitioner` +
+  `PractitionerRole`. Las especialidades las definieron el Dr. D'Alessandro y el
+  Dr. Barbagelata (12 consultas + la del Plan Bienestar + el control GLP-1); precios
+  según la lista del 26/09/2026 (R-17); profesionales: los tres cargados, provisorios
+  y sin disponibilidad todavía.
+- **Agenda por profesional (R-22):** un `Schedule` por profesional; sus `Slot` de 30
+  min nacen de la disponibilidad semanal (`PractitionerRole.availableTime`) dentro del
+  horario del centro (cron `som-generar-agenda`). La reserva ocupa franjas existentes
+  con `If-Match` en vez de crear un `Slot` `busy` nuevo; así los "calendarios" del
+  plan y de especialidades son vistas de la misma agenda y no se da dos veces la
+  misma hora.
 - **Modalidad (R-21):** presencial / teleconsulta es un atributo del turno (código
   estándar v3-ActCode, el mismo de `Encounter.class`), no un servicio aparte. Ver
   [`plan-bienestar.md`](plan-bienestar.md).
@@ -46,8 +53,9 @@ Naming: **kebab-case**.
   laboratorio (`ServiceRequest`) y las tareas de agenda (`Task`) que ve
   Recepción. Primer programa: GLP-1 ([`glp1.md`](glp1.md)).
 - **Recursos físicos:** `Location` + `Schedule` (uno por recurso). Hoy: 2
-  consultorios, la agenda de teleconsultas (virtual, transitoria hasta las agendas
-  por profesional) y la sala de rehabilitación (lista provisional).
+  consultorios, la agenda de teleconsultas (virtual; se retira cuando los
+  profesionales tengan disponibilidad cargada, porque la teleconsulta por
+  profesional no necesita sala) y la sala de rehabilitación (lista provisional).
 - **Tipo de cambio:** recurso `Basic` con identifier `config-tipo-cambio` y la
   extensión `tc-aplicado`; el bot de cobro lo lee como TC vigente (configurable
   por el admin).
