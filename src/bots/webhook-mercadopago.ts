@@ -10,6 +10,7 @@
  * bot. Requiere el secret MERCADOPAGO_ACCESS_TOKEN.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
+import { bloqueaCredencialMP, explicarErrorMP, limpiarTokenMP, problemaCredencialMP, tipoCredencialMP } from '../lib/mercadopago.js';
 import { confirmarReserva } from './_shared.js';
 
 interface NotificacionMP {
@@ -39,9 +40,12 @@ export async function handler(medplum: MedplumClient, event: BotEvent): Promise<
     return { ok: true, confirmado: false, motivo: 'sin id de pago' };
   }
 
-  const token = event.secrets['MERCADOPAGO_ACCESS_TOKEN']?.valueString;
-  if (!token) {
-    return { ok: false, motivo: 'falta MERCADOPAGO_ACCESS_TOKEN' };
+  const token = limpiarTokenMP(event.secrets['MERCADOPAGO_ACCESS_TOKEN']?.valueString);
+  const credencial = tipoCredencialMP(token);
+  const problema = bloqueaCredencialMP(credencial) ? problemaCredencialMP(credencial) : undefined;
+  if (problema) {
+    console.error(`som-webhook-mercadopago: ${problema}`);
+    return { ok: false, motivo: problema };
   }
 
   // Verificación autoritativa contra MP.
@@ -49,7 +53,10 @@ export async function handler(medplum: MedplumClient, event: BotEvent): Promise<
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok) {
-    return { ok: false, motivo: `MP payments respondió ${resp.status}` };
+    const texto = await resp.text().catch(() => '');
+    const motivo = `MP payments respondió ${resp.status}. ${explicarErrorMP(resp.status, texto, credencial, 'consultar los pagos')}`;
+    console.error(`som-webhook-mercadopago: ${motivo}`);
+    return { ok: false, motivo };
   }
   const pago = (await resp.json()) as { status?: string; external_reference?: string };
 
