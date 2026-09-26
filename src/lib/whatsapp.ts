@@ -13,7 +13,9 @@
  *    (motivo «Otro motivo»); la respuesta de Recepción sale por WhatsApp si el último
  *    mensaje del paciente en esa conversación llegó por WhatsApp y la ventana de 24 h
  *    sigue abierta (`auto-respuesta.ts`).
- *  - Campanita: avisa los WhatsApp de números nuevos (contactos que no estaban en SOM).
+ *  - Números nuevos (contactos que no estaban en SOM): el primer mensaje queda marcado
+ *    `inicio-contacto` y el aviso a Recepción (pestaña WhatsApp y campanita) es un `Task`
+ *    (`contactos-whatsapp.ts`).
  */
 import type { Attachment, CodeableConcept, Coding, Communication, Patient } from '@medplum/fhirtypes';
 import { TZ } from '../config/horario.js';
@@ -350,7 +352,7 @@ export function telefonoDe(c: Communication): string | undefined {
   return c.extension?.find((e) => e.url === EXT.telefonoWhatsapp)?.valueString;
 }
 
-/** Primer WhatsApp de un número nuevo (lo avisa la campanita). */
+/** Primer WhatsApp de un número nuevo (Mensajes lo marca «Nuevo»; el aviso es un Task). */
 export function esInicioContacto(c: Communication): boolean {
   return c.extension?.some((e) => e.url === EXT.inicioContacto && e.valueBoolean === true) === true;
 }
@@ -671,51 +673,6 @@ export function esSinFicha(p: Patient): boolean {
 export function nombreDePaciente(p: Patient): string {
   const n = p.name?.[0];
   return n?.text ?? ([...(n?.given ?? []), n?.family].filter(Boolean).join(' ') || 'Paciente');
-}
-
-// ───────────────────────────── campanita ─────────────────────────────
-
-/** Un aviso de la campanita: un número nuevo escribió por WhatsApp y nadie lo leyó. */
-export interface AvisoWhatsApp {
-  pacienteRef: string;
-  /** Id de la conversación de Mensajes donde entró. */
-  conversacionId?: string;
-  nombre: string;
-  telefono?: string;
-  /** Vista previa del mensaje. */
-  texto: string;
-  sent: string;
-}
-
-/**
- * La campanita: el primer WhatsApp de cada número nuevo, mientras siga sin leer (uno
- * por contacto, del más nuevo al más viejo). Se apaga al abrir la conversación.
- */
-export function avisosInicioContacto(mensajes: Communication[], nombres: ReadonlyMap<string, string>): AvisoWhatsApp[] {
-  const porPaciente = new Map<string, Communication>();
-  for (const m of mensajes) {
-    const ref = m.subject?.reference;
-    if (!ref?.startsWith('Patient/') || !delPaciente(m) || m.status !== 'in-progress' || !esInicioContacto(m)) {
-      continue;
-    }
-    const previo = porPaciente.get(ref);
-    if (!previo || (m.sent ?? '') > (previo.sent ?? '')) {
-      porPaciente.set(ref, m);
-    }
-  }
-  return [...porPaciente.entries()]
-    .map(([pacienteRef, m]) => {
-      const conversacion = m.partOf?.[0]?.reference;
-      return {
-        pacienteRef,
-        ...(conversacion?.startsWith('Communication/') ? { conversacionId: conversacion.slice('Communication/'.length) } : {}),
-        nombre: nombres.get(pacienteRef) ?? 'Contacto nuevo',
-        ...(telefonoDe(m) ? { telefono: telefonoDe(m) } : {}),
-        texto: vistaPrevia(m),
-        sent: m.sent ?? '',
-      };
-    })
-    .sort((a, b) => b.sent.localeCompare(a.sent));
 }
 
 // ───────────────────────────── fechas e iniciales (hora de Argentina) ─────────────────────────────

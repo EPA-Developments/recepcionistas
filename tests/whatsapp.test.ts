@@ -4,7 +4,6 @@ import { EXT, SYSTEM } from '../src/fhir/identifiers.js';
 import { REMITENTE_AUTOMATICO } from '../src/config/auto-respuesta.js';
 import {
   aE164AR,
-  avisosInicioContacto,
   claveConversacionWhatsApp,
   combinarEstadoEntrega,
   conEnvioWhatsApp,
@@ -338,36 +337,7 @@ describe('WhatsApp · ¿la respuesta de Recepción sale también por WhatsApp?',
   });
 });
 
-describe('WhatsApp · campanita: solo números nuevos', () => {
-  const nuevo = (id: string, paciente: string, sent: string, status: Communication['status'] = 'in-progress'): Communication => ({
-    ...construirMensajeEntrante({
-      conversacionRef: `Communication/c-${paciente}`,
-      pacienteRef: `Patient/${paciente}`,
-      texto: `hola ${id}`,
-      adjuntos: [],
-      messageSid: `SM-${id}`,
-      telefono: '+5491122334455',
-      inicioContacto: true,
-      ahora: sent,
-    }),
-    id,
-    status,
-  });
-
-  it('El primer WhatsApp de cada número nuevo, sin leer, con la conversación a abrir', () => {
-    const mensajes = [
-      nuevo('a1', 'ana', '2026-09-26T13:00:00Z'),
-      nuevo('b1', 'beto', '2026-09-26T14:00:00Z'),
-      nuevo('c1', 'caro', '2026-09-26T15:00:00Z', 'completed'), // ya leído
-      delPaciente('d1', '2026-09-26T16:00:00Z', true, { status: 'in-progress' }), // conocido: no suena
-    ];
-    const avisos = avisosInicioContacto(mensajes, new Map([['Patient/ana', 'Ana']]));
-    expect(avisos).toEqual([
-      { pacienteRef: 'Patient/beto', conversacionId: 'c-beto', nombre: 'Contacto nuevo', telefono: '+5491122334455', texto: 'hola b1', sent: '2026-09-26T14:00:00Z' },
-      { pacienteRef: 'Patient/ana', conversacionId: 'c-ana', nombre: 'Ana', telefono: '+5491122334455', texto: 'hola a1', sent: '2026-09-26T13:00:00Z' },
-    ]);
-  });
-
+describe('WhatsApp · vista previa', () => {
   it('Vista previa: el texto o qué adjunto es', () => {
     expect(vistaPrevia(delPaciente('x', '', true, { payload: [{ contentString: 'Hola\n  ¿están?' }] }))).toBe('Hola ¿están?');
     expect(vistaPrevia(delPaciente('y', '', true, { payload: [{ contentAttachment: { contentType: 'audio/ogg' } }] }))).toBe('🎤 Audio');

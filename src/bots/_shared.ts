@@ -28,8 +28,11 @@ type Secrets = BotEvent['secrets'];
 /** Meta de datos de demostración (tag `demo`); se autodestruyen a las 48 h. */
 export const META_DEMO = { tag: [{ system: SYSTEM.demo, code: 'demo' }] };
 
-/** Tipos demo, en orden de borrado: hijos antes que padres (evita refs colgadas). */
-const TIPOS_DEMO = ['Communication', 'Invoice', 'Coverage', 'Flag', 'Appointment', 'Slot', 'Patient'] as const;
+/**
+ * Tipos demo, en orden de borrado: hijos antes que padres (evita refs colgadas). Los
+ * `Task` (avisos a Recepción) apuntan a Communication y Patient: van primero.
+ */
+const TIPOS_DEMO = ['Task', 'Communication', 'Invoice', 'Coverage', 'Flag', 'Appointment', 'Slot', 'Patient'] as const;
 
 export interface ResultadoBorradoDemo {
   borrados: number;

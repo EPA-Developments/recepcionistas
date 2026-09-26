@@ -20,15 +20,8 @@ import type { MedplumClient, MedplumRequestOptions } from '@medplum/core';
 import type { Attachment, Communication } from '@medplum/fhirtypes';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { usoDelBorrador } from './borrador.js';
-import {
-  avisosInicioContacto,
-  esInicioContacto,
-  esWhatsApp,
-  nombreDePaciente,
-  tipoAutomatica,
-  vistaPrevia,
-  type AvisoWhatsApp,
-} from './whatsapp.js';
+import { esInicioContacto, esWhatsApp, nombreDePaciente, tipoAutomatica, vistaPrevia } from './whatsapp.js';
+import { cargarAvisosContacto, type AvisoWhatsApp } from './contactos-whatsapp.js';
 
 /**
  * El cliente de la app cachea las búsquedas unos segundos: la bandeja pide siempre lo
@@ -61,7 +54,7 @@ export interface ConversacionResumen {
   actividad: string;
   /** El último mensaje del paciente llegó por WhatsApp: la respuesta sale por ahí. */
   porWhatsApp: boolean;
-  /** Primer WhatsApp de un número nuevo, sin leer (el de la campanita). */
+  /** Primer WhatsApp de un número nuevo, sin leer: la lista lo marca «Nuevo». */
   nuevoContacto: boolean;
 }
 
@@ -202,11 +195,6 @@ export async function marcarLeidos(medplum: MedplumClient, mensajes: Communicati
   return pendientes.length;
 }
 
-/**
- * Responde en la conversación como `autor` (el usuario de Recepción). Si es la primera
- * respuesta desde el último mensaje del paciente, le deja además una Novedad
- * `mensaje-nuevo` que abre la conversación.
- */
 /** Novedad `mensaje-nuevo` para el paciente (campanita del portal): abre la conversación. */
 async function avisarAlPaciente(medplum: MedplumClient, topic: Communication, texto: string): Promise<Communication> {
   const paciente = topic.subject!;
@@ -336,26 +324,15 @@ export async function contarSinLeer(medplum: MedplumClient): Promise<number> {
 export interface AvisosMensajes {
   /** Mensajes de pacientes sin leer (contador de la pestaña "Mensajes"). */
   sinLeer: number;
-  /** La campanita: el primer WhatsApp de cada número nuevo, sin leer. */
+  /**
+   * La campanita y el contador de la pestaña "WhatsApp": los avisos pendientes de
+   * números nuevos (`Task` `whatsapp-nuevo-contacto`, `contactos-whatsapp.ts`).
+   */
   nuevosContactos: AvisoWhatsApp[];
 }
 
-/** Lo que revisa la app en vivo: el contador de Mensajes y la campanita (una sola búsqueda). */
+/** Lo que revisa la app en vivo: el contador de Mensajes y los avisos de WhatsApp (dos búsquedas). */
 export async function cargarAvisos(medplum: MedplumClient): Promise<AvisosMensajes> {
-  const pendientes = await pendientesDeLeer(medplum);
-  const deNuevos = pendientes.filter(esInicioContacto);
-  const ids = [
-    ...new Set(
-      deNuevos
-        .map((m) => m.subject?.reference)
-        .filter((r): r is string => Boolean(r?.startsWith('Patient/')))
-        .map((r) => r.slice('Patient/'.length)),
-    ),
-  ];
-  const pacientes =
-    ids.length > 0
-      ? await medplum.searchResources('Patient', { _id: ids.join(','), _count: String(ids.length) }).catch(() => [])
-      : [];
-  const nombres = new Map(pacientes.map((p) => [`Patient/${p.id}`, nombreDePaciente(p)]));
-  return { sinLeer: pendientes.length, nuevosContactos: avisosInicioContacto(deNuevos, nombres) };
+  const [pendientes, nuevosContactos] = await Promise.all([pendientesDeLeer(medplum), cargarAvisosContacto(medplum)]);
+  return { sinLeer: pendientes.length, nuevosContactos };
 }

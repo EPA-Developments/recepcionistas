@@ -89,7 +89,11 @@ export const EXT = {
   telefonoWhatsapp: `${BASE}/StructureDefinition/telefono-whatsapp`,
   /** Estado de entrega de un WhatsApp saliente: `en-cola` | `enviado` | `entregado` | `leido` | `fallido` (los ✓✓). */
   estadoEntrega: `${BASE}/StructureDefinition/estado-entrega`,
-  /** true en el primer WhatsApp de un número nuevo (no estaba en SOM): lo avisa la campanita. */
+  /**
+   * true en el primer WhatsApp de un número nuevo (no estaba en SOM): Mensajes lo marca
+   * «Nuevo». El aviso a Recepción (pestaña WhatsApp y campanita) es un `Task`
+   * `whatsapp-nuevo-contacto`.
+   */
   inicioContacto: `${BASE}/StructureDefinition/inicio-contacto`,
   /** Respuesta que mandó solo el sistema en Mensajes: `acuse` | `fuera-de-horario`. */
   autoRespuesta: `${BASE}/StructureDefinition/auto-respuesta`,
@@ -141,6 +145,16 @@ export const SYSTEM = {
   canal: `${BASE}/CodeSystem/canal`,
   /** Identifier del mensaje en Twilio (MessageSid): deduplica entrantes y liga los estados de entrega. */
   twilioMessageSid: `${BASE}/Identifier/twilio-message-sid`,
+  /**
+   * Identifier de los avisos a Recepción (`Task`): hace idempotente su creación (p. ej.
+   * un solo aviso por cada número nuevo que escribe por WhatsApp).
+   */
+  avisoRecepcion: `${BASE}/Identifier/aviso-recepcion`,
+  /**
+   * Cómo se resolvió un aviso a Recepción (`Task.businessStatus`): `ficha-completada` |
+   * `resuelto`. Mide cuántos contactos nuevos por WhatsApp terminan con ficha (CRM).
+   */
+  resolucionAviso: `${BASE}/CodeSystem/resolucion-aviso`,
   /** Consultas programadas del Plan Bienestar 100 Días®: `inicial` | `mitad` | `final`. */
   consultaPlanBienestar: `${BASE}/CodeSystem/consulta-plan-bienestar`,
   /** Grupo de especialidad del catálogo, como lo agrupa el portal ("Cardiología con especialidad", …). */
@@ -195,6 +209,11 @@ export const COD = {
   resultadoLaboratorio: 'resultado-laboratorio',
   /** Task del equipo: revisar a mano un PDF de laboratorio que no se pudo procesar. */
   revisarLaboratorio: 'revisar-laboratorio',
+  /**
+   * Task de Recepción: un número nuevo (que no estaba en SOM) escribió por WhatsApp.
+   * Lo lista la pestaña WhatsApp y lo avisa la campanita hasta que se resuelve.
+   */
+  whatsappNuevoContacto: 'whatsapp-nuevo-contacto',
 } as const;
 
 /** Claves EXACTAS de las secciones del informe SOM (sub-extensiones de `som-sections`). */

@@ -9,7 +9,6 @@ import {
   Group,
   Loader,
   Modal,
-  Paper,
   ScrollArea,
   SegmentedControl,
   Select,
@@ -17,15 +16,10 @@ import {
   Text,
   Textarea,
   Title,
-  Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconAlertCircle,
   IconBrandWhatsapp,
-  IconCheck,
-  IconChecks,
-  IconClock,
   IconLock,
   IconLockOpen,
   IconMessages,
@@ -44,32 +38,28 @@ import {
   cambiarEstado,
   cargarConversaciones,
   cargarMensajes,
-  esAutomatica,
   esDelPaciente,
   marcarLeidos,
   MOTIVOS_MENSAJE,
   nuevaConversacion,
   responder,
-  textoMensaje,
   vistaPreviaMensaje,
   type ConversacionResumen,
   type EstadoBandeja,
 } from '@som/lib/mensajes';
 import {
-  adjuntosDe,
   esSinFicha,
   esSoloNumero,
-  estadoEntregaDe,
   esWhatsApp,
   formatoTelefono,
   MAX_ADJUNTO_RECEPCION_BYTES,
   telefonoDe,
-  tipoAdjunto,
-  type EstadoEntrega,
 } from '@som/lib/whatsapp';
 import { textoRestante, ventana24h } from '@som/lib/auto-respuesta';
 import { borradorRespuesta, mensajeError, responderWhatsApp } from '../lib/bots';
 import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
+import { Burbuja, fecha } from '../components/Burbuja';
+import { resolverAvisosDelPaciente } from '@som/lib/contactos-whatsapp';
 
 /**
  * Mensajes: la bandeja de las conversaciones con los pacientes, estilo WhatsApp. Cada
@@ -90,120 +80,8 @@ const REFRESCO_MS = 20_000;
 /** Mensajes nuevos o cambiados (✓✓, leídos) de cualquier conversación. */
 const CRITERIO_MENSAJES = 'Communication?part-of:missing=false';
 
-const fmtFecha = new Intl.DateTimeFormat('es-AR', {
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: 'America/Argentina/Buenos_Aires',
-});
-
-function fecha(iso?: string): string {
-  return iso ? fmtFecha.format(new Date(iso)) : '';
-}
-
 function error(titulo: string, err: unknown): void {
   notifications.show({ color: 'red', title: titulo, message: mensajeError(err) });
-}
-
-/** Los ✓ de un mensaje que salió por WhatsApp. */
-function Tilde({ estado, motivo }: { estado?: EstadoEntrega; motivo?: string }): JSX.Element | null {
-  switch (estado) {
-    case 'en-cola':
-      return <IconClock size={13} aria-label="En camino" style={{ verticalAlign: 'middle' }} />;
-    case 'enviado':
-      return <IconCheck size={14} aria-label="Enviado" style={{ verticalAlign: 'middle' }} />;
-    case 'entregado':
-      return <IconChecks size={15} aria-label="Entregado" style={{ verticalAlign: 'middle' }} />;
-    case 'leido':
-      return <IconChecks size={15} color="#53bdeb" aria-label="Leído" style={{ verticalAlign: 'middle' }} />;
-    case 'fallido':
-      return (
-        <Tooltip label={motivo ?? 'WhatsApp no entregó el mensaje.'} multiline w={260} withArrow>
-          <IconAlertCircle size={14} color="var(--mantine-color-red-6)" aria-label="No se entregó" style={{ verticalAlign: 'middle' }} />
-        </Tooltip>
-      );
-    default:
-      return null;
-  }
-}
-
-function Adjunto({ a }: { a: Attachment }): JSX.Element {
-  const tipo = tipoAdjunto(a.contentType);
-  // Sin link firmado (se está guardando o no se pudo bajar de WhatsApp): solo el nombre.
-  if (!a.url?.startsWith('http')) {
-    return (
-      <Text size="sm" c="dimmed" mt={6}>
-        📎 {a.title ?? 'Adjunto'}
-      </Text>
-    );
-  }
-  if (tipo === 'imagen') {
-    return (
-      <a href={a.url} target="_blank" rel="noreferrer">
-        <img
-          src={a.url}
-          alt={a.title ?? 'Imagen adjunta'}
-          style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 8, display: 'block', marginTop: 6 }}
-        />
-      </a>
-    );
-  }
-  if (tipo === 'audio') {
-    return <audio controls src={a.url} style={{ display: 'block', marginTop: 6, maxWidth: '100%' }} />;
-  }
-  if (tipo === 'video') {
-    return <video controls src={a.url} style={{ display: 'block', marginTop: 6, maxWidth: '100%', maxHeight: 260, borderRadius: 8 }} />;
-  }
-  return (
-    <Text size="sm" mt={6}>
-      <a href={a.url} target="_blank" rel="noreferrer">
-        📎 {a.title ?? 'Adjunto'}
-      </a>
-    </Text>
-  );
-}
-
-function Burbuja({ m }: { m: Communication }): JSX.Element {
-  const delPaciente = esDelPaciente(m);
-  const viaWhatsApp = esWhatsApp(m);
-  // Lo que contestó el sistema en nombre de Recepción se muestra como tal: nadie tiene
-  // que preguntarse si eso lo escribió una compañera.
-  const automatico = esAutomatica(m);
-  const entrega = estadoEntregaDe(m);
-  const cuerpo = textoMensaje(m);
-  const quien = delPaciente ? (viaWhatsApp ? '' : 'Portal · ') : automatico ? '' : m.sender?.display ? `${m.sender.display} · ` : '';
-  return (
-    <Paper
-      p="sm"
-      radius="md"
-      withBorder={delPaciente}
-      bg={delPaciente ? undefined : 'var(--mantine-primary-color-light)'}
-      maw="80%"
-      style={{ alignSelf: delPaciente ? 'flex-start' : 'flex-end' }}
-    >
-      {cuerpo && (
-        <Text size="sm" style={{ whiteSpace: 'pre-line', wordBreak: 'break-word' }}>
-          {cuerpo}
-        </Text>
-      )}
-      {adjuntosDe(m).map((a, i) => (
-        <Adjunto key={`${m.id}-adj-${i}`} a={a} />
-      ))}
-      <Text size="xs" c="dimmed" ta="right" mt={4}>
-        {automatico ? '🤖 Automática · ' : ''}
-        {quien}
-        {viaWhatsApp ? '📱 WhatsApp · ' : ''}
-        {fecha(m.sent)} {!delPaciente && viaWhatsApp && <Tilde estado={entrega} motivo={m.statusReason?.text} />}
-      </Text>
-      {!delPaciente && entrega === 'fallido' && m.statusReason?.text && (
-        <Text size="xs" c="red" ta="right">
-          {m.statusReason.text}
-        </Text>
-      )}
-    </Paper>
-  );
 }
 
 export function Mensajes({
@@ -213,10 +91,10 @@ export function Mensajes({
   onLeidos,
 }: {
   onAtender: (pacienteId: string) => void;
-  /** Id de la conversación a abrir (p. ej. desde la campanita). */
+  /** Id de la conversación a abrir (p. ej. "Ver conversación" de la pestaña WhatsApp). */
   conversacionInicial?: string | null;
   onConversacionInicialAbierta?: () => void;
-  /** Se leyeron mensajes: refrescar el contador y la campanita. */
+  /** Se leyeron mensajes o se resolvió un aviso: refrescar los contadores y la campanita. */
   onLeidos?: () => void;
 }): JSX.Element {
   const medplum = useMedplum();
@@ -273,7 +151,7 @@ export function Mensajes({
             return; // Mientras cargaba se eligió otra conversación.
           }
           setMensajes(ms);
-          // Abrirla = leer lo que escribió el paciente (y apagar la campanita).
+          // Abrirla = leer lo que escribió el paciente.
           if (document.visibilityState === 'visible' && (await marcarLeidos(medplum, ms)) > 0) {
             setLista((l) => l?.map((x) => (x.topic.id === id ? { ...x, sinLeer: 0, nuevoContacto: false } : x)));
             cargarLista(); // Relee: lo que estaba en camino ya no vale.
@@ -312,7 +190,7 @@ export function Mensajes({
     onWebSocketClose: () => undefined,
   });
 
-  // Abrir la conversación que pidió la campanita (puede ser recién llegada: se relee la lista).
+  // Abrir la conversación que se pidió desde afuera (puede ser recién llegada: se relee la lista).
   useEffect(() => {
     if (conversacionInicial) {
       setEstado('abiertas');
@@ -770,6 +648,13 @@ export function Mensajes({
         }}
         onCreado={() => {
           notifications.show({ color: 'teal', title: 'Ficha completada', message: 'La conversación queda con los datos del paciente.' });
+          // El aviso de la pestaña WhatsApp ya cumplió: lo resuelve el bot de alta si completó
+          // este contacto; si esos datos eran de otra ficha, se resuelve acá.
+          if (elegida?.pacienteRef) {
+            void resolverAvisosDelPaciente(medplum, elegida.pacienteRef, 'ficha-completada', profile ? createReference(profile) : undefined)
+              .catch(() => 0)
+              .then(() => onLeidos?.());
+          }
           setPaciente(undefined);
           cargarLista();
         }}

@@ -12,6 +12,7 @@ import {
   useComputedColorScheme,
 } from '@mantine/core';
 import {
+  IconBrandWhatsapp,
   IconCalendarEvent,
   IconUserHeart,
   IconChartBar,
@@ -25,20 +26,20 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { useMedplum, useMedplumProfile } from '@medplum/react';
 import { getDisplayString } from '@medplum/core';
-import type { AvisoWhatsApp } from '@som/lib/whatsapp';
+import type { AvisoWhatsApp } from '@som/lib/contactos-whatsapp';
 import { CampanaWhatsApp } from './CampanaWhatsApp';
 
-export type Vista = 'agenda' | 'solicitudes' | 'mensajes' | 'glp1' | 'atender' | 'reportes';
+export type Vista = 'agenda' | 'solicitudes' | 'mensajes' | 'whatsapp' | 'glp1' | 'atender' | 'reportes';
 
 interface ShellProps {
   vista: Vista;
   onVista: (v: Vista) => void;
   /** Mensajes de pacientes sin leer (contador de la pestaña "Mensajes"). */
   mensajesSinLeer?: number;
-  /** La campanita: WhatsApp de números nuevos sin leer. */
+  /** La campanita y el contador de la pestaña "WhatsApp": avisos pendientes de números nuevos. */
   nuevosContactos?: AvisoWhatsApp[];
-  /** Abre Mensajes (en la conversación del aviso, si se indica). */
-  onAbrirMensajes?: (aviso?: AvisoWhatsApp) => void;
+  /** Abre la pestaña WhatsApp (en la tarjeta del aviso, si se indica). */
+  onAbrirWhatsApp?: (aviso?: AvisoWhatsApp) => void;
   children: ReactNode;
 }
 
@@ -47,7 +48,7 @@ export function Shell({
   onVista,
   mensajesSinLeer = 0,
   nuevosContactos = [],
-  onAbrirMensajes,
+  onAbrirWhatsApp,
   children,
 }: ShellProps): JSX.Element {
   const medplum = useMedplum();
@@ -85,6 +86,10 @@ export function Shell({
               { value: 'agenda', label: segLabel(<IconCalendarEvent size={16} />, 'Agenda') },
               { value: 'solicitudes', label: segLabel(<IconInbox size={16} />, 'Solicitudes') },
               { value: 'mensajes', label: segLabel(<IconMessages size={16} />, 'Mensajes', mensajesSinLeer, 'teal') },
+              {
+                value: 'whatsapp',
+                label: segLabel(<IconBrandWhatsapp size={16} />, 'WhatsApp', nuevosContactos.length, 'green'),
+              },
               { value: 'glp1', label: segLabel(<IconVaccine size={16} />, 'GLP-1') },
               { value: 'atender', label: segLabel(<IconUserHeart size={16} />, 'Atender paciente') },
               { value: 'reportes', label: segLabel(<IconChartBar size={16} />, 'Reportes') },
@@ -99,9 +104,8 @@ export function Shell({
             )}
             <CampanaWhatsApp
               avisos={nuevosContactos}
-              sinLeer={mensajesSinLeer}
-              onAbrir={(aviso) => onAbrirMensajes?.(aviso)}
-              onVerTodos={() => onAbrirMensajes?.()}
+              onAbrir={(aviso) => onAbrirWhatsApp?.(aviso)}
+              onVerTodos={() => onAbrirWhatsApp?.()}
             />
             <ActionIcon
               variant="default"

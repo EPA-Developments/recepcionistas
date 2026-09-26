@@ -45,7 +45,7 @@ const BOTS: DefBot[] = [
   { name: 'som-link-mercadopago', source: 'src/bots/link-mercadopago.ts', dist: 'dist/bots/link-mercadopago.js', description: 'Genera link de MercadoPago para pagar la seña.' },
   { name: 'som-webhook-mercadopago', source: 'src/bots/webhook-mercadopago.ts', dist: 'dist/bots/webhook-mercadopago.js', description: 'Webhook de MercadoPago: confirma el turno al acreditarse el pago.' },
   { name: 'som-recordatorios', source: 'src/bots/recordatorios.ts', dist: 'dist/bots/recordatorios.js', description: 'Cron: recordatorios de turnos confirmados a 48 h y 2 h (con el link en teleconsulta) y avisos de las consultas del Plan Bienestar 100 Días® (WhatsApp).' },
-  { name: 'som-alta-paciente', source: 'src/bots/alta-paciente.ts', dist: 'dist/bots/alta-paciente.js', description: 'Alta de paciente (Patient) con dedupe por DNI/email/teléfono.' },
+  { name: 'som-alta-paciente', source: 'src/bots/alta-paciente.ts', dist: 'dist/bots/alta-paciente.js', description: 'Alta de paciente (Patient) con dedupe por DNI/email/teléfono; al completar un número nuevo de WhatsApp resuelve su aviso.' },
   { name: 'som-invitar-paciente', source: 'src/bots/invitar-paciente.ts', dist: 'dist/bots/invitar-paciente.js', description: 'Invita al paciente al portal (invite Medplum) y entrega el link por WhatsApp/email/QR. Requiere admin.' },
   { name: 'som-limpiar-demo', source: 'src/bots/limpiar-demo.ts', dist: 'dist/bots/limpiar-demo.js', description: 'Cron: borra los datos demo (tag demo) con más de 48 h.' },
   { name: 'som-enviar-whatsapp', source: 'src/bots/enviar-whatsapp.ts', dist: 'dist/bots/enviar-whatsapp.js', description: 'Envía WhatsApp (Twilio) y registra Communication.' },
@@ -65,7 +65,7 @@ const BOTS: DefBot[] = [
   // Plan Bienestar 100 Días® (portal: tarjeta de progreso; Recepción: sus tres consultas).
   { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar 100 Días® (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 (100 días, lo lee el portal) con sus tres consultas y las tareas para agendarlas.' },
   // WhatsApp (Twilio): canal de las conversaciones de Mensajes (docs/whatsapp.md).
-  { name: BOT_WHATSAPP_ENTRANTE, source: 'src/bots/whatsapp-entrante.ts', dist: 'dist/bots/whatsapp-entrante.js', description: 'WhatsApp (webhook de Twilio): el mensaje entra en la conversación abierta del paciente (o abre una), un número nuevo es un lead y suena la campanita, respuestas automáticas (acuse / fuera de horario) y los estados de entrega (✓✓).' },
+  { name: BOT_WHATSAPP_ENTRANTE, source: 'src/bots/whatsapp-entrante.ts', dist: 'dist/bots/whatsapp-entrante.js', description: 'WhatsApp (webhook de Twilio): el mensaje entra en la conversación abierta del paciente (o abre una), un número nuevo es un lead con su aviso a Recepción (pestaña WhatsApp y campanita), respuestas automáticas (acuse / fuera de horario) y los estados de entrega (✓✓).' },
   { name: BOT_WHATSAPP_RESPONDER, source: 'src/bots/whatsapp-responder.ts', dist: 'dist/bots/whatsapp-responder.js', description: 'Mensajes (Recepción): manda por WhatsApp la respuesta si el paciente escribió por WhatsApp y la ventana de 24 h sigue abierta (texto y adjuntos).' },
 ];
 

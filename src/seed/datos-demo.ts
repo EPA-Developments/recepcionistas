@@ -10,11 +10,12 @@
  *
  * Genera pacientes, turnos de consulta (varios estados), un Flag de banner de
  * seguridad, cobros, avisos por WhatsApp y conversaciones de Mensajes (WhatsApp y
- * portal, con un contacto nuevo para la campanita), para ver la app con datos.
+ * portal, con un contacto nuevo y su aviso en la pestaña WhatsApp y la campanita), para
+ * ver la app con datos.
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
-import type { Appointment, Communication, Patient, Slot } from '@medplum/fhirtypes';
+import type { Appointment, Communication, Patient, Slot, Task } from '@medplum/fhirtypes';
 import { getServicio } from '../config/catalogo.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { META_DEMO, borrarRecursosDemo } from '../bots/_shared.js';
@@ -27,6 +28,7 @@ import {
   construirMensajeEntrante,
   construirRespuestaAutomatica,
 } from '../lib/whatsapp.js';
+import { construirAvisoContacto } from '../lib/contactos-whatsapp.js';
 import { conectarMedplum } from './conexion.js';
 
 const TZ = '-03:00';
@@ -217,7 +219,8 @@ async function generar(medplum: MedplumClient): Promise<void> {
   }
 
   // Mensajes (bandeja de Recepción): WhatsApp y portal en las mismas conversaciones.
-  //  - Un número NUEVO escribe por WhatsApp (suena la campanita) y recibe el acuse automático.
+  //  - Un número NUEVO escribe por WhatsApp y recibe el acuse automático; su aviso queda
+  //    pendiente en la pestaña WhatsApp (y suena la campanita).
   //  - Sofía escribió por WhatsApp, Recepción le respondió (salió por WhatsApp ✓✓) y volvió a escribir.
   //  - Diego escribe desde el portal (su respuesta queda en el portal).
   const lead = await medplum.createResource<Patient>({ ...construirLeadWhatsApp('+5491155550000', 'Carla (demo)'), meta: META_DEMO });
@@ -225,16 +228,18 @@ async function generar(medplum: MedplumClient): Promise<void> {
     medplum.createResource<Communication>({ ...c, meta: { ...(c.meta ?? {}), ...META_DEMO } });
   const recepcion = { display: 'Recepción (demo)' };
   let mensajes = 0;
+  let avisosWhatsApp = 0;
 
   if (lead.id) {
     const ref = `Patient/${lead.id}`;
     const conv = await crear(construirConversacionWhatsApp(ref));
     const convRef = `Communication/${conv.id}`;
-    await crear(
+    const texto = 'Hola! Quería saber cómo pedir una segunda opinión con cardiología (demo)';
+    const primero = await crear(
       construirMensajeEntrante({
         conversacionRef: convRef,
         pacienteRef: ref,
-        texto: 'Hola! Quería saber cómo pedir una segunda opinión con cardiología (demo)',
+        texto,
         adjuntos: [],
         messageSid: `SMdemo${Date.now()}a`,
         telefono: '+5491155550000',
@@ -242,6 +247,19 @@ async function generar(medplum: MedplumClient): Promise<void> {
         ahora: hace(5),
       }),
     );
+    await medplum.createResource<Task>({
+      ...construirAvisoContacto({
+        pacienteRef: ref,
+        conversacionRef: convRef,
+        mensajeRef: `Communication/${primero.id}`,
+        telefono: '+5491155550000',
+        perfil: 'Carla (demo)',
+        texto,
+        ahora: hace(5),
+      }),
+      meta: META_DEMO,
+    });
+    avisosWhatsApp++;
     await crear(
       conEnvioWhatsApp(
         construirRespuestaAutomatica({ conversacionRef: convRef, pacienteRef: ref, tipo: 'acuse', texto: TEXTO_ACUSE, ahora: hace(5) }),
@@ -314,6 +332,7 @@ async function generar(medplum: MedplumClient): Promise<void> {
     mensajes += 1;
   }
   console.log(`  • Mensajes (conversaciones de demo): ${mensajes}`);
+  console.log(`  • Avisos de la pestaña WhatsApp (contacto nuevo): ${avisosWhatsApp}`);
   console.log(`  • Comunicaciones: ${communications}`);
 }
 

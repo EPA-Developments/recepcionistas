@@ -1,0 +1,20 @@
+/* La conversación dentro de la tarjeta, con el fondo del chat de WhatsApp. */
+.chat {
+  border-radius: var(--mantine-radius-md);
+  padding: var(--mantine-spacing-xs);
+
+  @mixin light {
+    background-color: #efeae2;
+  }
+
+  @mixin dark {
+    background-color: #0b141a;
+  }
+}
+
+/* La tarjeta que se abrió desde la campanita: se marca unos segundos. */
+.resaltada {
+  border-color: var(--mantine-color-green-6);
+  box-shadow: 0 0 0 3px var(--mantine-color-green-2);
+  transition: box-shadow 0.3s ease;
+}

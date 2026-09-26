@@ -13,23 +13,23 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconBell, IconBrandWhatsapp, IconUser } from '@tabler/icons-react';
-import { esSoloNumero, formatoTelefono, haceCuanto, iniciales, type AvisoWhatsApp } from '@som/lib/whatsapp';
+import type { AvisoWhatsApp } from '@som/lib/contactos-whatsapp';
+import { esSoloNumero, formatoTelefono, haceCuanto, iniciales } from '@som/lib/whatsapp';
 import classes from './CampanaWhatsApp.module.css';
 
 /**
  * La campanita de Recepción: avisa cada WhatsApp de un **número nuevo** (un contacto que
- * no estaba en SOM) que nadie leyó todavía. Tocar un aviso abre esa conversación en
- * Mensajes (y leerla apaga el aviso). Se sacude cuando llega uno nuevo.
+ * no estaba en SOM) mientras su aviso siga pendiente. Tocar un aviso lo abre en la
+ * pestaña WhatsApp, donde se le responde, se le completa la ficha o se resuelve (y ahí
+ * se apaga). Se sacude cuando llega uno nuevo.
  */
 export function CampanaWhatsApp({
   avisos,
-  sinLeer,
   onAbrir,
   onVerTodos,
 }: {
+  /** Los avisos pendientes de números nuevos (`Task` `whatsapp-nuevo-contacto`). */
   avisos: AvisoWhatsApp[];
-  /** Todos los mensajes de pacientes sin leer en Mensajes (no solo los de números nuevos). */
-  sinLeer: number;
   onAbrir: (aviso: AvisoWhatsApp) => void;
   onVerTodos: () => void;
 }): JSX.Element {
@@ -91,9 +91,9 @@ export function CampanaWhatsApp({
             <IconBrandWhatsapp size={20} color="#25D366" />
             <Text fw={700}>Contactos nuevos</Text>
           </Group>
-          {sinLeer > 0 && (
+          {cantidad > 0 && (
             <Badge color="green" variant="light">
-              {sinLeer} sin leer
+              {cantidad} {cantidad === 1 ? 'pendiente' : 'pendientes'}
             </Badge>
           )}
         </Group>
@@ -101,13 +101,13 @@ export function CampanaWhatsApp({
 
         {cantidad === 0 ? (
           <Text size="sm" c="dimmed" p="md">
-            Nada nuevo. La campanita avisa cuando un número nuevo escribe por WhatsApp.
+            Nada pendiente. La campanita avisa cuando un número nuevo escribe por WhatsApp.
           </Text>
         ) : (
           <ScrollArea.Autosize mah={380}>
             {avisos.map((a) => (
               <UnstyledButton
-                key={a.pacienteRef}
+                key={a.avisoId}
                 w="100%"
                 px="md"
                 py="sm"
@@ -154,7 +154,7 @@ export function CampanaWhatsApp({
               onVerTodos();
             }}
           >
-            Ver Mensajes
+            Ver en WhatsApp
           </Button>
           {permiso === 'default' && (
             <Button variant="subtle" size="compact-sm" color="gray" onClick={activarEscritorio}>

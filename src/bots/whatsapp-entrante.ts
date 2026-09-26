@@ -6,8 +6,10 @@
  *  1) **Mensaje entrante** ("A message comes in"): un paciente escribe al WhatsApp de SOM.
  *     - Idempotente por `MessageSid` (Twilio puede reintentar).
  *     - Busca al paciente por su número (las formas en que puede estar en la ficha); si
- *       no existe, lo crea como **lead** del CRM (origen `whatsapp`) y el mensaje queda
- *       marcado **inicio de contacto**: lo avisa la campanita de Recepción.
+ *       no existe, lo crea como **lead** del CRM (origen `whatsapp`), el mensaje queda
+ *       marcado **inicio de contacto** y se deja un **aviso** a Recepción (`Task`
+ *       `whatsapp-nuevo-contacto`, uno por número): lo lista la pestaña WhatsApp y suena
+ *       la campanita hasta que alguien lo resuelve (`lib/contactos-whatsapp.ts`).
  *     - El mensaje entra en la **conversación abierta** del paciente; si no tiene
  *       ninguna, abre una nueva con motivo «Otro motivo». El paciente también la ve en el
  *       portal.
@@ -23,9 +25,10 @@
  * Ver `docs/whatsapp.md`.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type { Attachment, Communication, Patient } from '@medplum/fhirtypes';
+import type { Attachment, Communication, Patient, Task } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
 import { respuestaAutomatica, type TipoRespuestaAutomatica } from '../lib/auto-respuesta.js';
+import { busquedaAvisoContacto, construirAvisoContacto } from '../lib/contactos-whatsapp.js';
 import {
   aE164AR,
   claveConversacionWhatsApp,
@@ -38,13 +41,16 @@ import {
   construirRespuestaAutomatica,
   conversacionAbierta,
   elegirPacientePorTelefono,
+  esInicioContacto,
   esMediaDeTwilio,
   estadoEntregaDe,
   leerWebhookTwilio,
   MAX_ADJUNTO_BYTES,
   nombreAdjunto,
+  telefonoDe,
   tipoAutomatica,
   variantesTelefonoAR,
+  vistaPrevia,
   type EstadoEntrega,
   type MediaTwilio,
   type WebhookTwilio,
@@ -61,8 +67,10 @@ export interface ResultadoWebhookWhatsApp {
   /** Conversación de Mensajes donde entró el mensaje. */
   conversacionId?: string;
   communicationId?: string;
-  /** Número nuevo: se creó un lead y suena la campanita. */
+  /** Número nuevo: se creó un lead y un aviso a Recepción (pestaña WhatsApp y campanita). */
   pacienteNuevo?: boolean;
+  /** El aviso a Recepción (`Task`) de un número nuevo. */
+  avisoId?: string;
   /** El mensaje abrió una conversación nueva. */
   conversacionNueva?: boolean;
   /** Qué respondió solo el sistema, si respondió. */
@@ -136,6 +144,8 @@ async function registrarEntrante(
   // 1) Idempotencia: un reintento de Twilio no duplica el mensaje.
   const ya = await medplum.searchOne('Communication', { identifier: `${SYSTEM.twilioMessageSid}|${w.messageSid}` });
   if (ya?.id) {
+    // Si la vez anterior se cortó antes de dejar el aviso de un número nuevo, se deja ahora.
+    const avisoId = esInicioContacto(ya) ? await avisarContactoNuevo(medplum, ya, w.nombrePerfil) : undefined;
     return {
       ok: true,
       tipo: 'entrante',
@@ -143,6 +153,7 @@ async function registrarEntrante(
       communicationId: ya.id,
       pacienteRef: ya.subject?.reference,
       conversacionId: ya.partOf?.[0]?.reference?.split('/')[1],
+      ...(avisoId ? { avisoId } : {}),
     };
   }
 
@@ -152,7 +163,7 @@ async function registrarEntrante(
     return { ok: true, tipo: 'ignorado', motivo: 'Mensaje del número de Recepción.' };
   }
 
-  // 3) ¿Quién escribe? El paciente con ese número o, si no hay, un lead nuevo (campanita).
+  // 3) ¿Quién escribe? El paciente con ese número o, si no hay, un lead nuevo.
   const { paciente, nuevo } = await pacientePorTelefono(medplum, w.desde, w.nombrePerfil);
   const pacienteRef = `Patient/${paciente.id}`;
 
@@ -178,7 +189,16 @@ async function registrarEntrante(
     }),
   );
 
-  // 7) Lo que responde solo el sistema (acuse / fuera de horario).
+  // 7) Número nuevo: el aviso a Recepción (pestaña WhatsApp y campanita).
+  let errorAviso: unknown;
+  const avisoId = nuevo
+    ? await avisarContactoNuevo(medplum, comm, w.nombrePerfil).catch((err: unknown) => {
+        errorAviso = err;
+        return undefined;
+      })
+    : undefined;
+
+  // 8) Lo que responde solo el sistema (acuse / fuera de horario).
   const automatica = await responderSolo(medplum, secrets, {
     conversacionRef,
     conversacionNueva,
@@ -187,6 +207,12 @@ async function registrarEntrante(
     ahora,
   });
 
+  // Sin aviso, Recepción no se entera: se devuelve el error para que Twilio reintente, y
+  // el reintento lo deja (el mensaje ya está guardado y la respuesta automática no se repite).
+  if (errorAviso) {
+    throw errorAviso;
+  }
+
   return {
     ok: true,
     tipo: 'entrante',
@@ -194,9 +220,40 @@ async function registrarEntrante(
     conversacionId: conversacion.id,
     communicationId: comm.id,
     pacienteNuevo: nuevo,
+    ...(avisoId ? { avisoId } : {}),
     conversacionNueva,
     ...(automatica ? { respuestaAutomatica: automatica } : {}),
   };
+}
+
+/**
+ * El aviso a Recepción por el primer WhatsApp de un número nuevo. Condicional: uno por
+ * número aunque Twilio reintente o lleguen dos mensajes a la vez.
+ */
+async function avisarContactoNuevo(
+  medplum: MedplumClient,
+  mensaje: Communication,
+  perfil: string | undefined,
+): Promise<string | undefined> {
+  const pacienteRef = mensaje.subject?.reference;
+  const conversacionRef = mensaje.partOf?.[0]?.reference;
+  const telefono = telefonoDe(mensaje);
+  if (!mensaje.id || !pacienteRef || !conversacionRef || !telefono) {
+    return undefined;
+  }
+  const aviso = await medplum.createResourceIfNoneExist<Task>(
+    construirAvisoContacto({
+      pacienteRef,
+      conversacionRef,
+      mensajeRef: `Communication/${mensaje.id}`,
+      telefono,
+      perfil,
+      texto: vistaPrevia(mensaje),
+      ahora: mensaje.sent ?? new Date().toISOString(),
+    }),
+    busquedaAvisoContacto(pacienteRef),
+  );
+  return aviso.id;
 }
 
 /** La conversación abierta más reciente del paciente o, si no tiene, una nueva. */

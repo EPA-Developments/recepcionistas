@@ -147,12 +147,21 @@ export interface ResultadoAltaPaciente {
   mensaje?: string;
   patientId?: string;
   creado?: boolean;
+  /** Avisos de contacto nuevo por WhatsApp que se resolvieron solos (ya tiene ficha). */
+  avisosResueltos?: number;
 }
 
 /** Da de alta (o actualiza, sin duplicar) el paciente. No le da acceso al portal. */
 export async function altaPaciente(input: AltaPacienteInput): Promise<ResultadoAltaPaciente> {
   const id = await botIdPorNombre('som-alta-paciente');
-  return (await medplum.executeBot(id, input)) as ResultadoAltaPaciente;
+  const r = (await medplum.executeBot(id, input)) as ResultadoAltaPaciente;
+  if (r.ok && r.patientId) {
+    // La ficha la escribió el bot en el servidor: lo que la app tenga en caché de ese
+    // paciente (p. ej. el contacto de WhatsApp con su apodo) quedó viejo.
+    medplum.invalidateUrl(medplum.fhirUrl('Patient', r.patientId));
+    medplum.invalidateSearches('Patient');
+  }
+  return r;
 }
 
 export type CanalInvitacion = 'whatsapp' | 'email' | 'qr';

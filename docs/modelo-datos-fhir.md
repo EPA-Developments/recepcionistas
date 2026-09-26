@@ -27,7 +27,7 @@ Naming: **kebab-case**.
 | **PlanDefinition** | Plantillas: seguimiento GLP-1 (`PlanDefinition/seguimiento-glp1`) y Plan Bienestar 100 Días® (`PlanDefinition/plan-bienestar-100`, 3 consultas con sus desfasajes) | — |
 | **CarePlan / Goal** | Programa GLP-1 del paciente y su meta de peso | (category `CodeSystem/care-plans`, compartido con la app del paciente) |
 | **ServiceRequest** (laboratorio) | Pedidos de estudios del programa GLP-1, por semana | (code `CodeSystem/biomarcador`) |
-| **Task** | Solicitudes de turno (con `modalidad`), controles GLP-1 y consultas del Plan Bienestar a agendar, indicación GLP-1, revisar un PDF de laboratorio | (code `CodeSystem/task-tipo`) |
+| **Task** | Solicitudes de turno (con `modalidad`), controles GLP-1 y consultas del Plan Bienestar a agendar, indicación GLP-1, revisar un PDF de laboratorio y los **avisos a Recepción** de números nuevos por WhatsApp (`whatsapp-nuevo-contacto`: `focus` = la conversación, `reasonReference` = el primer mensaje, identifier `Identifier/aviso-recepcion` uno por número, resuelto con `businessStatus` `CodeSystem/resolucion-aviso`; ver [`whatsapp.md`](whatsapp.md)) | (code `CodeSystem/task-tipo`) |
 | **Consent** | Consentimiento de teleconsulta (genérico, lo escribe el portal): `policyRule` `CodeSystem/consentimiento\|teleconsulta` | — |
 | **AuditEvent** | Log regulatorio (nativo Medplum) | — |
 

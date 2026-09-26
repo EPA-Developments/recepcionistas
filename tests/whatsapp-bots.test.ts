@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent } from '@medplum/core';
-import type { Binary, Communication, Patient } from '@medplum/fhirtypes';
-import { BOT_WHATSAPP_ENTRANTE, BOT_WHATSAPP_RESPONDER, EXT, SYSTEM } from '../src/fhir/identifiers.js';
+import type { Binary, Communication, Patient, Task } from '@medplum/fhirtypes';
+import { BOT_WHATSAPP_ENTRANTE, BOT_WHATSAPP_RESPONDER, COD, EXT, SYSTEM } from '../src/fhir/identifiers.js';
 import { BOTS_RECEPCION, POLICY_RECEPCIONISTA, POLICY_WEBHOOK_TWILIO } from '../src/fhir/access-policies.js';
 import { TEXTO_ACUSE } from '../src/config/auto-respuesta.js';
 import { enviarWhatsApp } from '../src/bots/_shared.js';
@@ -19,7 +19,8 @@ import {
   telefonoDe,
   tipoAutomatica,
 } from '../src/lib/whatsapp.js';
-import { cargarAvisos, marcarLeidos, responder as responderEnMensajes } from '../src/lib/mensajes.js';
+import { construirAvisoContacto, datoAviso } from '../src/lib/contactos-whatsapp.js';
+import { responder as responderEnMensajes } from '../src/lib/mensajes.js';
 import { fakeMedplum } from './fake-medplum.js';
 
 const H = 3_600_000;
@@ -105,7 +106,7 @@ afterEach(() => {
 });
 
 describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => {
-  it('Número nuevo: lead + conversación nueva («Otro motivo») + mensaje sin leer (campanita) + acuse', async () => {
+  it('Número nuevo: lead + conversación nueva («Otro motivo») + mensaje sin leer + aviso a Recepción + acuse', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(LUNES_12);
     const fetchMock = twilioOk();
@@ -138,6 +139,24 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     expect(esWhatsApp(acuse!)).toBe(true);
     expect(estadoEntregaDe(acuse!)).toBe('en-cola');
     expect(acuse!.identifier).toEqual([{ system: SYSTEM.twilioMessageSid, value: 'SMout1' }]);
+
+    // El aviso a Recepción (pestaña WhatsApp y campanita): pendiente, con el primer mensaje.
+    const [aviso, ...otros] = todos<Task>('Task');
+    expect(otros).toEqual([]);
+    expect(r.avisoId).toBe(aviso!.id);
+    expect(aviso).toMatchObject({
+      status: 'requested',
+      code: { coding: [{ system: SYSTEM.taskTipo, code: COD.whatsappNuevoContacto }] },
+      for: { reference: `Patient/${lead!.id}` },
+      focus: { reference: `Communication/${r.conversacionId}` },
+      reasonReference: { reference: `Communication/${entrado!.id}` },
+      authoredOn: entrado!.sent,
+    });
+    expect([datoAviso(aviso!, 'telefono'), datoAviso(aviso!, 'perfil'), datoAviso(aviso!, 'texto')]).toEqual([
+      '+5491122334455',
+      'Ana Pérez',
+      'Hola, quiero un turno',
+    ]);
   });
 
   it('Paciente con una conversación abierta del portal: el WhatsApp entra ahí (sin acuse ni campanita)', async () => {
@@ -156,6 +175,7 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     expect(hilo.map((m) => m.payload?.[0]?.contentString)).toEqual(['¿Puedo cambiar el turno?', 'Hola, quiero un turno']);
     expect(esInicioContacto(hilo[1]!)).toBe(false);
     expect(todos('Patient')).toHaveLength(1);
+    expect(todos('Task')).toEqual([]); // ya es paciente: no hay aviso
   });
 
   it('Paciente conocido sin conversación abierta (solo una cerrada): conversación nueva + acuse, sin campanita', async () => {
@@ -170,6 +190,7 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     expect(r.conversacionId).not.toBe('c-vieja');
     const [entrado] = hijosDe(todos<Communication>('Communication'), r.conversacionId!);
     expect(esInicioContacto(entrado!)).toBe(false);
+    expect(todos('Task')).toEqual([]);
   });
 
   it('Fuera de horario: aviso con el horario, una vez por período cerrado', async () => {
@@ -204,10 +225,37 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     const { medplum, todos } = fakeMedplum();
     const r1 = await entrante(medplum, evento(mensaje()));
     const r2 = await entrante(medplum, evento(mensaje()));
-    expect(r2).toMatchObject({ motivo: 'ya registrado', conversacionId: r1.conversacionId });
-    // Conversación + mensaje + acuse, una sola vez.
+    expect(r2).toMatchObject({ motivo: 'ya registrado', conversacionId: r1.conversacionId, avisoId: r1.avisoId });
+    // Conversación + mensaje + acuse, y el aviso, una sola vez.
     expect(todos('Communication')).toHaveLength(3);
     expect(todos('Patient')).toHaveLength(1);
+    expect(todos('Task')).toHaveLength(1);
+  });
+
+  it('Si no se pudo dejar el aviso: igual responde, pide el reintento a Twilio y el reintento lo deja', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(LUNES_12);
+    const fetchMock = twilioOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum, todos } = fakeMedplum();
+    const crear = medplum.createResourceIfNoneExist.bind(medplum);
+    let fallar = true;
+    medplum.createResourceIfNoneExist = (async (r: Task, q: string) => {
+      if (r.resourceType === 'Task' && fallar) {
+        fallar = false;
+        throw new Error('Medplum no respondió');
+      }
+      return crear(r, q);
+    }) as typeof medplum.createResourceIfNoneExist;
+
+    await expect(entrante(medplum, evento(mensaje()))).rejects.toThrow('Medplum no respondió');
+    expect(fetchMock).toHaveBeenCalledOnce(); // el acuse salió igual
+    expect(todos('Task')).toEqual([]);
+
+    const r2 = await entrante(medplum, evento(mensaje()));
+    expect(r2).toMatchObject({ motivo: 'ya registrado' });
+    expect(todos<Task>('Task').map((t) => [t.id, t.status])).toEqual([[r2.avisoId, 'requested']]);
+    expect(fetchMock).toHaveBeenCalledOnce(); // el acuse no se repite
   });
 
   it('Rechaza lo que no viene de la cuenta de Twilio de SOM', async () => {
@@ -535,17 +583,6 @@ describe('Mensajes · WhatsApp en la bandeja', () => {
     ]);
   }
 
-  it('Contador y campanita en una sola consulta; se apagan al leer', async () => {
-    const { medplum } = unNumeroNuevo();
-    const avisos = await cargarAvisos(medplum);
-    expect(avisos.sinLeer).toBe(1); // el acuse automático no es del paciente
-    expect(avisos.nuevosContactos).toEqual([
-      { pacienteRef: 'Patient/ana', conversacionId: 'conv', nombre: 'Ana', telefono: '+5491122334455', texto: 'Hola', sent: '2026-09-26T10:00:00Z' },
-    ]);
-    await marcarLeidos(medplum, await medplum.searchResources('Communication', { 'part-of': 'Communication/conv' }));
-    expect(await cargarAvisos(medplum)).toEqual({ sinLeer: 0, nuevosContactos: [] });
-  });
-
   it('La primera respuesta de una persona igual avisa en el portal, aunque antes haya salido el acuse', async () => {
     const { medplum, todos } = unNumeroNuevo();
     const conv = todos<Communication>('Communication').find((c) => c.id === 'conv')!;
@@ -579,6 +616,32 @@ describe('som-alta-paciente · completa el contacto que llegó por WhatsApp', ()
     expect(p?.name?.[1]).toEqual({ use: 'nickname', text: 'Caro ✨' });
     expect(p?.telecom?.filter((t) => t.system === 'phone')).toHaveLength(1);
     expect(p?.identifier).toEqual([{ system: SYSTEM.dni, value: '30111222' }]);
+  });
+
+  it('Con la ficha completa, el aviso de la pestaña WhatsApp se resuelve solo', async () => {
+    const lead = { ...construirLeadWhatsApp('+5491122334455', 'Caro ✨'), id: 'lead1' };
+    const aviso: Task = {
+      ...construirAvisoContacto({
+        pacienteRef: 'Patient/lead1',
+        conversacionRef: 'Communication/conv1',
+        telefono: '+5491122334455',
+        perfil: 'Caro ✨',
+        texto: 'Hola',
+        ahora: '2026-09-26T13:00:00.000Z',
+      }),
+      id: 'aviso1',
+    };
+    const { medplum, todos } = fakeMedplum([lead, aviso]);
+    const r = await altaPaciente(
+      medplum,
+      evento({ nombre: 'Carolina Gómez', dni: '30111222', telefono: '11 2233-4455' }, {} as BotEvent['secrets']),
+    );
+    expect(r).toMatchObject({ ok: true, patientId: 'lead1', avisosResueltos: 1 });
+    expect(todos<Task>('Task')[0]).toMatchObject({
+      status: 'completed',
+      businessStatus: { coding: [{ system: SYSTEM.resolucionAviso, code: 'ficha-completada' }] },
+    });
+    expect(todos<Task>('Task')[0]?.owner).toBeUndefined(); // lo resolvió el sistema, no una persona
   });
 
   it('Un teléfono compartido (la madre ya lo tiene, con su DNI) no une al hijo con otro DNI', async () => {

@@ -3,12 +3,14 @@ import { Button, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBrandWhatsapp } from '@tabler/icons-react';
 import { useMedplum, useMedplumProfile, useSubscription } from '@medplum/react';
+import { COD } from '@som/fhir/identifiers';
 import { cargarAvisos, type AvisosMensajes } from '@som/lib/mensajes';
-import type { AvisoWhatsApp } from '@som/lib/whatsapp';
+import type { AvisoWhatsApp } from '@som/lib/contactos-whatsapp';
 import { Shell, type Vista } from './components/Shell';
 import { AgendaDelDia } from './pages/AgendaDelDia';
 import { Solicitudes } from './pages/Solicitudes';
 import { Mensajes } from './pages/Mensajes';
+import { WhatsApp } from './pages/WhatsApp';
 import { ControlesGlp1 } from './pages/ControlesGlp1';
 import { Atender } from './pages/Atender';
 import { Reportes } from './pages/Reportes';
@@ -22,10 +24,10 @@ const REFRESCO_AVISOS_MS = 30_000;
 
 /** Cualquier mensaje nuevo o cambiado de una conversación (del portal o de WhatsApp). */
 const CRITERIO_MENSAJES = 'Communication?part-of:missing=false';
+/** Los avisos de números nuevos por WhatsApp (se crean y se resuelven). */
+const CRITERIO_AVISOS = `Task?code=${COD.whatsappNuevoContacto}`;
 
 const TITULO = 'Segunda Opinión Médica · Recepción';
-
-const clave = (a: AvisoWhatsApp): string => `${a.pacienteRef}|${a.sent}`;
 
 export function App(): JSX.Element {
   const medplum = useMedplum();
@@ -34,15 +36,22 @@ export function App(): JSX.Element {
   // Paciente con el que entrar a "Atender" (p. ej. al confirmar una solicitud o desde Controles GLP-1).
   const [atenderId, setAtenderId] = useState<string | null>(null);
   const [avisos, setAvisos] = useState<AvisosMensajes>({ sinLeer: 0, nuevosContactos: [] });
-  // Conversación a abrir en Mensajes (desde la campanita o un aviso).
+  // Conversación a abrir en Mensajes (p. ej. "Ver conversación" de la pestaña WhatsApp).
   const [conversacionId, setConversacionId] = useState<string | null>(null);
+  // Aviso a mostrar en la pestaña WhatsApp (desde la campanita o el aviso emergente).
+  const [avisoId, setAvisoId] = useState<string | null>(null);
   // Números nuevos ya avisados (la primera carga no avisa: solo lo que llega después).
   const avisados = useRef<Set<string> | null>(null);
 
-  const abrirMensajes = useCallback((aviso?: AvisoWhatsApp): void => {
-    if (aviso?.conversacionId) {
-      setConversacionId(aviso.conversacionId);
+  const abrirWhatsApp = useCallback((aviso?: AvisoWhatsApp): void => {
+    if (aviso?.avisoId) {
+      setAvisoId(aviso.avisoId);
     }
+    setVista('whatsapp');
+  }, []);
+
+  const abrirConversacion = useCallback((id: string): void => {
+    setConversacionId(id);
     setVista('mensajes');
   }, []);
 
@@ -59,22 +68,22 @@ export function App(): JSX.Element {
             <Text size="sm" lineClamp={3}>
               {a.texto || 'Mensaje nuevo'}
             </Text>
-            <Button size="compact-sm" color="green" variant="light" onClick={() => abrirMensajes(a)}>
-              Abrir la conversación
+            <Button size="compact-sm" color="green" variant="light" onClick={() => abrirWhatsApp(a)}>
+              Ver en WhatsApp
             </Button>
           </Stack>
         ),
       });
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
-        const n = new Notification(`WhatsApp · ${a.nombre}`, { body: a.texto || 'Mensaje nuevo', tag: a.pacienteRef });
+        const n = new Notification(`WhatsApp · ${a.nombre}`, { body: a.texto || 'Mensaje nuevo', tag: a.avisoId });
         n.onclick = () => {
           window.focus();
-          abrirMensajes(a);
+          abrirWhatsApp(a);
           n.close();
         };
       }
     },
-    [abrirMensajes],
+    [abrirWhatsApp],
   );
 
   const revisarAvisos = useCallback((): void => {
@@ -82,9 +91,9 @@ export function App(): JSX.Element {
       .then((a) => {
         setAvisos(a);
         if (avisados.current) {
-          a.nuevosContactos.filter((x) => !avisados.current!.has(clave(x))).forEach(avisarContacto);
+          a.nuevosContactos.filter((x) => !avisados.current!.has(x.avisoId)).forEach(avisarContacto);
         }
-        avisados.current = new Set([...(avisados.current ?? []), ...a.nuevosContactos.map(clave)]);
+        avisados.current = new Set([...(avisados.current ?? []), ...a.nuevosContactos.map((x) => x.avisoId)]);
       })
       .catch(() => undefined); // El contador no es crítico: queda el último valor.
   }, [medplum, avisarContacto]);
@@ -95,12 +104,22 @@ export function App(): JSX.Element {
     }
     revisarAvisos();
     const t = window.setInterval(revisarAvisos, REFRESCO_AVISOS_MS);
-    return () => window.clearInterval(t);
-    // Al salir de Mensajes el contador se actualiza enseguida (ya se leyeron).
+    // Al volver a la ventana (el WebSocket pudo cortarse mientras estaba en segundo plano).
+    window.addEventListener('focus', revisarAvisos);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener('focus', revisarAvisos);
+    };
+    // Al cambiar de pestaña los contadores se actualizan enseguida (p. ej. ya se leyeron).
   }, [profile, revisarAvisos, vista]);
 
-  // En vivo: cualquier mensaje nuevo (del portal o de WhatsApp) actualiza el contador y la campanita.
+  // En vivo: un mensaje nuevo (del portal o de WhatsApp) o un aviso nuevo o resuelto
+  // actualizan los contadores y la campanita.
   useSubscription(profile ? CRITERIO_MENSAJES : undefined, revisarAvisos, {
+    onError: () => undefined,
+    onWebSocketClose: () => undefined,
+  });
+  useSubscription(profile ? CRITERIO_AVISOS : undefined, revisarAvisos, {
     onError: () => undefined,
     onWebSocketClose: () => undefined,
   });
@@ -125,7 +144,7 @@ export function App(): JSX.Element {
       onVista={setVista}
       mensajesSinLeer={avisos.sinLeer}
       nuevosContactos={avisos.nuevosContactos}
-      onAbrirMensajes={abrirMensajes}
+      onAbrirWhatsApp={abrirWhatsApp}
     >
       {vista === 'agenda' && <AgendaDelDia />}
       {vista === 'solicitudes' && <Solicitudes onAtender={irAtender} />}
@@ -135,6 +154,15 @@ export function App(): JSX.Element {
           conversacionInicial={conversacionId}
           onConversacionInicialAbierta={() => setConversacionId(null)}
           onLeidos={revisarAvisos}
+        />
+      )}
+      {vista === 'whatsapp' && (
+        <WhatsApp
+          onAtender={irAtender}
+          onVerConversacion={abrirConversacion}
+          avisoInicial={avisoId}
+          onAvisoInicialAbierto={() => setAvisoId(null)}
+          onCambio={revisarAvisos}
         />
       )}
       {vista === 'glp1' && <ControlesGlp1 onAtender={irAtender} />}

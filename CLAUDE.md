@@ -35,7 +35,8 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
   `glp1-plan` (armado FHIR del seguimiento GLP-1), `plan-bienestar` (Plan
   Bienestar 100 Días®), `teleconsulta` (modalidad, consentimiento, Jitsi),
   `programas` (ventanas y sincronización comunes), `whatsapp` (WhatsApp como canal de
-  Mensajes: E.164, webhook de Twilio, a dónde responder, campanita) y `auto-respuesta`
+  Mensajes: E.164, webhook de Twilio, a dónde responder), `contactos-whatsapp` (el aviso
+  `Task` de un número nuevo: pestaña WhatsApp y campanita) y `auto-respuesta`
   (ventana de 24 h, horario, respuestas automáticas). Es lo que se testea
   exhaustivamente. `src/lib/glp1/` es el calendario GLP-1 **compartido con la
   plataforma CKM**: se mantiene igual al original (solo imports), sin lógica de SOM.
