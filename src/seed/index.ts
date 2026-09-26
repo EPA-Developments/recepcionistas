@@ -235,6 +235,12 @@ function imprimirAdvertencias(): void {
   if (sinAgenda.length) {
     avisos.push(`Profesionales sin disponibilidad cargada (no generan horarios ni son reservables): ${sinAgenda.join(', ')}.`);
   }
+  const sinConsultorio = MEDICOS.filter((m) => m.modalidades.includes('presencial') && !m.consultorioCodigo).map((m) => m.nombre);
+  if (sinConsultorio.length) {
+    avisos.push(
+      `Profesionales sin consultorio asignado (en presencial, Recepción elige el consultorio al reservar): ${sinConsultorio.join(', ')}.`,
+    );
+  }
   if (avisos.length) {
     console.log('\n⚠️  Pendientes (ver docs/decisiones-pendientes.md):');
     for (const a of avisos) {
