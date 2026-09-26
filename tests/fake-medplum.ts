@@ -64,10 +64,39 @@ function cumple(r: Registro, param: string, valor: string): boolean {
     }
     case 'based-on':
       return ((r.basedOn as Array<{ reference?: string }> | undefined) ?? []).some((b) => b.reference === valor);
+    case 'schedule':
+      return (r.schedule as { reference?: string } | undefined)?.reference === valor;
+    case 'start':
+    case 'date': {
+      // Prefijos FHIR sobre un instante: ge / gt / le / lt / eq.
+      const m = /^(ge|gt|le|lt|eq)?(.+)$/.exec(valor);
+      const campo = param === 'start' ? r.start : (r.start ?? (r.period as { start?: string } | undefined)?.start);
+      if (!m || typeof campo !== 'string') {
+        return true;
+      }
+      const a = new Date(campo).getTime();
+      const b = new Date(m[2]!).getTime();
+      switch (m[1] ?? 'eq') {
+        case 'ge':
+          return a >= b;
+        case 'gt':
+          return a > b;
+        case 'le':
+          return a <= b;
+        case 'lt':
+          return a < b;
+        default:
+          return a === b;
+      }
+    }
     case 'identifier': {
-      const [sistema, v] = valor.split('|') as [string, string];
+      // Token `sistema|valor`: se corta en el primer `|` (como el servidor); el valor
+      // puede llevar `|` adentro (los Slot de sala usan `recurso|inicio`).
+      const corte = valor.indexOf('|');
+      const sistema = corte === -1 ? undefined : valor.slice(0, corte);
+      const v = corte === -1 ? valor : valor.slice(corte + 1);
       return ((r.identifier as Array<{ system?: string; value?: string }> | undefined) ?? []).some(
-        (i) => i.system === sistema && i.value === v,
+        (i) => (sistema === undefined || i.system === sistema) && i.value === v,
       );
     }
     default:
@@ -99,28 +128,45 @@ export function fakeMedplum(iniciales: Resource[] = []) {
     const lista = [...store.values()].filter(
       (r) => r.resourceType === tipo && params(query).every(([k, v]) => cumple(r, k, v)),
     );
-    // `_sort` por fecha de envío (lo que usan los chats de WhatsApp); lo demás, sin orden.
+    // `_sort` por fecha de envío (lo que usan los chats de WhatsApp) o por `start` (agenda); lo demás, sin orden.
     const orden = params(query).find(([k]) => k === '_sort')?.[1];
     if (orden === 'sent' || orden === '-sent') {
       const signo = orden === 'sent' ? 1 : -1;
       lista.sort((a, b) => signo * String(a.sent ?? '').localeCompare(String(b.sent ?? '')));
+    } else if (orden === 'start' || orden === '-start') {
+      const signo = orden === 'start' ? 1 : -1;
+      lista.sort((a, b) => signo * (new Date(String(a.start ?? 0)).getTime() - new Date(String(b.start ?? 0)).getTime()));
     }
     return lista;
+  };
+
+  /** Versión nueva del recurso (meta.versionId), como hace el servidor en cada escritura. */
+  const versionar = <T extends Registro>(r: T): T => {
+    const anterior = Number((r.meta as { versionId?: string } | undefined)?.versionId ?? 0);
+    return { ...r, meta: { ...((r.meta as object | undefined) ?? {}), versionId: String(anterior + 1) } };
   };
 
   const medplum = {
     getProfile: () => ({ meta: { project: 'proyecto-test' } }),
     createResource: async (r: Resource) => {
-      const nuevo = { ...copia(r), id: `${r.resourceType.toLowerCase()}-${++n}` } as Registro;
+      const nuevo = versionar({ ...copia(r), id: `${r.resourceType.toLowerCase()}-${++n}` } as Registro);
       store.set(clave(nuevo.resourceType, nuevo.id!), nuevo);
       return copia(nuevo);
     },
-    updateResource: async (r: Resource) => {
-      if (!r.id || !store.has(clave(r.resourceType, r.id))) {
+    // `If-Match` (escritura condicional): como el servidor, rechaza si la versión cambió.
+    updateResource: async (r: Resource, options?: { headers?: Record<string, string> }) => {
+      const actual = r.id ? store.get(clave(r.resourceType, r.id)) : undefined;
+      if (!r.id || !actual) {
         throw new Error(`No existe ${r.resourceType}/${r.id}`);
       }
-      store.set(clave(r.resourceType, r.id), copia(r) as Registro);
-      return copia(r);
+      const ifMatch = options?.headers?.['If-Match'];
+      const version = (actual.meta as { versionId?: string } | undefined)?.versionId;
+      if (ifMatch && version && ifMatch !== `W/"${version}"`) {
+        throw new Error(`Precondition Failed: ${r.resourceType}/${r.id} cambió (If-Match ${ifMatch}, versión ${version})`);
+      }
+      const nuevo = versionar({ ...(copia(r) as Registro), meta: actual.meta });
+      store.set(clave(r.resourceType, r.id), nuevo);
+      return copia(nuevo);
     },
     readResource: async (tipo: string, id: string) => {
       const r = store.get(clave(tipo, id));

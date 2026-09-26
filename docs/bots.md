@@ -11,7 +11,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 |---|---|---|
 | `som-calcular-cobro` | Calcula el cobro (USD→ARS al TC, splits) y emite `Invoice`. | `executeBot` desde el front (pantalla Atender). |
 | `som-validar-turno` | Valida un turno (capacidad de recursos, ventana de reserva). | `executeBot` al reservar/confirmar. |
-| `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment` + `Slot` ocupado). La **modalidad** la da el recurso (la agenda virtual es teleconsulta): la teleconsulta exige el consentimiento firmado y lleva el link de Jitsi (R-21). Con `tareaId` agenda un control GLP-1 (ventana, R-19) o una consulta del **Plan Bienestar 100 Días®** (ventana, R-20; la inicial fija el día 1; incluida → confirmada sin seña) y completa la tarea. | `executeBot` desde el front (Reservar turno / Agendar control / Agendar consulta del plan). |
+| `som-reservar-turno` | Valida y, si está OK, **crea** el turno (`Appointment`) **ocupando** las franjas libres (`Slot` `free` → `busy`, con `If-Match`) del profesional y, si es presencial, del consultorio (R-07, R-22). Se pide por `medicoCodigo` + `inicio` (o por `slotId`, la franja libre que eligió la paciente); `recursoCodigo` sigue valiendo para la reserva por sala. La **modalidad** la da el recurso (la agenda virtual es teleconsulta) o el pedido: la teleconsulta exige el consentimiento firmado y lleva el link de Jitsi (R-21). Con `tareaId` agenda un control GLP-1 (ventana, R-19) o una consulta del **Plan Bienestar 100 Días®** (ventana, R-20; la inicial fija el día 1; incluida → confirmada sin seña) y completa la tarea. | `executeBot` desde el front (Reservar turno / Agendar control / Agendar consulta del plan). |
 | `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` (`class` AMB/VR según la modalidad) y libera la sala al completar/cancelar. En una consulta del Plan Bienestar marca la actividad del plan; si se cancela, la tarea vuelve a quedar por agendar. | `executeBot` desde el front (clic en el turno). |
 | `som-pagar-sena` | Registra la seña (50%), confirma el turno (pending→booked) y envía WhatsApp de confirmación. | `executeBot` (clic en turno tentativo). |
 | `som-link-mercadopago` | Genera un link de MercadoPago (Checkout Pro) por el monto de la seña. Antes valida la credencial (Access Token, no Public Key) y el monto (no hay link por $0); si MercadoPago la rechaza (401 / 403 PolicyAgent) lee la cuenta y dice qué corregir. Con `{ diagnosticar: true }` solo revisa credencial y cuenta (`npm run mercadopago:test`). | `executeBot` (botón en turno tentativo). |
@@ -167,9 +167,9 @@ está configurado.
 - **Diagnóstico:** `npm run mercadopago:test` ejecuta el bot en el servidor en
   modo diagnóstico (no crea links ni cobra): informa el tipo de credencial (sin
   mostrarla) y si la cuenta puede cobrar.
-- **Seña $0:** con los precios PENDIENTES la seña es 0 y MercadoPago no genera
-  links por $0: el bot lo avisa (y verifica la credencial igual). La seña manual
-  sigue funcionando.
+- **Seña $0:** si un servicio sigue sin precio (hoy, el control GLP-1) la seña es 0
+  y MercadoPago no genera links por $0: el bot lo avisa (y verifica la credencial
+  igual). La seña manual sigue funcionando.
 
 ## Permisos del bot
 
@@ -238,6 +238,33 @@ Configurar el `cronTimer` del Bot **una vez** (p. ej. `*/30 * * * *` = cada 30
 min). Cuanto más seguido corra, más cerca de las 48 h / 2 h exactas sale el aviso;
 la idempotencia evita duplicados. Necesita los mismos secretos de Twilio que
 `som-enviar-whatsapp`.
+
+## Agenda por profesional (R-22): `som-generar-agenda`
+
+Cada profesional de `src/config/medicos.ts` tiene un `Schedule` propio (lo crea el
+seed) y sus horarios libres salen de su `disponibilidad` semanal intersectada con el
+horario del centro (`src/lib/agenda-profesional.ts`, puro y testeado). El cron los
+materializa como `Slot` `free` de 30 min para los próximos 45 días
+(`DIAS_AGENDA_ADELANTE`), y es lo que el portal lista para ofrecer horarios:
+`Slot?schedule=Schedule/{id}&status=free&start=ge{ahora}`.
+
+- **Idempotente:** identifier `{medico}@{inicio}` (sistema `Identifier/medico`) y
+  `If-None-Exist`; una franja ya `busy` no se vuelve a crear libre.
+- **Modalidades:** cada franja lleva la extensión `modalidad` (AMB / VR) según la
+  disponibilidad (p. ej. presencial martes y jueves 9–12, teleconsulta el resto); el
+  portal filtra por ella y la reserva la respeta. Si la disponibilidad cambia de
+  modalidad, el cron corrige las franjas que siguen libres; las ocupadas no se tocan.
+- **Cambió la disponibilidad:** las franjas libres que quedaron fuera del nuevo
+  horario no se borran solas (podrían tener reservas); se revisan a mano.
+- **Sin cron:** `npm run seed -- --with-slots --dias=N` crea las mismas franjas, y la
+  reserva por `medicoCodigo` + `inicio` materializa la franja en el momento si cae en
+  la disponibilidad del profesional.
+
+### Cron de `som-generar-agenda`
+
+Configurar el `cronTimer` del Bot **una vez**, diario (p. ej. `15 3 * * *`). No
+necesita secretos. Un profesional sin `disponibilidad` cargada no genera horarios
+(sale en la respuesta como `sinDisponibilidad`) y no es reservable.
 
 ## Alta e invitación de pacientes (onboarding)
 

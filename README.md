@@ -13,7 +13,7 @@ recepción. Backend **Medplum (FHIR R4)**.
 | Pieza | Estado |
 |---|---|
 | Andamiaje TypeScript + tooling | ✅ |
-| Catálogo | ⚠️ se arma de cero con los profesionales de SOM (hoy: consultas de ejemplo sin precio y sin profesionales) |
+| Catálogo | ✅ consultas por especialidad (ARS 150.000, 30 min) y consulta del plan incluida; ⚠️ profesionales PENDIENTES |
 | Motor de precios (USD→ARS, split SOM_100) | ✅ con tests |
 | Motor de reglas de agenda (R-07, R-13, R-14, R-19) | ✅ con tests |
 | Extensiones FHIR + AccessPolicies (recepción) | ✅ |
@@ -30,7 +30,8 @@ recepción. Backend **Medplum (FHIR R4)**.
 | CRM: segmentos + campañas (embudo de redes sociales) | ✅ bots `som-recomputar-segmentos` / `som-enviar-campana` (WhatsApp: pendiente de plantillas) |
 | SOM: solicitud (`som-solicitar`), informe (`bot-som-report`), laboratorio en PDF (`som-procesar-laboratorio`) | ✅ contrato del portal ([`docs/som.md`](docs/som.md)); PREVENT pendiente de validación clínica |
 | Plan Bienestar 100 Días® (inscripción + 3 consultas programadas con ventana, avisos) | ✅ bots `som-bienestar-inscribir` / `som-reservar-turno` / `som-recordatorios` ([`docs/plan-bienestar.md`](docs/plan-bienestar.md)); precio del plan PENDIENTE |
-| Catálogo por especialidad, presencial y teleconsulta (Jitsi + consentimiento) | ✅ R-21; precios y profesionales PENDIENTES; portal: [`docs/handoff-app-pb100d.md`](docs/handoff-app-pb100d.md) |
+| Catálogo por especialidad, presencial y teleconsulta (Jitsi + consentimiento) | ✅ R-21 y precios (R-17); portal: [`docs/handoff-app-pb100d.md`](docs/handoff-app-pb100d.md) |
+| Agenda por profesional (`PractitionerRole` + `Schedule` + horarios libres de 30 min; la reserva ocupa la franja con escritura condicional) | ✅ R-22 (validada 26/09/2026), cron `som-generar-agenda` ([`docs/bots.md`](docs/bots.md#agenda-por-profesional-r-22-som-generar-agenda)); disponibilidad (por modalidad) y consultorio de los tres profesionales cargados |
 | Biomarcadores del portal (ObservationDefinition: lípidos y glucemia) | ✅ en el seed, solo rangos convencionales (AHA/ACC, NCEP, ADA) |
 | CKM según la Guía AHA/ACC/ADA/ASN 2026 (estadío, plan de seguimiento y evaluaciones, potenciadores) en el informe SOM | ✅ `src/lib/ckm.ts` / `ckm-guia.ts`; umbrales pendientes de firma médica |
 | PREVENT (ECV total, ASCVD, IC a 10 y 30 años) | ✅ coeficientes verificados contra la implementación de referencia |
@@ -70,7 +71,7 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 | `npm run verify` | typecheck + test (gate de CI, junto con seed `--dry-run`, `bots:bundle` y `build:app`) |
 | `npm run seed` | Carga el catálogo en Medplum (idempotente) |
 | `npm run seed -- --dry-run` | Construye todos los recursos sin servidor |
-| `npm run seed -- --with-slots [--dias=N]` | (Opcional) materializa `Slot` libres en Medplum. El front NO lo necesita. |
+| `npm run seed -- --with-slots [--dias=N]` | (Opcional) materializa `Slot` libres en Medplum: de las salas y de cada profesional con disponibilidad. El front de Recepción NO lo necesita; el portal sí (en producción lo mantiene el cron `som-generar-agenda`). |
 | `npm run limpiar` | Lista Schedules ajenos/duplicados (dry-run); `-- --apply` los borra |
 | `npm run biomarcadores:convencional` | Lista ObservationDefinition del servidor con rangos de medicina funcional (dry-run); `-- --apply` los quita |
 | `npm run dev` | **Levanta el front de recepción en http://localhost:5173** |

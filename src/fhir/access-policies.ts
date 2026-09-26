@@ -74,6 +74,7 @@ export const POLICY_RECEPCIONISTA: AccessPolicy = {
     { resourceType: 'ActivityDefinition', readonly: true },
     { resourceType: 'PlanDefinition', readonly: true },
     { resourceType: 'Practitioner', readonly: true },
+    { resourceType: 'PractitionerRole', readonly: true },
     { resourceType: 'Location', readonly: true },
     { resourceType: 'HealthcareService', readonly: true },
     // Bots: solo los de Recepción (lectura = poder invocarlos).
@@ -124,7 +125,8 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
  *  - **Sólo lee**: agenda, cobertura, facturas, sus programas de seguimiento
  *    (p. ej. GLP-1: `CarePlan`, `Task`, `ServiceRequest`) y su historia clínica
  *    (esa la genera el equipo médico, no el paciente).
- * Catálogo, agenda y profesionales: sólo lectura (para mostrar la oferta).
+ * Catálogo, agenda y profesionales (con su `PractitionerRole`: especialidad,
+ * modalidades, disponibilidad) y consultorios: sólo lectura (para mostrar la oferta).
  *
  * Reservar un turno NO se hace escribiendo `Appointment` directo: el modelo es de
  * **solicitud** (el paciente ejecuta solo el bot `som-solicitar-turno`, que crea un
@@ -206,6 +208,10 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Slot', readonly: true },
     { resourceType: 'HealthcareService', readonly: true },
     { resourceType: 'Practitioner', readonly: true },
+    // Especialidad, modalidades, disponibilidad y consultorio de cada profesional
+    // ("Especialidad → Profesional → Horario" en el portal).
+    { resourceType: 'PractitionerRole', readonly: true },
+    { resourceType: 'Location', readonly: true },
     { resourceType: 'Organization', readonly: true },
     { resourceType: 'Binary', readonly: true },
 

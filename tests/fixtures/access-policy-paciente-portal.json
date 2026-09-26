@@ -1,5 +1,5 @@
 {
-  "_origen": "EPA-Developments/app@091e20f — docs/medplum/access-policy-paciente-portal.json (solo name + resource)",
+  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Última sincronización: app@091e20f; PENDIENTE re-sincronizar con PractitionerRole y Location de lectura (agenda por profesional).",
   "name": "Paciente SOM — Portal",
   "resource": [
     {
@@ -139,6 +139,14 @@
     },
     {
       "resourceType": "Practitioner",
+      "readonly": true
+    },
+    {
+      "resourceType": "PractitionerRole",
+      "readonly": true
+    },
+    {
+      "resourceType": "Location",
       "readonly": true
     },
     {
