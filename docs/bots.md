@@ -24,7 +24,9 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-enviar-whatsapp` | Envía WhatsApp (Twilio) y registra `Communication`. | `executeBot` por evento o manual. |
 | `som-whatsapp-entrante` | **Webhook de Twilio:** el WhatsApp entra en la **conversación abierta** del paciente en Mensajes (o abre una, motivo «Otro motivo»); un número nuevo es un lead del CRM y suena la campanita; guarda adjuntos en `Binary`; **responde solo** (acuse / fuera de horario); y registra los estados de entrega (✓✓). Idempotente por `MessageSid`; rechaza otro `AccountSid`. | URL que llama Twilio (ClientApplication dedicada, ver [`whatsapp.md`](whatsapp.md)). |
 | `som-whatsapp-responder` | **Mensajes (Recepción):** después de responder, decide si la respuesta sale también por WhatsApp — solo si el último mensaje del paciente llegó por ahí y la **ventana de 24 h** sigue abierta — y la manda (texto y adjuntos) al número desde el que escribió; marca la burbuja (📱, ✓). | `executeBot` (Mensajes → Enviar). |
-| `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente, presencial o teleconsulta (`modalidad`; la teleconsulta exige el consentimiento de teleconsulta, R-21), y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. | `executeBot` desde el **portal** del paciente (único bot que puede ejecutar). |
+| `som-reservar-portal` | **Portal (R-23):** la paciente elige una franja libre de un profesional y el bot **reserva** con las reglas de Recepción (reutiliza `som-reservar-turno`): consulta del plan con su tarea → **confirmada** sin seña; consulta con cargo → **tentativa** con la franja retenida 30 min y el link de MercadoPago de la seña (queda en `link-pago-sena` y sale por WhatsApp). Sin link (MercadoPago caído o sin configurar) no vence y avisa a Recepción. Solo para sí misma (`requester`); nunca devuelve el link de la videollamada antes de la seña. | `executeBot` desde el **portal** de la paciente. |
+| `som-vencer-reservas` | **Cron (R-23):** cancela las reservas tentativas del portal cuya retención venció sin seña, libera sus franjas y avisa a la paciente. No toca los tentativos de Recepción (sin vencimiento). `If-Match`: si el webhook la confirmó en el medio, no la pisa. | `cronTimer` del Bot (cada ~5 min). |
+| `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente, presencial o teleconsulta (`modalidad`; la teleconsulta exige el consentimiento de teleconsulta, R-21), y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. Alternativa en texto libre a `som-reservar-portal`. | `executeBot` desde el **portal** del paciente. |
 | `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
 | `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
 | `som-glp1-inscribir` | **GLP-1 (Recepción):** inscribe al paciente en el seguimiento: deja un `Task` `indicacion-glp1` al equipo médico (idempotente; si ya está activo, devuelve cuántos controles faltan agendar). | `executeBot` (Atender → Seguimiento GLP-1 → Inscribir). Ver [`glp1.md`](glp1.md). |
@@ -82,7 +84,7 @@ MercadoPago usan las credenciales propias de SOM.
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | todos los envíos de WhatsApp | para enviar WhatsApp |
 | `TWILIO_WHATSAPP_FROM` | ídem (número de la WABA de EPA Bienestar IA, `whatsapp:+54...`) | para enviar WhatsApp |
 | `TWILIO_WEBHOOK_URL` | todos los envíos de WhatsApp (`StatusCallback`: los ✓✓ de Mensajes). Es la URL de `som-whatsapp-entrante` con las credenciales de su ClientApplication y `?_medplum-prompt-basic-auth=1` ([`whatsapp.md`](whatsapp.md)) | para ver los ✓✓ |
-| `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar) | opcional |
+| `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar), `som-reservar-portal` (reserva del portal sin link de pago), seña de un turno ya cancelado (`confirmarReserva`: hay que reintegrar) | opcional |
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
 | `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`) | opcional |
@@ -266,6 +268,37 @@ materializa como `Slot` `free` de 30 min para los próximos 45 días
 Configurar el `cronTimer` del Bot **una vez**, diario (p. ej. `15 3 * * *`). No
 necesita secretos. Un profesional sin `disponibilidad` cargada no genera horarios
 (sale en la respuesta como `sinDisponibilidad`) y no es reservable.
+
+## Reserva desde el portal (R-23): `som-reservar-portal` y `som-vencer-reservas`
+
+La paciente arma "Especialidad → Profesional → Horario" leyendo el catálogo, los
+`PractitionerRole` y los `Slot` libres, y reserva con `som-reservar-portal`
+(`{ pacienteRef, servicioCodigo, slotId, modalidad, tareaId? }`; contrato completo en
+[`handoff-app-pb100d.md`](handoff-app-pb100d.md)). El bot valida quién ejecuta
+(`requester` = la paciente), que la consulta sea reservable desde el portal (por
+especialidad, o la del plan con su tarea; el control GLP-1 lo agenda Recepción), la
+anticipación mínima, y delega la reserva en `som-reservar-turno` (R-07, R-20, R-21, R-22).
+
+- **Consulta del plan** (incluida): queda `booked`, sin seña; WhatsApp de confirmación.
+- **Consulta con cargo**: queda `pending` con `reserva-expira` = ahora + 30 min y
+  `origen-reserva` = `portal`; se genera el link de MercadoPago de la seña (mismo
+  código que `som-link-mercadopago`, idempotente por turno), se guarda en
+  `link-pago-sena` y sale por WhatsApp con la hora límite. Al acreditarse, el webhook
+  confirma el turno (`booked`).
+- **Sin link** (MercadoPago sin configurar o caído): la reserva queda tentativa **sin
+  vencimiento** (no es culpa de la paciente) y Recepción recibe un WhatsApp para cobrar
+  la seña (`RECEPCION_WHATSAPP_TO`).
+- **Vencimiento**: `som-vencer-reservas` cancela los `pending` con `reserva-expira`
+  vencida (con `If-Match`, para no pisar una confirmación simultánea), libera las
+  franjas y avisa a la paciente. Una **seña tardía** (webhook o manual) sobre un turno
+  cancelado no lo revive: `confirmarReserva` no emite el Invoice, devuelve `rechazado`
+  y avisa a Recepción para reintegrarla.
+
+### Cron de `som-vencer-reservas`
+
+Configurar el `cronTimer` del Bot **una vez**, cada pocos minutos (p. ej. `*/5 * * * *`).
+Necesita los secretos de Twilio para avisar a la paciente (sin ellos, igual cancela y
+libera; el aviso queda registrado sin enviar).
 
 ## Alta e invitación de pacientes (onboarding)
 

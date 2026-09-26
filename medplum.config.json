@@ -55,6 +55,18 @@
       "dist": "dist/bots/generar-agenda.js"
     },
     {
+      "name": "som-reservar-portal",
+      "id": "",
+      "source": "src/bots/reservar-portal.ts",
+      "dist": "dist/bots/reservar-portal.js"
+    },
+    {
+      "name": "som-vencer-reservas",
+      "id": "",
+      "source": "src/bots/vencer-reservas.ts",
+      "dist": "dist/bots/vencer-reservas.js"
+    },
+    {
       "name": "som-alta-paciente",
       "id": "",
       "source": "src/bots/alta-paciente.ts",

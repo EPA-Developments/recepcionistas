@@ -84,6 +84,13 @@ export const EXT = {
   modalidad: `${BASE}/StructureDefinition/modalidad`,
   /** Link de la videollamada (Jitsi) de una teleconsulta. */
   teleconsultaUrl: `${BASE}/StructureDefinition/teleconsulta-url`,
+  // Reserva desde el portal de la paciente — R-23.
+  /** Hasta cuándo queda retenida una reserva tentativa del portal sin seña (dateTime). */
+  reservaExpira: `${BASE}/StructureDefinition/reserva-expira`,
+  /** Link de MercadoPago (Checkout Pro) para pagar la seña de un turno tentativo (url). */
+  linkPagoSena: `${BASE}/StructureDefinition/link-pago-sena`,
+  /** Quién reservó el turno: `portal` (la paciente) | `recepcion` (code). */
+  origenReserva: `${BASE}/StructureDefinition/origen-reserva`,
   // WhatsApp (Twilio) — canal de las conversaciones de Mensajes.
   /** Número de WhatsApp (E.164) del otro lado de un mensaje: a dónde se responde. */
   telefonoWhatsapp: `${BASE}/StructureDefinition/telefono-whatsapp`,

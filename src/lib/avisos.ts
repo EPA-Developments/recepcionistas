@@ -60,6 +60,44 @@ export function avisoReserva(d: DatosAvisoReserva): string {
   return `${cabeza}${tele}${lab} 💙`;
 }
 
+/** Monto en pesos como lo lee la paciente ("$75.000"). */
+function pesos(n: number): string {
+  return `$${n.toLocaleString('es-AR')}`;
+}
+
+/**
+ * Aviso al reservar desde el portal (R-23): tentativo, con el link de la seña y hasta qué
+ * hora se retiene el horario. El link de la videollamada llega recién al confirmarse.
+ */
+export function avisoReservaPortal(d: { nombre: string; inicio: Date; modalidad: Modalidad; senaARS: number; linkPago: string; expira: Date }): string {
+  const tele = d.modalidad === 'teleconsulta' ? ' Es por videollamada: te mandamos el link al confirmarse.' : '';
+  return (
+    `${FIRMA}: reservamos tu ${enFrase(d.nombre)} para el ${fmtFechaHora.format(d.inicio)}. ` +
+    `Te guardamos el horario hasta las ${fmtHora.format(d.expira)}: pagá la seña de ${pesos(d.senaARS)} en ${d.linkPago} y queda confirmado.${tele} 💙`
+  );
+}
+
+/** Aviso a la paciente: venció la retención sin seña y el horario se liberó (R-23). */
+export function avisoReservaVencida(d: { nombre: string; inicio: Date }): string {
+  return `${FIRMA}: no recibimos la seña de tu ${enFrase(d.nombre)} del ${fmtFechaHora.format(d.inicio)} y el horario se liberó. Podés elegir otro desde el portal. 💙`;
+}
+
+/** Alerta a Recepción: una reserva del portal quedó sin link de pago (MercadoPago no respondió). */
+export function alertaRecepcionSinLink(d: { paciente?: string; nombre: string; inicio: Date; motivo?: string }): string {
+  return (
+    `${FIRMA} · Portal: ${d.paciente?.trim() || 'Una paciente'} reservó ${enFrase(d.nombre)} para el ${fmtFechaHora.format(d.inicio)} ` +
+    `pero no se pudo generar el link de la seña${d.motivo ? ` (${d.motivo})` : ''}. Queda tentativo sin vencimiento: contactala para cobrar la seña.`
+  );
+}
+
+/** Alerta a Recepción: llegó una seña de un turno que ya estaba cancelado (hay que reintegrarla). */
+export function alertaRecepcionPagoTurnoCancelado(d: { paciente?: string; descripcion: string; senaARS: number; medioPago?: string }): string {
+  return (
+    `${FIRMA} · Cobros: llegó la seña de ${pesos(d.senaARS)}${d.medioPago ? ` por ${d.medioPago}` : ''} de ${d.paciente?.trim() || 'una paciente'} ` +
+    `para "${d.descripcion}", pero el turno ya está cancelado. No se confirmó: hay que reintegrarla o reagendar.`
+  );
+}
+
 /** Aviso al confirmarse el turno con la seña (manual o MercadoPago). */
 export function avisoConfirmacion(d: { descripcion: string; senaARS: number; modalidad?: Modalidad; teleconsultaUrl?: string }): string {
   const tele = d.modalidad === 'teleconsulta' ? lineaTeleconsulta(d.teleconsultaUrl, 'despues') : ' ¡Te esperamos!';

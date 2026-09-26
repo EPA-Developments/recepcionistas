@@ -11,6 +11,20 @@ export const VENTANA_RESERVA_HORAS = {
 
 export type PerfilReserva = keyof typeof VENTANA_RESERVA_HORAS;
 
+/**
+ * Reserva desde el portal de la paciente (R-23): el turno con cargo queda tentativo y
+ * la franja retenida estos minutos hasta que se pague la seña; vencido el plazo, el cron
+ * lo cancela y libera la franja. Decidido el 26/09/2026.
+ */
+export const RETENCION_RESERVA_PORTAL_MIN = 30;
+
+/**
+ * Anticipación mínima para reservar desde el portal (R-23): un horario que empieza antes
+ * de que venza la retención no se puede pagar a tiempo. PROVISIONAL: igual a la
+ * retención; ver docs/decisiones-pendientes.md.
+ */
+export const ANTICIPACION_MINIMA_PORTAL_MIN = RETENCION_RESERVA_PORTAL_MIN;
+
 /** Cancelación / reagenda (R-14). */
 export const CANCELACION = {
   /** Cancelar/reagendar con menos de estas horas => sesión consumida. */

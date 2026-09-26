@@ -73,5 +73,11 @@ export async function handler(medplum: MedplumClient, event: BotEvent): Promise<
     medioPago: 'mercadopago',
     mpPaymentId: String(paymentId),
   });
+  if (r.rechazado) {
+    // El turno ya estaba cancelado (p. ej. venció la retención del portal): la seña no se
+    // aplica; `confirmarReserva` ya avisó a Recepción para reintegrarla.
+    console.error(`som-webhook-mercadopago: pago ${paymentId} de un turno cancelado (${appointmentId})`);
+    return { ok: true, confirmado: false, appointmentId, status: 'approved', motivo: r.rechazado };
+  }
   return { ok: true, confirmado: true, appointmentId, status: 'approved', motivo: r.yaConfirmado ? 'ya confirmado' : 'confirmado' };
 }
