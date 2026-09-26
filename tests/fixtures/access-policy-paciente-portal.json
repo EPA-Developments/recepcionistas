@@ -1,5 +1,5 @@
 {
-  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Última sincronización: app@091e20f; PENDIENTE re-sincronizar con PractitionerRole y Location de lectura (agenda por profesional).",
+  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Fuente de verdad: src/fhir/access-policies.ts. PENDIENTE re-sincronizar el espejo del portal (PractitionerRole y Location de lectura; bot som-reservar-portal).",
   "name": "Paciente SOM — Portal",
   "resource": [
     {
@@ -156,6 +156,11 @@
     {
       "resourceType": "Binary",
       "readonly": true
+    },
+    {
+      "resourceType": "Bot",
+      "readonly": true,
+      "criteria": "Bot?name=som-reservar-portal"
     },
     {
       "resourceType": "Bot",

@@ -35,6 +35,9 @@ const SPECS: SpecExtension[] = [
   { url: EXT.ocupantes, nombre: 'ocupantes', contexto: ['Appointment'], tipoValor: 'integer', descripcion: 'Cantidad de ocupantes.' },
   { url: EXT.modalidad, nombre: 'modalidad', contexto: ['Appointment', 'Task', 'PractitionerRole', 'Slot'], tipoValor: 'Coding', descripcion: 'Modalidad de atención (R-21): v3-ActCode AMB (presencial) | VR (teleconsulta), el mismo código que va en Encounter.class. En PractitionerRole, las modalidades en que atiende el profesional; en Slot, las modalidades en que se puede reservar esa franja (R-22).' },
   { url: EXT.teleconsultaUrl, nombre: 'teleconsulta-url', contexto: ['Appointment'], tipoValor: 'url', descripcion: 'Link de la videollamada (Jitsi) de la teleconsulta.' },
+  { url: EXT.reservaExpira, nombre: 'reserva-expira', contexto: ['Appointment'], tipoValor: 'dateTime', descripcion: 'Reserva tentativa del portal (R-23): hasta cuándo queda retenida la franja sin seña; vencida, el cron la cancela y la libera.' },
+  { url: EXT.linkPagoSena, nombre: 'link-pago-sena', contexto: ['Appointment'], tipoValor: 'url', descripcion: 'Link de MercadoPago (Checkout Pro) para pagar la seña del turno tentativo (R-23).' },
+  { url: EXT.origenReserva, nombre: 'origen-reserva', contexto: ['Appointment'], tipoValor: 'code', descripcion: 'Quién reservó el turno: portal (la paciente, R-23) | recepcion.' },
   // ActivityDefinition (catálogo)
   { url: EXT.precioUsd, nombre: 'precio-usd', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en USD.' },
   { url: EXT.precioArs, nombre: 'precio-ars', contexto: ['ActivityDefinition'], tipoValor: 'decimal', descripcion: 'Precio de lista en ARS, fijo y sin conversión (R-17).' },

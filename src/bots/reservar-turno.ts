@@ -103,11 +103,24 @@ export interface EntradaReserva {
   confirmar?: boolean;
   /** Tarea de Recepción que este turno resuelve (control GLP-1 o consulta del Plan Bienestar). */
   tareaId?: string;
+  /** Quién reserva: `portal` (la paciente, R-23) o `recepcion`. Sin marca = como hasta ahora. */
+  origen?: 'portal' | 'recepcion';
+  /**
+   * Reserva tentativa del portal (R-23): hasta cuándo queda retenida la franja sin seña
+   * (ISO). Se ignora si la consulta está incluida en el plan (queda confirmada).
+   */
+  expiraEn?: string;
+  /** Si es false, no manda el WhatsApp de reserva (quien llama manda el suyo). Default true. */
+  avisar?: boolean;
 }
 
 export interface ResultadoReserva extends ResultadoValidacion {
   creado: boolean;
   appointmentId?: string;
+  /** Inicio y fin del turno creado (ISO) y su nombre visible. */
+  inicio?: string;
+  fin?: string;
+  descripcion?: string;
   slotId?: string;
   modalidad?: Modalidad;
   /** Link de la videollamada (teleconsulta). */
@@ -477,6 +490,9 @@ export async function handler(
     { url: EXT.itemCodigo, valueString: e.servicioCodigo },
     extensionModalidad(modalidad),
     ...(teleconsultaUrl ? [{ url: EXT.teleconsultaUrl, valueUrl: teleconsultaUrl }] : []),
+    // Reserva del portal (R-23): quién reservó y, si es tentativa, hasta cuándo se retiene.
+    ...(e.origen ? [{ url: EXT.origenReserva, valueCode: e.origen }] : []),
+    ...(!incluida && e.expiraEn ? [{ url: EXT.reservaExpira, valueDateTime: e.expiraEn }] : []),
   ];
 
   // Incluida en el plan: confirmada sin seña. El resto, TENTATIVO hasta cobrar la seña
@@ -543,17 +559,22 @@ export async function handler(
     await medplum.updateResource<CarePlan>(sumarConsultaExtra(planExtra, appointment.id, descripcion)).catch(() => undefined);
   }
 
-  await enviarWhatsApp(medplum, event.secrets, {
-    template: incluida ? 'consulta-plan-confirmada' : 'reserva-tentativa',
-    pacienteRef: e.pacienteRef,
-    body: avisoReserva({ nombre: descripcion, inicio, modalidad, incluida, teleconsultaUrl, traerLaboratorio }),
-  });
+  if (e.avisar !== false) {
+    await enviarWhatsApp(medplum, event.secrets, {
+      template: incluida ? 'consulta-plan-confirmada' : 'reserva-tentativa',
+      pacienteRef: e.pacienteRef,
+      body: avisoReserva({ nombre: descripcion, inicio, modalidad, incluida, teleconsultaUrl, traerLaboratorio }),
+    });
+  }
 
   return {
     ...resultado,
     advertencias,
     creado: true,
     appointmentId: appointment.id,
+    inicio: inicio.toISOString(),
+    fin: fin.toISOString(),
+    descripcion,
     slotId: slots[0]?.id,
     slotIds: slots.map((s) => s.id!),
     modalidad,

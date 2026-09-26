@@ -128,10 +128,12 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
  * Catálogo, agenda y profesionales (con su `PractitionerRole`: especialidad,
  * modalidades, disponibilidad) y consultorios: sólo lectura (para mostrar la oferta).
  *
- * Reservar un turno NO se hace escribiendo `Appointment` directo: el modelo es de
- * **solicitud** (el paciente ejecuta solo el bot `som-solicitar-turno`, que crea un
- * `Task`, y Recepción confirma con los bots de reserva), por eso `Appointment` es de
- * sólo lectura y el acceso a `Bot` está acotado a ese único bot (y `som-solicitar`).
+ * Reservar un turno NO se hace escribiendo `Appointment` directo: la paciente ejecuta
+ * `som-reservar-portal` (elige una franja libre de un profesional; el bot aplica las
+ * reglas y deja el turno confirmado si está incluido en su plan o tentativo con el link
+ * de la seña, R-23) o `som-solicitar-turno` (solicitud en texto, que confirma Recepción).
+ * Por eso `Appointment` es de sólo lectura y el acceso a `Bot` está acotado a esos bots
+ * (y `som-solicitar`).
  *
  * IMPORTANTE — fuente de verdad: esta definición es la que aplica `npm run seed`
  * (upsert por `name`: pisa la del servidor). Debe quedar **idéntica** a su espejo en
@@ -215,8 +217,10 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Organization', readonly: true },
     { resourceType: 'Binary', readonly: true },
 
-    // Reserva por solicitud: el paciente solo puede ejecutar ESTE bot (crea el Task
-    // de solicitud y avisa a Recepción). No puede ejecutar ningún otro bot.
+    // Reserva desde el portal (R-23): elige una franja libre y el bot reserva con las
+    // reglas (confirmado si está incluido en su plan; tentativo + link de la seña si no).
+    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-reservar-portal' },
+    // Solicitud en texto libre (crea el Task de solicitud y avisa a Recepción, que confirma).
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar-turno' },
     // SOM: además puede ejecutar el bot que crea su solicitud de segunda opinión.
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar' },

@@ -89,9 +89,26 @@ especialidad. Todo sale de FHIR (data-driven): nada de listas de servicios escri
      admite las dos). Mostrá solo los que caen dentro de la ventana de la consulta del plan
      (Contrato 2). Un profesional sin franjas libres todavía no tiene
      disponibilidad cargada: no se ofrece.
-   - Reservar el horario elegido (bot ejecutable por la paciente, seña del 50 % y retención de
-     30 min) es el **próximo slice** de Recepción; hasta entonces "Pedir" sigue siendo
-     `som-solicitar-turno` (Contrato 3) y podés mandar el horario elegido en `preferenciaInicio`.
+7. RESERVAR (R-23): bot `som-reservar-portal` (la paciente puede ejecutarlo), con
+   `{ pacienteRef, servicioCodigo, slotId, modalidad: 'teleconsulta' | 'presencial', tareaId? }`
+   (`tareaId` solo para una consulta del plan: la Task de Contrato 2). Respuesta:
+   `{ ok, mensaje?, appointmentId, estado: 'confirmado' | 'tentativo', descripcion, inicio, fin,
+      modalidad, medicoCodigo, incluida, senaARS?, linkPago?, expira?, sinLink?, advertencias? }`.
+   - `confirmado` (consulta del plan, incluida): mostrá "Confirmada" y llevala a Mis turnos.
+   - `tentativo` con `linkPago`: abrí el link de MercadoPago (Checkout Pro) y mostrá "Te guardamos el
+     horario hasta las HH:mm" (`expira`, ISO; `senaARS` es la seña del 50 %). Al pagar, el webhook
+     confirma solo el turno (`Appointment.status` `pending` → `booked`): releé el turno al volver de
+     MP (`back_urls` apuntan a la app). El link también queda en la extensión
+     `…/StructureDefinition/link-pago-sena` del Appointment, por si hay que retomarlo.
+   - `tentativo` con `sinLink`: "Recepción te va a contactar para la seña" (no vence).
+   - `ok: false`: `mensaje` está escrito para la paciente, mostralo tal cual (horario ocupado, muy
+     pronto, sin consentimiento, tarea ajena, …) y recargá los horarios libres.
+   Reglas que aplica: las de Recepción (R-07, R-20, R-21, R-22) y, además, solo puede reservar
+   para sí misma, consultas por especialidad o la del plan con su tarea (el control GLP-1 no), y
+   con al menos 30 minutos de anticipación (provisional).
+   En Mis turnos: `origen-reserva` = `portal`; un `pending` con `reserva-expira` (dateTime) es
+   tentativo hasta esa hora; si venció, el cron lo pasa a `cancelled` ("Venció la reserva: elegí
+   otro horario"). `som-solicitar-turno` (Contrato 3) sigue disponible como alternativa en texto libre.
 
 ## Tareas
 1. GetCarePage: dos tarjetas —"Consulta por videollamada" (primero) y "Consulta en el
@@ -102,9 +119,15 @@ especialidad. Todo sale de FHIR (data-driven): nada de listas de servicios escri
    Members: en SOM no hay membresías.
 2. Consentimiento de teleconsulta (Contrato 4), antes de la primera teleconsulta.
 3. Mis turnos: badge "Teleconsulta" y botón "Entrar a la videollamada" con el link.
-4. AccessPolicy: sumá `{ "resourceType": "ActivityDefinition", "readonly": true }` al espejo
-   `docs/medplum/access-policy-paciente-portal.json`, justo antes de `ObservationDefinition`
-   (la fuente de verdad ya lo tiene: `src/fhir/access-policies.ts` de recepcionistas).
+4. AccessPolicy: re-sincronizá el espejo `docs/medplum/access-policy-paciente-portal.json` con la
+   fuente de verdad (`src/fhir/access-policies.ts` de recepcionistas; copia exacta en su
+   `tests/fixtures/access-policy-paciente-portal.json`): suma `ActivityDefinition`,
+   `PractitionerRole` y `Location` de lectura y el bot `Bot?name=som-reservar-portal`.
+7. Reserva por horario (Contratos 6 y 7): dentro de cada camino, Especialidad → Profesional
+   (`PractitionerRole`) → Horario (`Slot` libres de la modalidad, agrupados por día, hora de
+   Argentina) → "Reservar" (`som-reservar-portal`). Pantalla de resultado según `estado`
+   (confirmada / tentativa con botón "Pagar la seña" y cuenta regresiva hasta `expira` / sin link).
+   Para la consulta del plan, el mismo flujo con `tareaId`. Reemplaza "Preferencia de horario".
 5. Tarjeta del plan: nombre visible "Plan Bienestar 100 Días®" (el código `plan-bienestar-100`
    no cambia). En el hito "Reservá tu consulta", mostrá la próxima consulta del plan y su ventana.
 6. Fixture GLP-1: actualizá `docs/ejemplos/glp1-paciente.json` desde recepcionistas (el turno

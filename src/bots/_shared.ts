@@ -9,7 +9,7 @@ import { SLOT_GRANULARIDAD_MIN } from '../config/horario.js';
 import { isoArgentina } from '../lib/slots.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { resolverTC } from '../config/tipo-cambio.js';
-import { avisoConfirmacion } from '../lib/avisos.js';
+import { alertaRecepcionPagoTurnoCancelado, avisoConfirmacion } from '../lib/avisos.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
 import { esConsentimientoTeleconsulta, modalidadDe, teleconsultaUrlDe } from '../lib/teleconsulta.js';
@@ -397,6 +397,19 @@ export interface ResultadoConfirmacion {
   invoiceId?: string;
   confirmados: number;
   yaConfirmado: boolean;
+  /** La seña NO se aplicó (el turno ya estaba cancelado): por qué, y qué hacer. */
+  rechazado?: string;
+}
+
+/** Nombre visible de un paciente (best-effort, para avisos a Recepción). */
+async function nombreDelPaciente(medplum: MedplumClient, pacienteRef: string | undefined): Promise<string | undefined> {
+  const id = pacienteRef?.split('/')[1];
+  if (!id) {
+    return undefined;
+  }
+  const p = await medplum.readResource('Patient', id).catch(() => undefined);
+  const nombre = p?.name?.[0]?.text ?? [p?.name?.[0]?.given?.join(' '), p?.name?.[0]?.family].filter(Boolean).join(' ');
+  return nombre || undefined;
 }
 
 /**
@@ -422,6 +435,33 @@ export async function confirmarReserva(
 
   const tc = opts.tc ?? (await leerTcVigente(medplum));
   const { totalARS, senaARS } = calcularSenaARS([{ tipo: itemTipo as ItemCobro['tipo'], codigo: itemCodigo }], { tc });
+
+  // Un turno cancelado (venció la retención del portal, R-23, o lo canceló Recepción) no se
+  // confirma con una seña tardía: no se emite Invoice y se avisa a Recepción para reintegrar.
+  if (appt.status === 'cancelled' || appt.status === 'noshow' || appt.status === 'entered-in-error') {
+    const pacienteRef = appt.participant?.find((p) => p.actor?.reference?.startsWith('Patient/'))?.actor?.reference;
+    const to = secrets['RECEPCION_WHATSAPP_TO']?.valueString;
+    if (to) {
+      await enviarWhatsApp(medplum, secrets, {
+        template: 'sena-turno-cancelado',
+        to,
+        about: `Appointment/${appt.id}`,
+        body: alertaRecepcionPagoTurnoCancelado({
+          paciente: await nombreDelPaciente(medplum, pacienteRef),
+          descripcion: appt.description ?? itemCodigo,
+          senaARS,
+          medioPago: opts.medioPago,
+        }),
+      });
+    }
+    return {
+      totalARS,
+      senaARS,
+      confirmados: 0,
+      yaConfirmado: false,
+      rechazado: 'El turno ya está cancelado: la seña no se aplicó. Avisamos a Recepción para reintegrarla o reagendar.',
+    };
+  }
 
   // Idempotencia: una sola seña por clave (pago MP o turno).
   const invoiceKey = opts.mpPaymentId ? `mp-${opts.mpPaymentId}` : `sena-${opts.appointmentId}`;

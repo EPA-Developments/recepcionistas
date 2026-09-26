@@ -177,8 +177,9 @@ describe('Seed — AccessPolicy del portal del paciente', () => {
     expect(entradas.filter((e) => e.startsWith('Coverage Coverage?') && !e.includes('|HIP'))).toEqual([]);
   });
 
-  it('Solo ejecuta sus dos bots', () => {
+  it('Solo ejecuta sus tres bots: reservar (R-23), solicitar turno y solicitar SOM', () => {
     expect(entradas.filter((e) => e.startsWith('Bot'))).toEqual([
+      'Bot (lectura) Bot?name=som-reservar-portal',
       'Bot (lectura) Bot?name=som-solicitar-turno',
       'Bot (lectura) Bot?name=som-solicitar',
     ]);
