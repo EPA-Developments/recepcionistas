@@ -10,7 +10,7 @@
 import type { RecursoFisico } from '../domain/types.js';
 import { SLOT_GRANULARIDAD_MIN, type HorarioDia } from '../config/horario.js';
 
-const OFFSET_ARG = '-03:00';
+export const OFFSET_ARG = '-03:00';
 
 export interface SlotDescriptor {
   recursoCodigo: string;
@@ -30,18 +30,24 @@ export interface OpcionesSlots {
   granularidadMin?: number;
 }
 
-function hhmmAMin(hhmm: string): number {
+export function hhmmAMin(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function minAHHMM(min: number): string {
+export function minAHHMM(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function ymd(d: Date): string {
+/** ISO con offset fijo de Argentina ("2026-09-29T10:00:00-03:00"): el formato de los Slot del seed. */
+export function isoArgentina(d: Date): string {
+  const local = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+  return `${ymd(local)}T${minAHHMM(local.getUTCHours() * 60 + local.getUTCMinutes())}:00${OFFSET_ARG}`;
+}
+
+export function ymd(d: Date): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');

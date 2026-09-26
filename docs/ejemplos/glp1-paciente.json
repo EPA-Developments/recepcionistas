@@ -300,7 +300,7 @@
               "text": "turno"
             },
             "valueReference": {
-              "reference": "Appointment/appointment-38"
+              "reference": "Appointment/appointment-39"
             }
           }
         ]
@@ -2147,7 +2147,7 @@
       }
     },
     {
-      "fullUrl": "Appointment/appointment-38",
+      "fullUrl": "Appointment/appointment-39",
       "resource": {
         "resourceType": "Appointment",
         "status": "pending",
@@ -2169,6 +2169,9 @@
         "slot": [
           {
             "reference": "Slot/slot-37"
+          },
+          {
+            "reference": "Slot/slot-38"
           }
         ],
         "participant": [
@@ -2205,7 +2208,7 @@
             }
           }
         ],
-        "id": "appointment-38"
+        "id": "appointment-39"
       }
     }
   ]

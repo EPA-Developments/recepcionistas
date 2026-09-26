@@ -2,9 +2,11 @@
  * Helpers compartidos por los bots de agenda (acceden a FHIR; no son "lib pura").
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type { Appointment, Communication, Flag, Invoice } from '@medplum/fhirtypes';
+import type { Appointment, Communication, Extension, Flag, Identifier, Invoice, Slot } from '@medplum/fhirtypes';
 import { CONFIG_TC_ID, EXT, LOINC_CONSENTIMIENTO, SYSTEM } from '../fhir/identifiers.js';
 import { SERVICIOS_POR_CODIGO } from '../config/catalogo.js';
+import { SLOT_GRANULARIDAD_MIN } from '../config/horario.js';
+import { isoArgentina } from '../lib/slots.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { resolverTC } from '../config/tipo-cambio.js';
 import { avisoConfirmacion } from '../lib/avisos.js';
@@ -464,4 +466,112 @@ export async function confirmarReserva(
   });
 
   return { totalARS, senaARS, invoiceId: invoice.id, confirmados, yaConfirmado: false };
+}
+
+// --------------------------------------------------------------------------
+// Agenda: ocupar y liberar franjas (Slot) de una agenda (recurso o profesional)
+// --------------------------------------------------------------------------
+
+/** Id del Schedule (agenda propia) de un profesional (identifier SCH_<codigo>). */
+export async function scheduleIdDeProfesional(medplum: MedplumClient, medicoCodigo: string): Promise<string | undefined> {
+  const sch = await medplum.searchOne('Schedule', `identifier=${SYSTEM.medico}|SCH_${medicoCodigo}`);
+  return sch?.id;
+}
+
+export interface OcuparFranjas {
+  scheduleId: string;
+  inicio: Date;
+  fin: Date;
+  /** Identifier determinista de la franja que empieza en `inicioISO` (para no duplicar con el seed/cron). */
+  identificador: (inicioISO: string) => Identifier;
+  /** Extensión de pertenencia de la franja (recurso físico o profesional). */
+  extension: Extension;
+  /** Tamaño de la grilla en minutos (default `SLOT_GRANULARIDAD_MIN`). */
+  granularidadMin?: number;
+}
+
+export type ResultadoOcupar = { ok: true; slots: Slot[] } | { ok: false; motivo: 'ocupado' };
+
+/**
+ * Ocupa las franjas de una agenda que cubren [inicio, fin): las que ya existen libres
+ * pasan a `busy` con `If-Match` (si otra reserva las tomó en el medio, el servidor
+ * rechaza y no se pisa nada); las que no existen se crean ocupadas con su identifier
+ * determinista (`If-None-Exist`: dos reservas simultáneas no pueden crear la misma).
+ * Si alguna franja ya estaba ocupada, o una escritura condicional falla, libera lo que
+ * había tomado y devuelve `ocupado`. Nunca deja una franja libre duplicada sobre una
+ * ocupada: los horarios libres siguen siendo la fuente de la disponibilidad.
+ */
+export async function ocuparFranjas(medplum: MedplumClient, o: OcuparFranjas): Promise<ResultadoOcupar> {
+  const gran = (o.granularidadMin ?? SLOT_GRANULARIDAD_MIN) * 60_000;
+  const existentes = await medplum.searchResources(
+    'Slot',
+    `schedule=Schedule/${o.scheduleId}&start=ge${o.inicio.toISOString()}&start=lt${o.fin.toISOString()}&_count=100`,
+  );
+  const enRango = (s: Slot): boolean =>
+    Boolean(s.start) && new Date(s.start!).getTime() >= o.inicio.getTime() && new Date(s.start!).getTime() < o.fin.getTime();
+  const dentro = existentes.filter(enRango);
+  if (dentro.some((s) => s.status !== 'free')) {
+    return { ok: false, motivo: 'ocupado' };
+  }
+
+  // Las franjas de la grilla que no existían se materializan LIBRES con su identifier
+  // (`If-None-Exist`: si otra reserva o el cron la creó en el medio, vuelve esa).
+  const cubiertas = new Set(dentro.map((s) => new Date(s.start!).getTime()));
+  for (let t = o.inicio.getTime(); t < o.fin.getTime(); t += gran) {
+    if (cubiertas.has(t)) {
+      continue;
+    }
+    const inicioISO = new Date(t).toISOString();
+    // El identifier usa el formato de los Slot del seed ("…T10:00:00-03:00"): mismo instante, misma franja.
+    const identifier = o.identificador(isoArgentina(new Date(t)));
+    const franja = await medplum.createResourceIfNoneExist<Slot>(
+      {
+        resourceType: 'Slot',
+        identifier: [identifier],
+        schedule: { reference: `Schedule/${o.scheduleId}` },
+        status: 'free',
+        start: inicioISO,
+        end: new Date(Math.min(t + gran, o.fin.getTime())).toISOString(),
+        extension: [o.extension],
+      },
+      `identifier=${identifier.system}|${identifier.value}`,
+    );
+    if (franja.status !== 'free') {
+      return { ok: false, motivo: 'ocupado' };
+    }
+    dentro.push(franja);
+  }
+
+  // Todas a ocupado, condicionado a la versión leída: si alguien las tomó en el medio,
+  // el servidor rechaza (412), liberamos lo tomado y avisamos.
+  const tomadas: Slot[] = [];
+  for (const s of dentro) {
+    try {
+      const ocupada = await medplum.updateResource<Slot>(
+        { ...s, status: 'busy' },
+        s.meta?.versionId ? { headers: { 'If-Match': `W/"${s.meta.versionId}"` } } : undefined,
+      );
+      tomadas.push(ocupada);
+    } catch {
+      for (const t of tomadas) {
+        await medplum.updateResource<Slot>({ ...t, status: 'free' }).catch(() => undefined);
+      }
+      return { ok: false, motivo: 'ocupado' };
+    }
+  }
+  return { ok: true, slots: tomadas };
+}
+
+/** Libera las franjas de un turno (vuelven a `free`); nunca las borra: son la agenda. */
+export async function liberarFranjas(medplum: MedplumClient, slotRefs: Array<{ reference?: string }> | undefined): Promise<void> {
+  for (const s of slotRefs ?? []) {
+    const id = s.reference?.split('/')[1];
+    if (!id) {
+      continue;
+    }
+    const slot = await medplum.readResource('Slot', id).catch(() => undefined);
+    if (slot && slot.status !== 'free') {
+      await medplum.updateResource<Slot>({ ...slot, status: 'free' });
+    }
+  }
 }

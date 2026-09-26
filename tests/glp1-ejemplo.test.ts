@@ -61,8 +61,11 @@ async function generar(): Promise<Bundle> {
   );
   expect(turno.creado).toBe(true);
 
-  // Lo que lee la app del paciente (sin Slot, Communication ni Schedule).
-  const recursos: Resource[] = (['CarePlan', 'Goal', 'Task', 'ServiceRequest', 'Appointment'] as const).flatMap((t) => todos(t));
+  // Lo que lee la app del paciente (sin Slot, Communication ni Schedule). Sin `meta`:
+  // el versionId lo pone el harness y en el servidor real es otro.
+  const recursos: Resource[] = (['CarePlan', 'Goal', 'Task', 'ServiceRequest', 'Appointment'] as const)
+    .flatMap((t) => todos(t))
+    .map(({ meta: _meta, ...resource }) => resource as Resource);
   return {
     resourceType: 'Bundle',
     type: 'collection',

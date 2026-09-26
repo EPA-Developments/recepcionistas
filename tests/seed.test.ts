@@ -21,9 +21,11 @@ describe('Seed — composición', () => {
     expect(seed.activityDefinitions.length).toBe(14);
     expect(seed.planDefinitions.map((p) => p.url)).toEqual([PLAN_GLP1_URL, PLAN_BIENESTAR_URL]);
     expect(seed.locations.length).toBe(4); // 2 consultorios + agenda de teleconsulta + sala de rehabilitación
-    expect(seed.schedules.length).toBe(4);
-    // Profesionales: uno por médico de config (el catálogo nuevo de SOM los carga).
+    // Una agenda por recurso físico más una por profesional (R-22).
+    expect(seed.schedules.length).toBe(4 + MEDICOS.length);
+    // Profesionales: uno por médico de config (el catálogo nuevo de SOM los carga), con su rol.
     expect(seed.practitioners.length).toBe(MEDICOS.length);
+    expect(seed.practitionerRoles.length).toBe(MEDICOS.length);
   });
 });
 

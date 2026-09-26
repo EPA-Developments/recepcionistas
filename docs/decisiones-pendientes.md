@@ -18,8 +18,8 @@ ajeno a SOM (servicios/combos/paquetes/membresías/contraindicaciones y sus bots
 
 | # | Pendiente | Detalle |
 |---|---|---|
-| 1 | **Lista de precios oficial** | Todas las consultas por especialidad están con `precioARS: 0` (nota "Precio PENDIENTE"); la del Plan Bienestar va en 0 porque está incluida. No se inventan precios: los arman el Dr. D'Alessandro y el Dr. Barbagelata (¿distinto presencial y teleconsulta?). |
-| 2 | **Duración de cada consulta** | Provisional 45 min. Confirmar con la operación (¿varía por especialidad? ¿la teleconsulta dura distinto?). |
+| 1 | ~~Lista de precios oficial~~ | **Definida (26/09/2026, Dr. D'Alessandro):** consulta por especialidad ARS 150.000, el mismo precio presencial y por teleconsulta y para todos los profesionales (`PRECIO_CONSULTA_ESPECIALIDAD_ARS`). La del Plan Bienestar sigue en 0 (incluida); el plan la presupuesta en ARS 100.000 (`valor-referencia-ars`, informativo). Sigue pendiente el precio del control GLP-1 (ver abajo). |
+| 2 | ~~Duración de cada consulta~~ | **Definida (26/09/2026):** 30 min para toda consulta, presencial o teleconsulta (`DURACION_CONSULTA_MIN`), sobre la grilla de 30. El control GLP-1 queda en 45 min provisionales. |
 | 3 | **Consultorios / salas reales** | `src/config/recursos.ts` tiene una lista PROVISIONAL (2 consultorios + agenda de teleconsultas + sala de rehabilitación). Confirmar la lista real. |
 | 4 | **Honorarios profesionales (split)** | Hoy todo es `SOM_100`. Definir cómo se reparte el honorario del especialista por consulta. |
 | 5 | **¿Paquetes / seguimiento?** | ¿Existe algo como "paquete de seguimiento" con el mismo especialista, o cada segunda opinión es un evento único? Si existe, se modela con sus reglas oficiales (no se reutiliza el modelo anterior). El primer programa de seguimiento ya modelado es el **GLP-1** (ver abajo). |
@@ -67,7 +67,8 @@ consultas del plan con sus ventanas (R-20), teleconsulta con Jitsi y consentimie
 
 | # | Tema | Detalle | Estado |
 |---|---|---|---|
-| 1 | **Calendario: agendas por profesional** | Propuesta: una agenda (`Schedule`) por profesional (`PractitionerRole`) y otra por consultorio para lo presencial; los "calendarios" del Plan Bienestar (presencial / virtual) y de Especialidades son **vistas** de esas agendas, no agendas separadas (así no se da dos veces la misma hora). Retira la agenda virtual transitoria `R_TELEMEDICINA` (capacidad 1). | Próximo slice (necesita la lista de profesionales) |
+| 1 | **Calendario: agendas por profesional** | **Hecho (R-22):** una agenda (`Schedule`) por profesional (`PractitionerRole`) y otra por consultorio para lo presencial; los "calendarios" del Plan Bienestar y de Especialidades son **vistas** de esas agendas (no se da dos veces la misma hora); la reserva ocupa franjas con escritura condicional; cron `som-generar-agenda`. Queda retirar la agenda virtual transitoria `R_TELEMEDICINA` cuando los profesionales tengan disponibilidad. | Hecho; retiro de `R_TELEMEDICINA` pendiente |
+| 1b | **Disponibilidad y consultorio de cada profesional** ⚠️ | Cargados (26/09/2026) el Dr. Barbagelata (Cardiología), la Dra. Gold (Clínica Médica) y el Dr. D'Alessandro (Cardiología), **provisorios y sin horarios**: hace falta de cada uno los días y horarios en que atiende (`disponibilidad`) y el consultorio de lo presencial (`consultorioCodigo`), en `src/config/medicos.ts`. Sin eso no hay horarios para ofrecer ni se puede reservar por profesional. Depende también del horario real del centro (ver *Agenda*). | **Bloqueante** para reservar por horario |
 | 2 | **Jitsi** | Cargar el Project Secret `JITSI_BASE_URL` (https). Si el Jitsi de SOM usa autenticación por token (JWT), sumar la firma del link (`JITSI_APP_ID` / `JITSI_APP_SECRET`). | A confirmar |
 | 3 | **Texto del consentimiento de teleconsulta** | Genérico, uno por paciente; lo muestra y lo registra el portal (`Consent`). Lo redactan los médicos de SOM / legales. | A definir |
 | 4 | **Portal del paciente** | "Pedir un turno" con los dos caminos, el consentimiento, el link en "Mis turnos" y el espejo de la policy (`ActivityDefinition` de solo lectura). Prompt listo: [`handoff-app-pb100d.md`](handoff-app-pb100d.md). | Próximo slice (portal) |
@@ -78,8 +79,9 @@ consultas del plan con sus ventanas (R-20), teleconsulta con Jitsi y consentimie
 
 Horario de atención: L-V 08-22, Sáb 08-20 (`src/config/horario.ts`) — heredado y
 marcado como **provisional** (`HORARIO_ES_PLACEHOLDER`): definir el horario real de
-SOM (CABA). Para cargar la agenda:
-`npm run seed -- --with-slots --dias=14`.
+SOM (CABA). Para cargar la agenda (salas y profesionales con disponibilidad):
+`npm run seed -- --with-slots --dias=14`; en producción la mantiene el cron
+`som-generar-agenda` (45 días hacia adelante).
 
 ## Roles
 
@@ -93,7 +95,7 @@ Los roles (AccessPolicies) del catálogo anterior se retiraron; el seed deja
 |---|---|---|
 | WhatsApp Business (Twilio + WABA de EPA Bienestar IA) | Confirmaciones, recordatorios y **WhatsApp dentro de Mensajes** (entrantes en la conversación del paciente, respuesta por el canal donde escribió, ✓✓, campanita de números nuevos, respuestas automáticas con los textos aprobados el 26/09/2026). **Código listo** para texto libre; falta cargar los Project Secrets de la cuenta Twilio de SOM (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` = número de la WABA, `TWILIO_WEBHOOK_URL`), crear la ClientApplication del webhook y configurar la URL en Twilio ([`whatsapp.md`](whatsapp.md)), aprobar las plantillas en Meta y soportar el envío por plantilla (`ContentSid`) para escribir primero o pasadas las 24 h. Después: validar la firma de Twilio al actualizar Medplum y unir fichas duplicadas (paciente que escribe desde otro número). | A gestionar (cuenta + código) |
 | AWS SES | Email transaccional (vía `medplum.sendEmail()`). **Código listo**; falta remitente verificado en SES. | A gestionar (cuenta) |
-| MercadoPago | Cobro de señas/consultas (tokeniza tarjetas; no guardamos datos de tarjeta). En el Project Secret `MERCADOPAGO_ACCESS_TOKEN` va el **Access Token de producción** de la cuenta SOM (no la Public Key), con las credenciales de producción activadas; + URL del webhook en MP. El link dio **403 PolicyAgent** (`PA_UNAUTHORIZED_RESULT_FROM_POLICIES`): la credencial cargada no está autorizada; revisar con `npm run mercadopago:test` (ver [`bots.md`](bots.md#mercadopago-qué-credencial-va-y-el-403-policyagent)). Además, con precios PENDIENTES la seña es $0 y no hay link. | A corregir (credencial) |
+| MercadoPago | Cobro de señas/consultas (tokeniza tarjetas; no guardamos datos de tarjeta). En el Project Secret `MERCADOPAGO_ACCESS_TOKEN` va el **Access Token de producción** de la cuenta SOM (no la Public Key), con las credenciales de producción activadas; + URL del webhook en MP. El link dio **403 PolicyAgent** (`PA_UNAUTHORIZED_RESULT_FROM_POLICIES`): la credencial cargada no está autorizada; revisar con `npm run mercadopago:test` (ver [`bots.md`](bots.md#mercadopago-qué-credencial-va-y-el-403-policyagent)). Con la lista de precios cargada, la seña de una consulta por especialidad es ARS 75.000. | A corregir (credencial) |
 | URLs públicas | Portal del paciente `https://app.segundaopinionmedica.org` · app de recepción `https://recepcion.segundaopinionmedica.org` (`src/config/urls.ts`; los Project Secrets `PORTAL_BASE_URL` / `APP_BASE_URL` las pisan por entorno). | Definido |
 
 ## CRM (embudo de redes sociales)

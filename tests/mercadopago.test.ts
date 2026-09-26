@@ -22,7 +22,7 @@ import {
 } from '../src/lib/mercadopago.js';
 import { fakeMedplum } from './fake-medplum.js';
 
-// La seña real hoy es $0 (precios PENDIENTES); algunos tests necesitan un monto.
+// Algunos tests fijan la seña a mano para no depender de la lista de precios.
 const precio = vi.hoisted(() => ({ sena: undefined as number | undefined }));
 vi.mock('../src/lib/pricing.js', async (importOriginal) => {
   const real = await importOriginal<typeof import('../src/lib/pricing.js')>();
@@ -193,9 +193,17 @@ describe('Bot som-link-mercadopago', () => {
     expect(llamadas).toHaveLength(0);
   });
 
-  it('seña $0: no crea el link, pero verifica la credencial', async () => {
+  it('seña $0 (precio aún PENDIENTE, p. ej. el control GLP-1): no crea el link, pero verifica la credencial', async () => {
     const llamadas = stubFetch({ 'https://api.mercadopago.com/users/me': () => respuesta(200, CUENTA_OK) });
-    const { medplum } = fakeMedplum([turno]);
+    const sinPrecio: Appointment = {
+      ...turno,
+      description: 'Seguimiento de tratamiento GLP-1 — Control',
+      extension: [
+        { url: EXT.itemTipo, valueCode: 'servicio' },
+        { url: EXT.itemCodigo, valueString: 'CONTROL_GLP1' },
+      ],
+    };
+    const { medplum } = fakeMedplum([sinPrecio]);
     const r = await linkMercadoPago(medplum, ev({ appointmentId: 'a1' }, ACCESS));
     expect(r.ok).toBe(false);
     expect(r.senaARS).toBe(0);

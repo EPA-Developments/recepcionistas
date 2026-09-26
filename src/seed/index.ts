@@ -14,10 +14,12 @@
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { ObservationDefinition, Resource } from '@medplum/fhirtypes';
-import { buildSeed, buildSlot, claveObservationDefinition } from './builders.js';
+import { buildSeed, buildSlot, buildSlotProfesional, claveObservationDefinition } from './builders.js';
 import { conectarMedplum } from './conexion.js';
 import { HORARIO_ES_PLACEHOLDER, HORARIO_SEMANAL } from '../config/horario.js';
+import { MEDICOS } from '../config/medicos.js';
 import { RECURSOS } from '../config/recursos.js';
+import { generarSlotsProfesionales } from '../lib/agenda-profesional.js';
 import { generarSlots } from '../lib/slots.js';
 import { SYSTEM } from '../fhir/identifiers.js';
 
@@ -34,8 +36,9 @@ async function main(): Promise<void> {
     ['ActivityDefinition (servicios)', seed.activityDefinitions],
     ['PlanDefinition (programas)', seed.planDefinitions],
     ['Location (recursos)', seed.locations],
-    ['Schedule (agendas)', seed.schedules],
+    ['Schedule (agendas de recursos y de profesionales)', seed.schedules],
     ['Practitioner (médicos)', seed.practitioners],
+    ['PractitionerRole (especialidad, modalidades, disponibilidad)', seed.practitionerRoles],
     ['ObservationDefinition (biomarcadores)', seed.observationDefinitions],
   ];
 
@@ -51,7 +54,8 @@ async function main(): Promise<void> {
 
   if (withSlots) {
     const descriptores = generarSlots(RECURSOS, HORARIO_SEMANAL, { desde: new Date(), dias });
-    console.log(`\nSlots a generar (${dias} días): ${descriptores.length}`);
+    const deProfesionales = generarSlotsProfesionales(MEDICOS, HORARIO_SEMANAL, { desde: new Date(), dias });
+    console.log(`\nSlots a generar (${dias} días): ${descriptores.length} de recursos + ${deProfesionales.length} de profesionales`);
     if (HORARIO_ES_PLACEHOLDER) {
       console.log('   ⚠️  Usando horario PLACEHOLDER: los Slot serán provisionales.');
     }
@@ -106,7 +110,23 @@ async function generarYCargarSlots(medplum: MedplumClient, dias: number): Promis
     await upsert(medplum, buildSlot(desc, `Schedule/${id}`));
     creados++;
   }
-  console.log(`  ✓ Slot (${creados})`);
+  console.log(`  ✓ Slot de recursos (${creados})`);
+
+  // Agenda de cada profesional: sus horarios libres salen de su disponibilidad. Los que
+  // ya existen no se tocan (si están ocupados, siguen ocupados).
+  let deProfesionales = 0;
+  for (const m of MEDICOS) {
+    const sch = await withRetry(() => medplum.searchOne('Schedule', `identifier=${SYSTEM.medico}|SCH_${m.codigo}`));
+    if (!sch?.id) {
+      continue;
+    }
+    for (const desc of generarSlotsProfesionales([m], HORARIO_SEMANAL, { desde: new Date(), dias })) {
+      const slot = buildSlotProfesional(desc, `Schedule/${sch.id}`);
+      await withRetry(() => medplum.createResourceIfNoneExist(slot, buildQuery(slot)!));
+      deProfesionales++;
+    }
+  }
+  console.log(`  ✓ Slot de profesionales (${deProfesionales})`);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -210,6 +230,10 @@ function imprimirAdvertencias(): void {
   }
   if (RECURSOS.some((r) => r.provisional)) {
     avisos.push('La lista de recursos físicos (consultorios/salas) es PROVISIONAL. Confirmar con la operación.');
+  }
+  const sinAgenda = MEDICOS.filter((m) => m.disponibilidad.length === 0).map((m) => m.nombre);
+  if (sinAgenda.length) {
+    avisos.push(`Profesionales sin disponibilidad cargada (no generan horarios ni son reservables): ${sinAgenda.join(', ')}.`);
   }
   if (avisos.length) {
     console.log('\n⚠️  Pendientes (ver docs/decisiones-pendientes.md):');

@@ -8,9 +8,12 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 1. **La recepción no calcula ni decide nada que el sistema pueda calcular o
    decidir.** Toda la lógica vive en el backend (`src/lib`, `src/bots`).
 2. **Fuente de verdad del catálogo/precios: la lista oficial de Segunda Opinión
-   Médica.** El catálogo se arma **de cero con los profesionales de SOM**; hasta
-   entonces quedan consultas de ejemplo sin precio y sin profesionales. No se
-   inventan precios, profesionales ni reglas: se cargan cuando estén definidos.
+   Médica.** Las especialidades, los precios (R-17: consulta por especialidad ARS
+   150.000, lista del 26/09/2026), la duración (30 min) y los tres **profesionales**
+   (`src/config/medicos.ts`, provisorios) ya están cargados; falta la
+   **disponibilidad semanal y el consultorio** de cada uno (sin eso no hay horarios
+   ni reserva por profesional, R-22). No se inventan precios, profesionales,
+   horarios ni reglas: se cargan cuando estén definidos.
    (El Manual de Protocolos v9 era de BioWellness y ya no aplica.)
 3. **Privacidad por diseño.** La recepción nunca ve la historia clínica completa;
    solo la señal binaria del banner de seguridad.
@@ -105,9 +108,11 @@ paquetes, contraindicaciones) **se retiró del dominio** — Segunda Opinión M�
 no vende esos servicios. El catálogo vigente son las consultas por especialidad
 (presenciales o por teleconsulta) y las consultas del **Plan Bienestar 100 Días®**
 (marca registrada del Dr. D'Alessandro; ver `docs/plan-bienestar.md`). Las
-especialidades están definidas; profesionales, precios, duraciones, consultorios y
-horario siguen **PENDIENTES** (bloqueante para cobrar de verdad y para la agenda
-real).
+especialidades, precios, duraciones y profesionales están definidos (los
+profesionales, provisorios); la **disponibilidad de cada profesional, los
+consultorios y el horario del centro** siguen **PENDIENTES** (bloqueante para la
+agenda real: sin disponibilidad no se generan horarios ni se puede reservar por
+profesional, R-22).
 
 Lo demás **no frena el desarrollo**: cargar los Project Secrets de Twilio/SES en
 Medplum (para que confirmaciones y recordatorios **envíen** de verdad; sin ellos
