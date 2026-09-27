@@ -15,13 +15,18 @@
  * Para Twilio Sandbox: el número destino debe haber enviado el "join <code>" al
  * número del sandbox, y TWILIO_WHATSAPP_FROM debe ser el del sandbox.
  *
- * Al final muestra la URL del webhook de entrada (WhatsApp en Mensajes) para
- * cargar en Twilio: ver docs/whatsapp.md.
+ * Al final revisa el webhook de entrada (WhatsApp en Mensajes): los Project Secrets de
+ * Twilio (solo si están, nunca sus valores) y que `TWILIO_WEBHOOK_URL` llame al bot con
+ * las credenciales de "Webhook Twilio" (`npm run whatsapp:webhook` lo deja listo). Ver
+ * docs/whatsapp.md.
  */
 import 'dotenv/config';
-import type { Communication } from '@medplum/fhirtypes';
+import type { MedplumClient } from '@medplum/core';
+import type { Communication, ProjectSetting } from '@medplum/fhirtypes';
 import { BOT_WHATSAPP_ENTRANTE } from '../fhir/identifiers.js';
+import { NOMBRE_CLIENTE_WEBHOOK_TWILIO, problemasUrlWebhookTwilio, SECRETS_TWILIO } from '../lib/whatsapp.js';
 import { conectarMedplum } from './conexion.js';
+import { leerSecretos, valorSecreto } from './secretos.js';
 
 async function main(): Promise<void> {
   const to = process.argv[2] ?? process.env.DIAG_WHATSAPP_TO;
@@ -31,7 +36,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { medplum, baseUrl } = await conectarMedplum();
+  const { medplum, baseUrl, projectId } = await conectarMedplum();
   console.log(`Conectado a ${baseUrl}. Probando WhatsApp a: ${to}`);
 
   const bot = await medplum.searchOne('Bot', 'name=som-enviar-whatsapp');
@@ -77,16 +82,49 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   }
 
-  // Webhook de entrada (mensajes que llegan + ✓✓): la URL para Twilio y el secret TWILIO_WEBHOOK_URL.
-  const entrante = await medplum.searchOne('Bot', `name:exact=${BOT_WHATSAPP_ENTRANTE}`);
+  // Webhook de entrada (mensajes que llegan + ✓✓): Project Secrets y TWILIO_WEBHOOK_URL.
+  await revisarWebhook(medplum, projectId, baseUrl);
+}
+
+/** Revisa la configuración del webhook de Twilio sin mostrar ningún valor. */
+async function revisarWebhook(medplum: MedplumClient, projectId: string, baseUrl: string): Promise<void> {
   console.log('\nWhatsApp en Mensajes (mensajes que llegan y ✓✓):');
-  if (entrante?.id) {
-    console.log(
-      `  URL del webhook (Twilio "A message comes in" y secret TWILIO_WEBHOOK_URL), con la ClientApplication "Webhook Twilio":\n` +
-        `    ${baseUrl.replace(/^https:\/\//, 'https://<clientId>:<clientSecret>@').replace(/\/?$/, '/')}fhir/R4/Bot/${entrante.id}/$execute?_medplum-prompt-basic-auth=1`,
-    );
+  const entrante = await medplum.searchOne('Bot', { 'name:exact': BOT_WHATSAPP_ENTRANTE });
+  if (!entrante?.id) {
+    console.error(`  ✗ Falta el bot "${BOT_WHATSAPP_ENTRANTE}": npm run deploy:bots`);
+    process.exitCode = 1;
+    return;
+  }
+  let secretos: ProjectSetting[];
+  try {
+    secretos = await leerSecretos(medplum, projectId);
+  } catch {
+    console.log('  ? No pude leer los Project Secrets (hace falta una ClientApplication admin del proyecto).');
+    return;
+  }
+  for (const nombre of SECRETS_TWILIO) {
+    console.log(`  ${valorSecreto(secretos, nombre) ? '✓' : '✗'} ${nombre}`);
+  }
+  console.log(`  ${valorSecreto(secretos, 'RECEPCION_WHATSAPP_TO') ? '✓' : '·'} RECEPCION_WHATSAPP_TO (opcional)`);
+
+  const cliente = await medplum.searchOne('ClientApplication', { 'name:exact': NOMBRE_CLIENTE_WEBHOOK_TWILIO });
+  const problemas = [
+    ...(cliente?.id ? [] : [`falta la ClientApplication "${NOMBRE_CLIENTE_WEBHOOK_TWILIO}"`]),
+    ...problemasUrlWebhookTwilio(valorSecreto(secretos, 'TWILIO_WEBHOOK_URL'), {
+      baseUrl,
+      botId: entrante.id,
+      clientId: cliente?.id,
+    }),
+  ];
+  if (problemas.length === 0) {
+    console.log(`  ✓ TWILIO_WEBHOOK_URL llama a ${BOT_WHATSAPP_ENTRANTE} con las credenciales de "${NOMBRE_CLIENTE_WEBHOOK_TWILIO}".`);
+    console.log('    En Twilio va esa misma URL: webhook de mensajes entrantes del número de SOM (POST).');
   } else {
-    console.log(`  Falta el bot "${BOT_WHATSAPP_ENTRANTE}": npm run deploy:bots`);
+    for (const p of problemas) {
+      console.error(`  ✗ TWILIO_WEBHOOK_URL: ${p}`);
+    }
+    console.error('  → npm run whatsapp:webhook lo deja listo.');
+    process.exitCode = 1;
   }
   console.log('  Pasos completos: docs/whatsapp.md');
 }

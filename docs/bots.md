@@ -134,6 +134,8 @@ y en los **recordatorios** (ver abajo).
 > bot `som-enviar-whatsapp` en el server (lee los Project Secrets reales) y reporta
 > el `status` de la `Communication`: `completed` (Twilio aceptó), `preparation`
 > (falta algún secret) o `entered-in-error` (Twilio rechazó: sandbox/FROM/número).
+> Después revisa el webhook de entrada (Project Secrets y `TWILIO_WEBHOOK_URL`, sin
+> mostrar valores); `npm run whatsapp:webhook` lo deja listo (ver `docs/whatsapp.md`).
 
 ### Email (AWS SES)
 

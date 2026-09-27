@@ -32,11 +32,14 @@ import {
   leerWebhookTwilio,
   MENSAJE_SIN_CONTENIDO,
   nombreAdjunto,
+  ocultarClaveUrl,
   partirTexto,
+  problemasUrlWebhookTwilio,
   telefonoDe,
   tipoAdjunto,
   tipoAutomatica,
   ultimoDelPaciente,
+  urlWebhookTwilio,
   variantesTelefonoAR,
   vistaPrevia,
 } from '../src/lib/whatsapp.js';
@@ -416,5 +419,54 @@ describe('WhatsApp · fechas e iniciales (hora de Argentina)', () => {
     expect(iniciales('+54 9 11 2233-4455')).toBe('');
     expect(esSoloNumero('+54 9 11 2233-4455')).toBe(true);
     expect(esSoloNumero('Ana')).toBe(false);
+  });
+});
+
+describe('WhatsApp · URL del webhook de Twilio (TWILIO_WEBHOOK_URL)', () => {
+  const base = 'https://api.medplum.com.ar/';
+  const esperado = { baseUrl: base, botId: 'bot-1', clientId: 'cli-1' };
+  const buena = urlWebhookTwilio({ ...esperado, clientSecret: 's3cr3t' });
+
+  it('Arma el $execute del bot con las credenciales y el prompt de basic auth', () => {
+    expect(buena).toBe('https://cli-1:s3cr3t@api.medplum.com.ar/fhir/R4/Bot/bot-1/$execute?_medplum-prompt-basic-auth=1');
+    expect(urlWebhookTwilio({ ...esperado, baseUrl: 'https://api.medplum.com.ar', clientSecret: 'x' })).toBe(
+      'https://cli-1:x@api.medplum.com.ar/fhir/R4/Bot/bot-1/$execute?_medplum-prompt-basic-auth=1',
+    );
+  });
+
+  it('La URL que arma no tiene problemas', () => {
+    expect(problemasUrlWebhookTwilio(buena, esperado)).toEqual([]);
+  });
+
+  it('Sin la URL => falta (no hay ✓✓)', () => {
+    expect(problemasUrlWebhookTwilio(undefined, esperado)).toEqual([expect.stringMatching(/^falta/)]);
+    expect(problemasUrlWebhookTwilio('  ', esperado)).toHaveLength(1);
+  });
+
+  it('Detecta cada error típico, sin mostrar la clave', () => {
+    const casos: Array<[string, RegExp]> = [
+      ['no es url', /no es una URL/],
+      [buena.replace('https:', 'http:'), /https/],
+      [buena.replace('api.medplum.com.ar', 'api.medplum.com'), /apunta a api\.medplum\.com,/],
+      ['https://api.medplum.com.ar/fhir/R4/Bot/bot-1/$execute?_medplum-prompt-basic-auth=1', /no lleva las credenciales/],
+      [buena.replace('cli-1', 'otro'), /no son las de "Webhook Twilio"/],
+      [buena.replace('bot-1', 'bot-2'), /Bot\/bot-1\/\$execute/],
+      [buena.replace('?_medplum-prompt-basic-auth=1', ''), /_medplum-prompt-basic-auth=1/],
+    ];
+    for (const [url, problema] of casos) {
+      const problemas = problemasUrlWebhookTwilio(url, esperado);
+      expect(problemas, url).toEqual([expect.stringMatching(problema)]);
+      expect(problemas.join(' ')).not.toContain('s3cr3t');
+    }
+  });
+
+  it('Sin clientId esperado acepta cualquier credencial', () => {
+    expect(problemasUrlWebhookTwilio(buena.replace('cli-1', 'otro'), { baseUrl: base, botId: 'bot-1' })).toEqual([]);
+  });
+
+  it('Para mostrarla, tapa la clave; una URL ilegible no se muestra', () => {
+    expect(ocultarClaveUrl(buena)).toBe('https://cli-1:***@api.medplum.com.ar/fhir/R4/Bot/bot-1/$execute?_medplum-prompt-basic-auth=1');
+    expect(ocultarClaveUrl('https://api.medplum.com.ar/x')).toBe('https://api.medplum.com.ar/x');
+    expect(ocultarClaveUrl('cli:s3cr3t sin esquema')).toBe('(URL inválida)');
   });
 });
