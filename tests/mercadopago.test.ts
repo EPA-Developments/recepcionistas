@@ -141,7 +141,11 @@ describe('Errores de MercadoPago', () => {
 
 describe('Cuenta de MercadoPago (GET /users/me)', () => {
   it('una cuenta de Argentina activa no muestra problemas', () => {
-    expect(diagnosticarCuentaMP(CUENTA_OK)).toEqual({ resumen: 'cuenta 987654321 (SEGUNDAOPINION), Argentina', problemas: [] });
+    expect(diagnosticarCuentaMP(CUENTA_OK)).toEqual({
+      resumen: 'cuenta 987654321 (SEGUNDAOPINION), Argentina',
+      problemas: [],
+      esPrueba: false,
+    });
   });
 
   it('detecta lo que impide cobrar', () => {
@@ -156,6 +160,21 @@ describe('Cuenta de MercadoPago (GET /users/me)', () => {
     expect(d.problemas.join(' ')).toMatch(/términos y condiciones/);
     expect(d.problemas.join(' ')).toMatch(/validar identidad/);
     expect(d.problemas.join(' ')).toMatch(/habilitada para vender\/cobrar \(address_pending\)/);
+  });
+
+  it('un usuario de prueba: no cobra de verdad, pero su email sin confirmar no es un problema', () => {
+    const d = diagnosticarCuentaMP({
+      ...CUENTA_OK,
+      nickname: 'TESTUSER424973251922703087',
+      tags: ['normal', 'test_user'],
+      status: { ...CUENTA_OK.status, confirmed_email: false },
+    });
+    expect(d.esPrueba).toBe(true);
+    expect(d.problemas).toEqual(['es un usuario de PRUEBA: sirve para probar sin plata real, no para cobrar de verdad.']);
+    // Una cuenta real sin email confirmado sí lo muestra.
+    expect(diagnosticarCuentaMP({ ...CUENTA_OK, status: { ...CUENTA_OK.status, confirmed_email: false } }).problemas).toEqual([
+      'la cuenta no confirmó su email.',
+    ]);
   });
 
   it('resumen de la credencial para Recepción', () => {

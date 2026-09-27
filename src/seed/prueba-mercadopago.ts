@@ -14,9 +14,12 @@
  * `som-webhook-mercadopago` verifica el pago y confirma el turno. El script espera a que el
  * turno pase a confirmado y verifica el Invoice (lo pagado, el id del pago) y el WhatsApp.
  *
- * ⚠️ El pago es REAL (la seña de la consulta, con el token productivo). Después, devolverlo
- * desde el panel de MercadoPago (Actividad → el pago → Devolver) y cancelar el turno con
- * `--limpiar`. El script nunca devuelve plata ni cobra nada por su cuenta.
+ * Con la credencial de la cuenta real de SOM el pago es REAL (la seña de la consulta):
+ * después, devolverlo desde el panel de MercadoPago (Actividad → el pago → Devolver). Con
+ * la de un **usuario de prueba** de MercadoPago la prueba corre en **modo prueba**: el
+ * circuito es el mismo, sin plata real, pagando con un comprador de prueba y una tarjeta
+ * de prueba. En los dos casos, al final cancelar el turno con `--limpiar`. El script nunca
+ * devuelve plata ni cobra nada por su cuenta.
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
@@ -228,14 +231,23 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Antes de reservar nada: credencial de MercadoPago y URL del webhook.
+  // Antes de reservar nada: credencial de MercadoPago y URL del webhook. Un usuario de
+  // prueba (y nada más) no cobra de verdad, pero sirve para probar sin plata real.
   const diag = (await medplum.executeBot(await botId(medplum, 'som-link-mercadopago'), { diagnosticar: true })) as ResultadoLinkMP;
-  if (!diag.ok) {
+  const modoPrueba = !diag.ok && diag.cuenta?.esPrueba === true && diag.cuenta.problemas.length === 1;
+  if (!diag.ok && !modoPrueba) {
     console.error(`\n✗ MercadoPago no está listo: ${diag.mensaje ?? 'sin detalle'} (npm run mercadopago:test)`);
     process.exitCode = 1;
     return;
   }
-  console.log(`✓ MercadoPago: ${diag.mensaje ?? 'credencial OK'}`);
+  if (modoPrueba) {
+    console.log(
+      `✓ MercadoPago en MODO PRUEBA: la credencial es de un usuario de prueba (${diag.cuenta?.resumen}).\n` +
+        '  El circuito es el mismo, pero no se mueve plata real.',
+    );
+  } else {
+    console.log(`✓ MercadoPago: ${diag.mensaje ?? 'credencial OK'}`);
+  }
   const webhook = valorSecreto(await leerSecretos(medplum, projectId), 'MP_WEBHOOK_URL');
   const problemas = problemasUrlPublica(webhook, { baseUrl, ruta: RUTA_WEBHOOK_MERCADOPAGO });
   if (problemas.length > 0) {
@@ -258,7 +270,14 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    console.log(`\n→ Pagá la seña de $${l.senaARS?.toLocaleString('es-AR')} (pago REAL) en:\n\n    ${l.url}\n`);
+    console.log(
+      modoPrueba
+        ? `\n→ Pagá la seña de $${l.senaARS?.toLocaleString('es-AR')} (MODO PRUEBA, sin plata real) en:\n\n    ${l.url}\n\n` +
+            '  Abrilo en una ventana de incógnito y entrá con un COMPRADOR de prueba (otro usuario de prueba,\n' +
+            '  no el vendedor: MercadoPago → Tus integraciones → Cuentas de prueba). Pagá con una tarjeta de\n' +
+            '  prueba (Tus integraciones → Tarjetas de prueba) con titular APRO (= aprobado) y DNI 12345678.\n'
+        : `\n→ Pagá la seña de $${l.senaARS?.toLocaleString('es-AR')} (pago REAL) en:\n\n    ${l.url}\n`,
+    );
     const minutos = Number(arg('espera') ?? 15) || 15;
     const confirmado = await esperarConfirmacion(medplum, appointmentId, minutos);
     if (!confirmado) {
@@ -276,8 +295,8 @@ async function main(): Promise<void> {
   }
   console.log(
     '\nPara terminar la prueba:\n' +
-      '  1. Devolvé el pago desde el panel de MercadoPago (Actividad → el pago → Devolver).\n' +
-      `  2. npm run mercadopago:e2e -- --limpiar --turno ${appointmentId}`,
+      (modoPrueba ? '' : '  · Devolvé el pago desde el panel de MercadoPago (Actividad → el pago → Devolver).\n') +
+      `  · npm run mercadopago:e2e -- --limpiar --turno ${appointmentId}`,
   );
 }
 

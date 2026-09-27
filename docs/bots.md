@@ -238,10 +238,18 @@ npm run mercadopago:e2e -- --limpiar --turno <id>      # cancela el turno de pru
 (la primera franja libre de teleconsulta de un profesional, desde mañana) para un paciente
 de prueba (tag demo; o `--paciente Patient/<id>`), genera el link de la seña y **espera el
 pago** (`--espera <min>`, 15 por defecto). Cuando el webhook confirma el turno, muestra el
-Invoice (lo pagado y el id del pago) y el WhatsApp de confirmación. **El pago es real:**
-devolverlo desde el panel de MercadoPago (Actividad → el pago → Devolver) y cancelar el
-turno con `--limpiar`. El script nunca cobra ni devuelve plata por su cuenta. Con
-`--turno <id>` retoma la espera o la verificación de un turno ya armado.
+Invoice (lo pagado y el id del pago) y el WhatsApp de confirmación. Con `--turno <id>`
+retoma la espera o la verificación de un turno ya armado; `--limpiar` cancela el turno.
+El script nunca cobra ni devuelve plata por su cuenta.
+
+- **Con la credencial de la cuenta real de SOM el pago es real:** devolverlo desde el panel
+  de MercadoPago (Actividad → el pago → Devolver).
+- **Modo prueba (sin plata real):** si `MERCADOPAGO_ACCESS_TOKEN` es de un **usuario de
+  prueba** de MercadoPago (`TESTUSER…`), el script lo detecta y sigue igual: se paga
+  entrando al link (en incógnito) con un **comprador de prueba** —otro usuario de prueba,
+  no el vendedor: Tus integraciones → Cuentas de prueba— y una **tarjeta de prueba** (Tus
+  integraciones → Tarjetas de prueba) con titular **APRO** (aprobado) y DNI 12345678. Un
+  usuario de prueba no sirve para cobrar de verdad: `mercadopago:test` lo marca.
 
 > **Retirado:** los bots de combos, de asignación de planes
 > (membresías/paquetes) y de cobro recurrente eran de un catálogo anterior, ajeno
