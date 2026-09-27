@@ -21,10 +21,12 @@
  * Ver docs/whatsapp.md y docs/bots.md.
  */
 import 'dotenv/config';
+import { createHash } from 'node:crypto';
 import { createReference, getReferenceString, type MedplumClient } from '@medplum/core';
 import type { AccessPolicy, ClientApplication, ProjectMembership, ProjectSetting } from '@medplum/fhirtypes';
 import { firmaTwilio } from '../lib/firma-twilio.js';
 import {
+  basicDeCliente,
   ocultarClaveUrl,
   problemasUrlPublica,
   problemasUrlWebhookTwilio,
@@ -53,6 +55,16 @@ interface Listo {
   url: string;
   /** El secret quedó con esta URL (se puede probar). */
   secretOk: boolean;
+  /** El Basic de su ClientApplication: solo en memoria, para probar sin nginx. Nunca se imprime. */
+  basic?: string;
+}
+
+/**
+ * Huella del Basic (SHA-256 recortado): permite comparar el que tiene nginx con el correcto
+ * sin mostrar ninguno. 48 bits de un hash no revelan una clave de 256.
+ */
+function huella(basic: string): string {
+  return createHash('sha256').update(basic).digest('hex').slice(0, 12);
 }
 
 async function main(): Promise<void> {
@@ -90,7 +102,10 @@ async function main(): Promise<void> {
     for (const l of publicos) {
       console.log(`  location = ${l.def.ruta}`);
       console.log(`      ${l.def.nginx.botId} = ${l.botId}`);
-      console.log(`      ${l.def.nginx.basic} = Basic de "${l.def.cliente}" (clientId ${l.clientId})`);
+      console.log(
+        `      ${l.def.nginx.basic} = Basic de "${l.def.cliente}" (clientId ${l.clientId}` +
+          `${l.basic ? `, huella ${huella(l.basic)}` : ''})`,
+      );
     }
     console.log(
       '  El Basic se arma EN EL SERVIDOR, así la clave no pasa por ningún otro lado: Medplum →\n' +
@@ -106,9 +121,9 @@ async function main(): Promise<void> {
     } else if (l.def === WEBHOOK_TWILIO && directa) {
       console.log('  · WhatsApp: con --directa no se prueba (no pasa por nginx).');
     } else if (l.def === WEBHOOK_TWILIO) {
-      await probarTwilio(l.url, secretos);
+      await probarTwilio(baseUrl, l, secretos);
     } else {
-      await probarMercadoPago(l.url);
+      await probarMercadoPago(baseUrl, l);
     }
   }
 
@@ -191,7 +206,8 @@ async function configurar(
       console.log(`  + ${def.secret} = ${ocultarClaveUrl(url)} (los demás secrets quedan como estaban).`);
     }
   }
-  return { def, botId: bot.id, clientId: cliente.id, url, secretOk };
+  const basic = cliente.secret ? basicDeCliente(cliente.id, cliente.secret) : undefined;
+  return { def, botId: bot.id, clientId: cliente.id, url, secretOk, basic };
 }
 
 /** La ClientApplication dedicada del webhook, con su membership corregida. */
@@ -267,7 +283,7 @@ function explicarHttp(status: number): string {
     return 'nginx todavía no tiene la ruta (HTTP 404)';
   }
   if (status === 401 || status === 403) {
-    return `nginx no agrega el Authorization o no es el de la ClientApplication (HTTP ${status})`;
+    return `Medplum no acepta el Authorization que agrega nginx (HTTP ${status})`;
   }
   if (status >= 502 && status <= 504) {
     return `nginx no llega a Medplum (HTTP ${status})`;
@@ -275,7 +291,33 @@ function explicarHttp(status: number): string {
   return `HTTP ${status}`;
 }
 
-async function probarTwilio(url: string, secretos: ProjectSetting[]): Promise<void> {
+/**
+ * Con 401/403 en la URL pública, el mismo pedido directo a Medplum con la clave de la
+ * ClientApplication (sin nginx): separa "el Basic de nginx está mal" de "Medplum rechaza
+ * la ClientApplication".
+ */
+async function probarSinNginx(baseUrl: string, l: Listo, body: string, headers: Record<string, string>): Promise<void> {
+  if (!l.basic) {
+    console.log(`    (no pude leer la clave de "${l.def.cliente}" para probar sin nginx)`);
+    return;
+  }
+  const directa = new URL(`fhir/R4/Bot/${l.botId}/$execute`, baseUrl.replace(/\/?$/, '/')).toString();
+  const r = await postear(directa, body, { ...headers, Authorization: `Basic ${l.basic}` });
+  if (r.status === 200) {
+    console.log(
+      `    → Sin nginx, con la clave de "${l.def.cliente}", Medplum responde bien (HTTP 200): el Basic\n` +
+        `      que tiene nginx en ${l.def.ruta} no es el correcto. Huella del correcto: ${huella(l.basic)}.\n` +
+        '      Compararla en el servidor: docs/whatsapp.md → «Si la URL pública da 401».',
+    );
+  } else {
+    console.log(
+      `    → Sin nginx también falla (HTTP ${r.status}): Medplum rechaza la ClientApplication "${l.def.cliente}"\n` +
+        '      (¿status inactivo, membership inactiva o reglas de IP en su AccessPolicy?).',
+    );
+  }
+}
+
+async function probarTwilio(baseUrl: string, l: Listo, secretos: ProjectSetting[]): Promise<void> {
   const token = valorSecreto(secretos, 'TWILIO_AUTH_TOKEN');
   const cuenta = valorSecreto(secretos, 'TWILIO_ACCOUNT_SID');
   if (!token || !cuenta) {
@@ -286,20 +328,24 @@ async function probarTwilio(url: string, secretos: ProjectSetting[]): Promise<vo
   const params = { AccountSid: cuenta, MessageSid: 'SMsomdiagnosticowebhook000000000', MessageStatus: 'delivered' };
   const body = new URLSearchParams(params).toString();
   const form = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  const firmado = { ...form, 'X-Twilio-Signature': firmaTwilio(token, l.url, params) };
 
-  const firmado = await postear(url, body, { ...form, 'X-Twilio-Signature': firmaTwilio(token, url, params) });
-  if (firmado.status !== 200) {
-    mal(`WhatsApp: ${explicarHttp(firmado.status)}.`);
+  const r = await postear(l.url, body, firmado);
+  if (r.status !== 200) {
+    mal(`WhatsApp: ${explicarHttp(r.status)}.`);
+    if (r.status === 401 || r.status === 403) {
+      await probarSinNginx(baseUrl, l, body, firmado);
+    }
     return;
   }
-  if (firmado.cuerpo?.tipo === 'estado') {
+  if (r.cuerpo?.tipo === 'estado') {
     console.log('  ✓ WhatsApp: nginx → Medplum → bot, y el bot acepta lo que firma Twilio.');
   } else {
-    mal(`WhatsApp: el bot rechazó un pedido bien firmado: ${String(firmado.cuerpo?.motivo ?? JSON.stringify(firmado.cuerpo))}`);
+    mal(`WhatsApp: el bot rechazó un pedido bien firmado: ${String(r.cuerpo?.motivo ?? JSON.stringify(r.cuerpo))}`);
     return;
   }
 
-  const sinFirma = await postear(url, body, form);
+  const sinFirma = await postear(l.url, body, form);
   if (sinFirma.status === 200 && sinFirma.cuerpo?.ok === false) {
     console.log('  ✓ WhatsApp: rechaza un pedido sin la firma de Twilio.');
   } else {
@@ -307,10 +353,15 @@ async function probarTwilio(url: string, secretos: ProjectSetting[]): Promise<vo
   }
 }
 
-async function probarMercadoPago(url: string): Promise<void> {
-  const r = await postear(url, JSON.stringify({ type: 'som-diagnostico' }), { 'Content-Type': 'application/json' });
+async function probarMercadoPago(baseUrl: string, l: Listo): Promise<void> {
+  const body = JSON.stringify({ type: 'som-diagnostico' });
+  const json = { 'Content-Type': 'application/json' };
+  const r = await postear(l.url, body, json);
   if (r.status !== 200) {
     mal(`MercadoPago: ${explicarHttp(r.status)}.`);
+    if (r.status === 401 || r.status === 403) {
+      await probarSinNginx(baseUrl, l, body, json);
+    }
   } else if (r.cuerpo?.ok === true) {
     console.log('  ✓ MercadoPago: nginx → Medplum → bot (el evento de prueba se ignora, como corresponde).');
   } else {

@@ -66,6 +66,11 @@ export function urlPublicaWebhook(baseUrl: string, ruta: string): string {
   return new URL(ruta, baseUrl).toString();
 }
 
+/** Lo que va después de `Basic ` en el `Authorization` que agrega nginx (base64 de `clientId:clave`, sin salto de línea). */
+export function basicDeCliente(clientId: string, clientSecret: string): string {
+  return btoa(`${clientId}:${clientSecret}`);
+}
+
 /** `publica` (nginx, sin credenciales) o `directa` (credenciales en la URL, temporal). */
 export function modoUrlWebhook(url: string): 'publica' | 'directa' | undefined {
   try {

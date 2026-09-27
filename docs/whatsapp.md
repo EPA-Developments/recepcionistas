@@ -195,6 +195,46 @@ Medplum (Project Admin → Clients):
 `printf '%s' '<clientId>:<clientSecret>' | base64 -w0`. Después
 `sudo nginx -t && sudo systemctl reload nginx` y volver a correr `npm run webhooks`.
 
+#### Si la URL pública da 401
+
+El 401 lo devuelve Medplum: el pedido llega al bot, pero con un `Authorization` que no
+acepta. `npm run webhooks` repite el pedido **sin nginx**, con la clave de la
+ClientApplication. Si así anda, el Basic de nginx está mal, y el script imprime la
+**huella** del correcto (un hash recortado, que no revela la clave). En el servidor, este
+comando lee la configuración que nginx tiene cargada y, por cada ruta de SOM, dice qué
+`clientId` tiene, si la clave termina en un salto de línea y su huella. Nunca muestra la
+clave:
+
+```bash
+sudo nginx -T 2>/dev/null | python3 -c '
+import re, sys, base64, hashlib
+conf = sys.stdin.read()
+for ruta in ("/webhooks/som/twilio-whatsapp", "/webhooks/som/mercadopago"):
+    m = re.search(r"location\s*=\s*" + re.escape(ruta) + r"\s*\{(.*?)\n\s*\}", conf, re.S)
+    b = m and re.search(r"Authorization\s+\"Basic ([^\"]*)\"", m.group(1))
+    if not b:
+        print(ruta, "-> NO está en la configuración (o no tiene Authorization)"); continue
+    v = b.group(1)
+    try:
+        d = base64.b64decode(v, validate=True).decode()
+    except Exception:
+        print(ruta, "-> el Basic no es base64 válido (¿quedó el placeholder?)"); continue
+    cid, _, clave = d.partition(":")
+    print(ruta, "-> clientId", cid, "| clave de", len(clave.rstrip("\n")), "caracteres",
+          "| ¡TERMINA EN SALTO DE LÍNEA!" if d.endswith("\n") else "| sin salto de línea",
+          "| huella", hashlib.sha256(v.encode()).hexdigest()[:12])
+'
+```
+
+- **Termina en salto de línea:** se armó con `echo 'id:clave' | base64`. Rehacerlo con
+  `printf '%s' '<clientId>:<clientSecret>' | base64 -w0` (en macOS: `base64` sin `-w0`).
+- **Otro `clientId`:** es la clave de otra ClientApplication. Cada ruta lleva la suya.
+- **Misma `clientId`, otra huella:** la clave no es la actual; se copió mal o se regeneró.
+- **No está / placeholder:** falta el bloque, o falta reemplazar el placeholder.
+
+Después: `sudo nginx -t && sudo systemctl reload nginx` (`nginx -T` muestra lo que está en
+disco: sin recargar, nginx sigue usando lo anterior) y volver a correr `npm run webhooks`.
+
 - **Rotar una clave:** regenerar el secret de la ClientApplication en Medplum, actualizar su
   `Authorization` en nginx y recargar. Twilio y MercadoPago no cambian nada.
 - **Si se recrea un bot** cambia su id: actualizarlo en nginx y recargar.
