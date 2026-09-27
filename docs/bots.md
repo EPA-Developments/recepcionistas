@@ -241,8 +241,16 @@ npm run mercadopago:ordenes -- --pago <id>            # un pago + "Calidad de in
 (Invoice `mp-<id>` y estado del turno): un pago aprobado sin Invoice es una notificación
 que no llegó o falló. Con `--pago <id>` muestra el detalle y lo que mira **"Calidad de
 integración"** de MercadoPago (descripción, código y categoría del ítem, webhook,
-`external_reference`…), con ✓/✗ según lo que llegó en ese pago. Solo lee; el token sale del
-Project Secret y no se imprime; el email del comprador se muestra enmascarado.
+`external_reference`…), con ✓/✗ según lo que llegó en ese pago, el **Order ID** (el que pide
+el panel; no es el Payment ID) y la **aplicación** que creó el pago. Solo lee; el token sale
+del Project Secret y no se imprime; el email del comprador se muestra enmascarado.
+
+> **"Calidad de integración" solo acepta Order IDs de pagos hechos con credenciales de SU
+> aplicación** (si no: «Ingresá un Order ID válido»). La aplicación la define el Access Token
+> cargado en `MERCADOPAGO_ACCESS_TOKEN`, no el servidor: para medir en una aplicación, cargar
+> sus **Credenciales de prueba** (Access Token), hacer un pago con `mercadopago:e2e` y usar
+> el Order ID que da `mercadopago:ordenes`. Con una credencial `TEST-` el link es el del
+> sandbox y la prueba corre en modo prueba.
 
 `mercadopago:e2e` verifica la credencial y `MP_WEBHOOK_URL`, reserva un turno tentativo
 (la primera franja libre de un profesional desde mañana; **presencial** por defecto, porque

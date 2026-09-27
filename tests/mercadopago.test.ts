@@ -350,6 +350,20 @@ describe('Bot som-link-mercadopago', () => {
     expect(JSON.parse(String(llamadas[0]?.init?.body))).toMatchObject({ external_reference: 'a1', items: [{ unit_price: 5000 }] });
   });
 
+  it('con una credencial de prueba (TEST-) el link es el del sandbox', async () => {
+    precio.sena = 5000;
+    stubFetch({
+      'https://api.mercadopago.com/checkout/preferences': () =>
+        respuesta(201, {
+          init_point: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=1',
+          sandbox_init_point: 'https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=1',
+        }),
+    });
+    const { medplum } = fakeMedplum([turno]);
+    const r = await linkMercadoPago(medplum, ev({ appointmentId: 'a1' }, ACCESS_PRUEBA));
+    expect(r).toMatchObject({ ok: true, credencial: 'access-token-prueba', url: 'https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=1' });
+  });
+
   it('un token con formato desconocido se prueba igual; si MercadoPago lo rechaza, se avisa el formato', async () => {
     precio.sena = 5000;
     const llamadas = stubFetch({
