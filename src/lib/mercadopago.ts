@@ -166,7 +166,10 @@ export interface PagoMPDetalle extends PagoMP {
   payment_type_id?: string;
   notification_url?: string;
   statement_descriptor?: string;
+  /** La orden del pago: su id es el "Order ID" que pide "Calidad de integración". */
   order?: { id?: number | string; type?: string };
+  /** La cuenta que cobró (el vendedor de la credencial). */
+  collector_id?: number | string;
   payer?: { email?: string };
   /** Lo que mandó la integración en la preferencia (ítems y comprador). */
   additional_info?: {

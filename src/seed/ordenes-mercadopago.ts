@@ -99,7 +99,8 @@ async function listar(medplum: MedplumClient, token: string): Promise<void> {
         `${p.live_mode === false ? ' · PRUEBA' : ''}\n` +
         `    ${pesos(p.transaction_amount, p.currency_id)} · ${p.payment_method_id ?? '¿medio?'}` +
         `${enmascararEmail(p.payer?.email) ? ` · ${enmascararEmail(p.payer?.email)}` : ''}` +
-        ` · turno ${p.external_reference ?? '(sin referencia)'}\n` +
+        ` · turno ${p.external_reference ?? '(sin referencia)'}` +
+        `${p.order?.id ? ` · Order ID ${p.order.id}` : ''}\n` +
         `    Medplum: ${await enMedplum(medplum, p)}`,
     );
   }
@@ -116,8 +117,9 @@ async function detalle(medplum: MedplumClient, token: string, id: string): Promi
       `  Estado:   ${estadoPagoEnPalabras(p.status, p.status_detail)}\n` +
       `  Monto:    ${pesos(p.transaction_amount, p.currency_id)} · ${p.payment_type_id ?? '?'} / ${p.payment_method_id ?? '?'}\n` +
       `  Creado:   ${fecha(p.date_created)}${p.date_approved ? ` · aprobado ${fecha(p.date_approved)}` : ''}\n` +
-      `  Turno:    ${p.external_reference ?? '(sin external_reference)'}` +
-      `${p.order?.id ? ` · orden ${p.order.type ?? ''} ${p.order.id}` : ''}\n` +
+      `  Turno:    ${p.external_reference ?? '(sin external_reference)'}\n` +
+      `  Order ID: ${p.order?.id ?? '(sin orden)'}${p.order?.id ? `  ← el que pide "Calidad de integración" (${p.order.type ?? 'orden'})` : ''}\n` +
+      `  Vendedor: cuenta ${p.collector_id ?? '?'}\n` +
       `  Ítem:     ${item?.title ?? '(sin ítem)'}\n` +
       `  Comprador: ${enmascararEmail(p.payer?.email) ?? '(sin email)'}\n` +
       `  Medplum:  ${await enMedplum(medplum, p)}`,
