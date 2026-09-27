@@ -77,6 +77,8 @@ export interface DatosPreferenciaSena {
   appointmentId: string;
   /** Texto del turno (p. ej. "Consulta de Cardiología"). */
   descripcion: string;
+  /** Código de la consulta en el catálogo (p. ej. "CARDIOLOGIA"): `items.id`. */
+  itemCodigo?: string;
   senaARS: number;
   /** A dónde vuelve el paciente después de pagar: el portal del paciente (quien paga). */
   urlRegreso: string;
@@ -96,10 +98,25 @@ export function problemaMontoSena(senaARS: number): string | undefined {
   );
 }
 
-/** Cuerpo de `POST /checkout/preferences` para la seña de un turno. */
+/**
+ * Cuerpo de `POST /checkout/preferences` para la seña de un turno. El ítem lleva código,
+ * descripción y categoría: MercadoPago los usa para validar el pago (menos rechazos por su
+ * motor de prevención de fraude; "Calidad de integración" → Aprobación de pagos). Solo
+ * datos del servicio, nada del paciente.
+ */
 export function armarPreferenciaSena(d: DatosPreferenciaSena): Record<string, unknown> {
   return {
-    items: [{ title: `Seña 50% · ${d.descripcion}`, quantity: 1, unit_price: d.senaARS, currency_id: 'ARS' }],
+    items: [
+      {
+        id: d.itemCodigo ?? `sena-${d.appointmentId}`,
+        title: `Seña 50% · ${d.descripcion}`,
+        description: `Seña del 50% para reservar: ${d.descripcion} (Segunda Opinión Médica).`,
+        category_id: 'services',
+        quantity: 1,
+        unit_price: d.senaARS,
+        currency_id: 'ARS',
+      },
+    ],
     external_reference: d.appointmentId,
     metadata: { appointmentId: d.appointmentId },
     back_urls: { success: d.urlRegreso, pending: d.urlRegreso, failure: d.urlRegreso },

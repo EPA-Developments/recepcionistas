@@ -138,6 +138,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaLin
       armarPreferenciaSena({
         appointmentId,
         descripcion: appt.description ?? itemCodigo,
+        itemCodigo,
         senaARS,
         urlRegreso,
         notificationUrl: event.secrets['MP_WEBHOOK_URL']?.valueString,

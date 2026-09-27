@@ -204,9 +204,25 @@ describe('Seña por MercadoPago', () => {
 
   it('la preferencia lleva el turno como referencia externa y vuelve al portal', () => {
     expect(
-      armarPreferenciaSena({ appointmentId: 'a1', descripcion: 'Consulta de Cardiología', senaARS: 5000, urlRegreso: 'https://app.segundaopinionmedica.org' }),
+      armarPreferenciaSena({
+        appointmentId: 'a1',
+        descripcion: 'Consulta de Cardiología',
+        itemCodigo: 'CARDIOLOGIA',
+        senaARS: 5000,
+        urlRegreso: 'https://app.segundaopinionmedica.org',
+      }),
     ).toMatchObject({
-      items: [{ title: 'Seña 50% · Consulta de Cardiología', quantity: 1, unit_price: 5000, currency_id: 'ARS' }],
+      items: [
+        {
+          id: 'CARDIOLOGIA',
+          title: 'Seña 50% · Consulta de Cardiología',
+          description: 'Seña del 50% para reservar: Consulta de Cardiología (Segunda Opinión Médica).',
+          category_id: 'services',
+          quantity: 1,
+          unit_price: 5000,
+          currency_id: 'ARS',
+        },
+      ],
       external_reference: 'a1',
       back_urls: {
         success: 'https://app.segundaopinionmedica.org',
