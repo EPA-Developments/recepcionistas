@@ -9,7 +9,9 @@ import { SLOT_GRANULARIDAD_MIN } from '../config/horario.js';
 import { isoArgentina } from '../lib/slots.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { resolverTC } from '../config/tipo-cambio.js';
+import { PLANTILLA_AVISO } from '../config/plantillas-whatsapp.js';
 import { alertaRecepcionPagoTurnoCancelado, avisoConfirmacion } from '../lib/avisos.js';
+import { paramsPlantilla, textoPlantilla, variablesAviso } from '../lib/plantillas-whatsapp.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
 import { esConsentimientoTeleconsulta, modalidadDe, teleconsultaUrlDe } from '../lib/teleconsulta.js';
@@ -152,11 +154,13 @@ export interface EnvioWhatsApp {
  * mensaje: el texto va con el primero y cada archivo más sale en otro mensaje; un texto
  * de más de 1600 caracteres (el tope de Twilio) sale en varias partes. El
  * teléfono se normaliza a E.164 (`+549…`). Pide los estados de entrega (✓✓) al webhook
- * si está el secret `TWILIO_WEBHOOK_URL`.
+ * si está el secret `TWILIO_WEBHOOK_URL`. Con `plantilla` (una plantilla aprobada por Meta)
+ * sale un solo mensaje con la plantilla en vez del texto: es lo que WhatsApp exige fuera de
+ * la ventana de 24 h.
  */
 export async function mandarWhatsApp(
   secrets: Secrets,
-  p: { to?: string; body: string; mediaUrls?: string[] },
+  p: { to?: string; body: string; mediaUrls?: string[]; plantilla?: { ContentSid: string; ContentVariables: string } },
 ): Promise<EnvioWhatsApp> {
   const destino = aE164AR(p.to);
   if (!destino) {
@@ -179,8 +183,9 @@ export async function mandarWhatsApp(
   // Un texto de más de 1600 caracteres sale en varios mensajes; si entra en uno, va como
   // epígrafe del primer archivo.
   const textos = partirTexto(p.body);
-  const partes: Array<{ Body?: string; MediaUrl?: string }> =
-    medios.length && textos.length <= 1
+  const partes: Array<{ Body?: string; MediaUrl?: string; ContentSid?: string; ContentVariables?: string }> = p.plantilla
+    ? [p.plantilla]
+    : medios.length && textos.length <= 1
       ? medios.map((MediaUrl, i) => ({ ...(i === 0 && textos[0] ? { Body: textos[0] } : {}), MediaUrl }))
       : [...textos.map((Body) => ({ Body })), ...medios.map((MediaUrl) => ({ MediaUrl }))];
   if (partes.length === 0) {
@@ -251,7 +256,13 @@ export async function enviarWhatsApp(
       to = (telefonos.find((t) => t.use === 'mobile') ?? telefonos[0])?.value;
     }
   }
-  const envio = await mandarWhatsApp(secrets, { to, body: params.body });
+  // Un aviso es el negocio escribiendo primero: con la plantilla genérica aprobada llega
+  // aunque la ventana de 24 h esté cerrada; sin ella, sale como texto libre.
+  const contentSid = secrets[PLANTILLA_AVISO.secret]?.valueString?.trim();
+  const variables = contentSid ? variablesAviso(params.body) : undefined;
+  const plantilla = contentSid && variables ? paramsPlantilla(contentSid, variables) : undefined;
+  const texto = plantilla && variables ? textoPlantilla(PLANTILLA_AVISO.cuerpo, variables) : params.body;
+  const envio = await mandarWhatsApp(secrets, { to, body: params.body, ...(plantilla ? { plantilla } : {}) });
 
   const identificadores = [
     ...(params.identifier ? [params.identifier] : []),
@@ -269,8 +280,9 @@ export async function enviarWhatsApp(
       ? { subject: { reference: params.pacienteRef }, recipient: [{ reference: params.pacienteRef }] }
       : {}),
     ...(envio.motivo ? { statusReason: { text: envio.motivo } } : {}),
-    // payload solo si hay cuerpo: un payload sin content[x] es FHIR inválido.
-    ...(params.body ? { payload: [{ contentString: params.body }] } : {}),
+    // payload solo si hay cuerpo: un payload sin content[x] es FHIR inválido. Es lo que
+    // recibe el paciente (con plantilla, el texto de la plantilla).
+    ...(texto ? { payload: [{ contentString: texto }] } : {}),
     extension: [
       { url: EXT.canal, valueCode: 'whatsapp' },
       // templateUsado solo si hay template: una extensión sin valor viola ext-1.
