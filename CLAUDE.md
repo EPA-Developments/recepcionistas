@@ -93,6 +93,7 @@ npm run deploy:bots        # deploy de bots (medplum CLI)
 npm run webhooks           # webhooks de Twilio y MercadoPago: ClientApplications, secrets y prueba
 npm run whatsapp:plantillas  # plantillas de Meta (estado; con -- --aplicar crea y manda a aprobación)
 npm run mercadopago:e2e    # MercadoPago de punta a punta: turno de prueba, link y espera del pago (pago REAL)
+npm run mercadopago:ordenes  # pagos de MercadoPago cruzados con Medplum; --pago <id>: detalle y calidad
 ```
 
 ## Secretos

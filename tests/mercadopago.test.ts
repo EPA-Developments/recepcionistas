@@ -10,8 +10,11 @@ import { EXT, SYSTEM } from '../src/fhir/identifiers.js';
 import {
   armarPreferenciaSena,
   bloqueaCredencialMP,
+  camposCalidadPago,
   diagnosticarCuentaMP,
+  enmascararEmail,
   esRechazoDePoliticas,
+  estadoPagoEnPalabras,
   explicarErrorMP,
   limpiarTokenMP,
   problemaCredencialMP,
@@ -231,6 +234,51 @@ describe('Seña por MercadoPago', () => {
       },
       auto_return: 'approved',
     });
+  });
+});
+
+describe('Pagos de MercadoPago (mercadopago:ordenes)', () => {
+  it('el estado en palabras de Recepción', () => {
+    expect(estadoPagoEnPalabras('approved', 'accredited')).toBe('aprobado (acreditado)');
+    expect(estadoPagoEnPalabras('rejected', 'cc_rejected_insufficient_amount')).toBe('rechazado (la tarjeta no tiene fondos)');
+    expect(estadoPagoEnPalabras('pending', 'pending_waiting_payment')).toBe('pendiente (esperando que pague en efectivo o transferencia)');
+    expect(estadoPagoEnPalabras('refunded', 'refunded')).toBe('devuelto');
+    expect(estadoPagoEnPalabras('raro', 'otro_detalle')).toBe('raro (otro_detalle)');
+    expect(estadoPagoEnPalabras(undefined)).toBe('sin estado');
+  });
+
+  it('el email del comprador se muestra enmascarado', () => {
+    expect(enmascararEmail('maria.perez@gmail.com')).toBe('ma***@gmail.com');
+    expect(enmascararEmail('sinarroba')).toBe('***');
+    expect(enmascararEmail('  ')).toBeUndefined();
+    expect(enmascararEmail(undefined)).toBeUndefined();
+  });
+
+  it('un pago con nuestra preferencia cubre lo que pide "Calidad de integración" del ítem', () => {
+    const pref = armarPreferenciaSena({
+      appointmentId: 'a1',
+      descripcion: 'Consulta de Cardiología',
+      itemCodigo: 'CARDIOLOGIA',
+      senaARS: 75000,
+      urlRegreso: 'https://app.segundaopinionmedica.org',
+      notificationUrl: 'https://api.medplum.com.ar/webhooks/som/mercadopago',
+    }) as { items: Array<Record<string, string | number>>; external_reference: string; notification_url: string };
+    // MercadoPago devuelve los ítems de la preferencia en additional_info (con los números como texto).
+    const pago = {
+      external_reference: pref.external_reference,
+      notification_url: pref.notification_url,
+      additional_info: { items: pref.items.map((i) => ({ ...i, quantity: String(i.quantity), unit_price: String(i.unit_price) })) },
+    };
+    const faltan = camposCalidadPago(pago).filter((c) => !c.presente).map((c) => c.campo);
+    // Lo que queda sin mandar es decisión aparte: el nombre en el resumen y los datos del paciente.
+    expect(faltan).toEqual(['statement_descriptor', 'payer.first_name', 'payer.last_name']);
+  });
+
+  it('un pago viejo, sin los campos del ítem, los muestra como faltantes', () => {
+    const faltan = camposCalidadPago({ external_reference: 'a1', additional_info: { items: [{ title: 'Seña', quantity: '1', unit_price: '75000' }] } })
+      .filter((c) => !c.presente)
+      .map((c) => c.campo);
+    expect(faltan).toEqual(expect.arrayContaining(['notification_url', 'items.id', 'items.description', 'items.category_id']));
   });
 });
 

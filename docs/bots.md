@@ -232,7 +232,17 @@ npm run mercadopago:test                              # credencial y cuenta (no 
 npm run webhooks                                      # la URL pública llega al bot (no cobra)
 npm run mercadopago:e2e -- [--telefono +549…]          # turno de prueba + link + espera el pago
 npm run mercadopago:e2e -- --limpiar --turno <id>      # cancela el turno de prueba
+npm run mercadopago:ordenes                           # los últimos pagos, cruzados con Medplum
+npm run mercadopago:ordenes -- --pago <id>            # un pago + "Calidad de integración"
 ```
+
+`mercadopago:ordenes` lee los pagos de la cuenta (`GET /v1/payments/search`; `--dias`,
+`--limite`, `--turno <id>`) y, por cada uno, dice si el webhook lo **aplicó** en Medplum
+(Invoice `mp-<id>` y estado del turno): un pago aprobado sin Invoice es una notificación
+que no llegó o falló. Con `--pago <id>` muestra el detalle y lo que mira **"Calidad de
+integración"** de MercadoPago (descripción, código y categoría del ítem, webhook,
+`external_reference`…), con ✓/✗ según lo que llegó en ese pago. Solo lee; el token sale del
+Project Secret y no se imprime; el email del comprador se muestra enmascarado.
 
 `mercadopago:e2e` verifica la credencial y `MP_WEBHOOK_URL`, reserva un turno tentativo
 (la primera franja libre de un profesional desde mañana; **presencial** por defecto, porque
