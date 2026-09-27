@@ -143,12 +143,24 @@ npm run seed          # extensiones nuevas + AccessPolicy "Webhook Twilio — Wh
                       # + la policy de Recepción (bots nuevos y acceso a archivos)
 ```
 
-### 2. Una ClientApplication solo para Twilio
+### 2. Una ClientApplication solo para Twilio y la URL del webhook
 
-En Medplum (Project Admin → **Clients** → New): nombre `Webhook Twilio`. En su
-membership, asignar la AccessPolicy **"Webhook Twilio — WhatsApp entrante"**: solo puede
-ejecutar `som-whatsapp-entrante` (el bot corre con su propia identidad), así que si la URL
-se filtrara no da acceso a ningún dato. Copiar su **Client ID** y **Client Secret**.
+```bash
+npm run whatsapp:webhook   # idempotente; con -- --dry-run solo muestra qué haría
+```
+
+- Crea la ClientApplication **`Webhook Twilio`** con la AccessPolicy **"Webhook Twilio —
+  WhatsApp entrante"**: solo puede ejecutar `som-whatsapp-entrante` (el bot corre con su
+  propia identidad), así que si la URL se filtrara no da acceso a ningún dato. Si ya
+  existe, verifica su membership (esa policy, sin admin) y la corrige.
+- Arma la URL del webhook y la guarda en el Project Secret **`TWILIO_WEBHOOK_URL`** sin
+  tocar los demás (el endpoint de secrets reemplaza la lista entera: el script lee,
+  fusiona y verifica que no se haya perdido ninguno; si no ve ningún secret, no escribe).
+- La clave no se imprime: la URL completa se copia de Medplum (Project → **Secrets** →
+  `TWILIO_WEBHOOK_URL`) para pegarla en Twilio (paso 4).
+- Hace falta que la ClientApplication del `.env` sea admin del proyecto.
+- **Rotar la clave** (si la URL se filtró): regenerar el secret de `Webhook Twilio` en
+  Medplum, volver a correr el script y pegar la URL nueva en Twilio.
 
 ### 3. La URL del webhook
 
@@ -156,7 +168,8 @@ se filtrara no da acceso a ningún dato. Copiar su **Client ID** y **Client Secr
 https://<clientId>:<clientSecret>@api.medplum.com.ar/fhir/R4/Bot/<id de som-whatsapp-entrante>/$execute?_medplum-prompt-basic-auth=1
 ```
 
-- `npm run whatsapp:test` la imprime con el id real del bot.
+- La arma `npm run whatsapp:webhook`; `npm run whatsapp:test` verifica que el secret
+  apunte al bot con las credenciales de `Webhook Twilio` (sin mostrar la clave).
 - **`?_medplum-prompt-basic-auth=1` es obligatorio:** Twilio manda el primer pedido
   **sin** credenciales y solo las agrega si el servidor responde 401 con
   `WWW-Authenticate: Basic`; Medplum manda ese encabezado solo con ese parámetro.
@@ -166,6 +179,7 @@ https://<clientId>:<clientSecret>@api.medplum.com.ar/fhir/R4/Bot/<id de som-what
 - **Número de WhatsApp de SOM** (Messaging → Senders → WhatsApp senders → el número):
   en *Webhook URL for incoming messages*, la URL del paso 3 (POST). Si el número está en
   un *Messaging Service*, configurarla en el servicio (Integration → *Send a webhook*).
+  El *Status callback URL* del número puede quedar vacío: cada envío pide sus ✓✓.
 - **Sandbox** (para probar): Messaging → Try it out → Send a WhatsApp message →
   *Sandbox settings* → *When a message comes in*.
 
@@ -175,13 +189,14 @@ https://<clientId>:<clientSecret>@api.medplum.com.ar/fhir/R4/Bot/<id de som-what
 |---|---|
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | enviar, bajar la media y validar que el webhook es de la cuenta de SOM |
 | `TWILIO_WHATSAPP_FROM` | el número de WhatsApp de SOM (`whatsapp:+54…`) |
-| `TWILIO_WEBHOOK_URL` | la URL del paso 3: sin ella no hay ✓✓ |
+| `TWILIO_WEBHOOK_URL` | la URL del paso 3 (la guarda `npm run whatsapp:webhook`): sin ella no hay ✓✓ |
 | `RECEPCION_WHATSAPP_TO` | opcional: el número que recibe los avisos internos (no se vuelve paciente si escribe) |
 
 ### 6. Probar
 
 1. `npm run whatsapp:test -- +549…` → envío de prueba (dice si falta un secret o qué
-   rechazó Twilio) y la URL del webhook.
+   rechazó Twilio) y revisión del webhook: qué Project Secrets de Twilio están (nunca sus
+   valores) y si `TWILIO_WEBHOOK_URL` está bien armada.
 2. Escribirle al WhatsApp de SOM desde un celular que no esté en SOM: llega el acuse,
    suena la campanita, el contacto aparece en la pestaña **WhatsApp** y la conversación
    en **Mensajes**. Responder desde la tarjeta y ver llegar los ✓✓; completar la ficha y
