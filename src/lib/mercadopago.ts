@@ -228,16 +228,22 @@ export interface DiagnosticoCuentaMP {
   resumen: string;
   /** Lo que impide cobrar, en lenguaje llano (vacío = la cuenta no muestra problemas). */
   problemas: string[];
+  /**
+   * Usuario de prueba de MercadoPago: no cobra de verdad, pero sirve para probar el
+   * circuito completo sin mover plata (pagando con un comprador de prueba).
+   */
+  esPrueba: boolean;
 }
 
 /** Revisa si la cuenta de la credencial puede cobrar la seña en pesos. */
 export function diagnosticarCuentaMP(c: CuentaMP): DiagnosticoCuentaMP {
   const problemas: string[] = [];
+  const esPrueba = Boolean(c.tags?.includes('test_user'));
   if (c.site_id && c.site_id !== 'MLA') {
     problemas.push(`la cuenta es de otro país (site ${c.site_id}): la seña se cobra en pesos argentinos, hace falta una cuenta de Argentina (MLA).`);
   }
-  if (c.tags?.includes('test_user')) {
-    problemas.push('es un usuario de PRUEBA: sirve para probar en el sandbox, no para cobrar de verdad.');
+  if (esPrueba) {
+    problemas.push('es un usuario de PRUEBA: sirve para probar sin plata real, no para cobrar de verdad.');
   }
   if (c.status?.site_status && c.status.site_status !== 'active') {
     problemas.push(`la cuenta no está activa (estado: ${c.status.site_status}).`);
@@ -245,7 +251,8 @@ export function diagnosticarCuentaMP(c: CuentaMP): DiagnosticoCuentaMP {
   if (c.status?.mercadopago_tc_accepted === false) {
     problemas.push('la cuenta no aceptó los términos y condiciones de MercadoPago.');
   }
-  if (c.status?.confirmed_email === false) {
+  // Los usuarios de prueba no confirman email: no es un problema.
+  if (c.status?.confirmed_email === false && !esPrueba) {
     problemas.push('la cuenta no confirmó su email.');
   }
   if (c.status?.required_action) {
@@ -257,7 +264,7 @@ export function diagnosticarCuentaMP(c: CuentaMP): DiagnosticoCuentaMP {
   }
   const quien = [c.id ? `cuenta ${c.id}` : 'cuenta', c.nickname ? `(${c.nickname})` : ''].filter(Boolean).join(' ');
   const pais = c.site_id === 'MLA' ? ', Argentina' : c.site_id ? `, site ${c.site_id}` : '';
-  return { resumen: `${quien}${pais}`, problemas };
+  return { resumen: `${quien}${pais}`, problemas, esPrueba };
 }
 
 /** Texto final para Recepción: el error de MercadoPago más lo que se vio en la cuenta. */

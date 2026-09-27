@@ -47,6 +47,13 @@ async function main(): Promise<void> {
     console.log('  Siguiente: npm run webhooks (la URL pública del webhook) y npm run mercadopago:e2e (prueba con un pago real).');
   } else {
     console.error(`\n✗ ${r.mensaje ?? 'MercadoPago no está listo para cobrar.'}`);
+    if (r.cuenta?.esPrueba) {
+      console.error(
+        '\n  Para PROBAR el circuito sin plata real, esta credencial sirve: npm run mercadopago:e2e (modo prueba).\n' +
+          '  Para COBRAR de verdad hace falta el Access Token de producción de la cuenta real de SOM\n' +
+          '  (MercadoPago → Tus integraciones → la aplicación → Credenciales de producción).',
+      );
+    }
     console.error('\n  El secret se cambia en Medplum → Project → Secrets → MERCADOPAGO_ACCESS_TOKEN (sin comillas ni "Bearer").');
     process.exitCode = 1;
   }
