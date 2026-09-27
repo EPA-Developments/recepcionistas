@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   }
   if (r.ok) {
     console.log(`\n✓ ${r.mensaje}`);
-    console.log('  Los links de seña salen cuando la consulta tenga precio (hoy los precios están PENDIENTES).');
+    console.log('  Siguiente: npm run webhooks (la URL pública del webhook) y npm run mercadopago:e2e (prueba con un pago real).');
   } else {
     console.error(`\n✗ ${r.mensaje ?? 'MercadoPago no está listo para cobrar.'}`);
     console.error('\n  El secret se cambia en Medplum → Project → Secrets → MERCADOPAGO_ACCESS_TOKEN (sin comillas ni "Bearer").');

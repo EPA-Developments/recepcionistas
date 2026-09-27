@@ -8,7 +8,7 @@
 /** Portal del paciente (destino del link de invitación). */
 export const PORTAL_BASE_URL_DEFAULT = 'https://app.segundaopinionmedica.org';
 
-/** App de recepción (back_urls de MercadoPago). */
+/** App de recepción. (Las back_urls de MercadoPago van al portal: paga el paciente.) */
 export const APP_BASE_URL_DEFAULT = 'https://recepcion.segundaopinionmedica.org';
 
 /**

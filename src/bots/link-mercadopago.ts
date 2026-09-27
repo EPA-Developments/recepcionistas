@@ -14,7 +14,7 @@
  * (`npm run mercadopago:test`). El flujo manual de seña sigue funcionando siempre.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import { APP_BASE_URL_DEFAULT, urlBase } from '../config/urls.js';
+import { PORTAL_BASE_URL_DEFAULT, urlBase } from '../config/urls.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import {
   armarPreferenciaSena,
@@ -124,7 +124,9 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaLin
     return { ok: false, senaARS, credencial, mensaje: partes.join(' ') };
   }
 
-  const appUrl = urlBase(event.secrets['APP_BASE_URL']?.valueString, APP_BASE_URL_DEFAULT);
+  // Paga el paciente (desde el WhatsApp o el portal): después de pagar vuelve al portal,
+  // no a la app de Recepción (que le pediría el login del personal).
+  const urlRegreso = urlBase(event.secrets['PORTAL_BASE_URL']?.valueString, PORTAL_BASE_URL_DEFAULT);
   const resp = await fetch(`${API_MP}/checkout/preferences`, {
     method: 'POST',
     headers: {
@@ -137,7 +139,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaLin
         appointmentId,
         descripcion: appt.description ?? itemCodigo,
         senaARS,
-        appUrl,
+        urlRegreso,
         notificationUrl: event.secrets['MP_WEBHOOK_URL']?.valueString,
       }),
     ),
