@@ -158,7 +158,8 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaLin
     return { ok: false, senaARS, credencial, mensaje };
   }
   const pref = (await resp.json()) as { init_point?: string; sandbox_init_point?: string };
-  const url = pref.init_point ?? pref.sandbox_init_point;
+  // Con una credencial de prueba (TEST-) el checkout es el de sandbox: el de producción la rechaza.
+  const url = credencial === 'access-token-prueba' ? (pref.sandbox_init_point ?? pref.init_point) : (pref.init_point ?? pref.sandbox_init_point);
   if (!url) {
     return { ok: false, senaARS, credencial, mensaje: 'MercadoPago no devolvió un link de pago (init_point).' };
   }

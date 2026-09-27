@@ -270,7 +270,10 @@ async function main(): Promise<void> {
   // Antes de reservar nada: credencial de MercadoPago y URL del webhook. Un usuario de
   // prueba (y nada más) no cobra de verdad, pero sirve para probar sin plata real.
   const diag = (await medplum.executeBot(await botId(medplum, 'som-link-mercadopago'), { diagnosticar: true })) as ResultadoLinkMP;
-  const modoPrueba = !diag.ok && diag.cuenta?.esPrueba === true && diag.cuenta.problemas.length === 1;
+  // Modo prueba: una credencial de prueba (TEST-) de la aplicación, o la de un usuario de
+  // prueba cuyo único "problema" es serlo. En los dos casos no se mueve plata real.
+  const credencialDePrueba = diag.credencial === 'access-token-prueba';
+  const modoPrueba = credencialDePrueba || (!diag.ok && diag.cuenta?.esPrueba === true && diag.cuenta.problemas.length === 1);
   if (!diag.ok && !modoPrueba) {
     console.error(`\n✗ MercadoPago no está listo: ${diag.mensaje ?? 'sin detalle'} (npm run mercadopago:test)`);
     process.exitCode = 1;
@@ -278,8 +281,11 @@ async function main(): Promise<void> {
   }
   if (modoPrueba) {
     console.log(
-      `✓ MercadoPago en MODO PRUEBA: la credencial es de un usuario de prueba (${diag.cuenta?.resumen}).\n` +
-        '  El circuito es el mismo, pero no se mueve plata real.',
+      credencialDePrueba
+        ? '✓ MercadoPago en MODO PRUEBA: credencial de prueba (TEST-) de la aplicación; el link es el del sandbox.\n' +
+            '  El circuito es el mismo, pero no se mueve plata real.'
+        : `✓ MercadoPago en MODO PRUEBA: la credencial es de un usuario de prueba (${diag.cuenta?.resumen}).\n` +
+            '  El circuito es el mismo, pero no se mueve plata real.',
     );
   } else {
     console.log(`✓ MercadoPago: ${diag.mensaje ?? 'credencial OK'}`);
