@@ -10,7 +10,8 @@ import { isoArgentina } from '../lib/slots.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { resolverTC } from '../config/tipo-cambio.js';
 import { PLANTILLA_AVISO } from '../config/plantillas-whatsapp.js';
-import { alertaRecepcionPagoTurnoCancelado, avisoConfirmacion } from '../lib/avisos.js';
+import { alertaRecepcionPagoNoCubre, alertaRecepcionPagoTurnoCancelado, avisoConfirmacion } from '../lib/avisos.js';
+import { problemaPagoSena, type PagoMP } from '../lib/mercadopago.js';
 import { paramsPlantilla, textoPlantilla, variablesAviso } from '../lib/plantillas-whatsapp.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
@@ -433,7 +434,14 @@ async function nombreDelPaciente(medplum: MedplumClient, pacienteRef: string | u
 export async function confirmarReserva(
   medplum: MedplumClient,
   secrets: Secrets,
-  opts: { appointmentId: string; medioPago?: string; tc?: number; mpPaymentId?: string },
+  opts: {
+    appointmentId: string;
+    medioPago?: string;
+    tc?: number;
+    mpPaymentId?: string;
+    /** Lo que MercadoPago informa del pago: tiene que cubrir la seña (monto y moneda). */
+    pagoMP?: PagoMP;
+  },
 ): Promise<ResultadoConfirmacion> {
   const appt = await medplum.readResource('Appointment', opts.appointmentId);
   const itemTipo = appt.extension?.find((e) => e.url === EXT.itemTipo)?.valueCode;
@@ -482,6 +490,22 @@ export async function confirmarReserva(
     return { totalARS, senaARS, invoiceId: existente.id, confirmados: 0, yaConfirmado: true };
   }
 
+  // Un pago de MercadoPago tiene que cubrir la seña: si no, no se confirma y Recepción lo
+  // revisa (una sola alerta por pago: MercadoPago notifica el mismo pago varias veces).
+  const problemaPago = opts.pagoMP ? problemaPagoSena(opts.pagoMP, senaARS) : undefined;
+  if (problemaPago) {
+    await alertarPagoNoCubre(medplum, secrets, appt, itemCodigo, problemaPago, opts.mpPaymentId);
+    return {
+      totalARS,
+      senaARS,
+      confirmados: 0,
+      yaConfirmado: false,
+      rechazado: `El pago no cubre la seña (${problemaPago}): no se confirmó el turno. Avisamos a Recepción.`,
+    };
+  }
+  // Lo que se registra y se le confirma al paciente es lo que MercadoPago dice que pagó.
+  const cobradoARS = opts.pagoMP?.transaction_amount ?? senaARS;
+
   let confirmados = 0;
   if (appt.status === 'pending' || appt.status === 'proposed') {
     await medplum.updateResource({ ...appt, status: 'booked' });
@@ -498,10 +522,10 @@ export async function confirmarReserva(
     lineItem: [
       {
         chargeItemCodeableConcept: { text: `Seña 50% · ${appt.description ?? itemCodigo}` },
-        priceComponent: [{ type: 'base', amount: { value: senaARS, currency: 'ARS' } }],
+        priceComponent: [{ type: 'base', amount: { value: cobradoARS, currency: 'ARS' } }],
       },
     ],
-    totalGross: { value: senaARS, currency: 'ARS' },
+    totalGross: { value: cobradoARS, currency: 'ARS' },
     extension: [
       { url: EXT.esSena, valueBoolean: true },
       { url: EXT.tcAplicado, valueDecimal: tc },
@@ -514,7 +538,7 @@ export async function confirmarReserva(
     pacienteRef,
     body: avisoConfirmacion({
       descripcion: appt.description ?? '',
-      senaARS,
+      senaARS: cobradoARS,
       modalidad: modalidadDe(appt),
       teleconsultaUrl: teleconsultaUrlDe(appt),
     }),
@@ -526,6 +550,37 @@ export async function confirmarReserva(
 // --------------------------------------------------------------------------
 // Agenda: ocupar y liberar franjas (Slot) de una agenda (recurso o profesional)
 // --------------------------------------------------------------------------
+
+/** Alerta a Recepción (una por pago) de un pago de MercadoPago que no cubre la seña. */
+async function alertarPagoNoCubre(
+  medplum: MedplumClient,
+  secrets: Secrets,
+  appt: Appointment,
+  itemCodigo: string,
+  problema: string,
+  mpPaymentId: string | undefined,
+): Promise<void> {
+  const to = secrets['RECEPCION_WHATSAPP_TO']?.valueString;
+  if (!to) {
+    return;
+  }
+  const clave = { system: SYSTEM.communication, value: `pago-no-cubre-${mpPaymentId ?? appt.id}` };
+  if (await medplum.searchOne('Communication', `identifier=${clave.system}|${clave.value}`)) {
+    return;
+  }
+  const pacienteRef = appt.participant?.find((p) => p.actor?.reference?.startsWith('Patient/'))?.actor?.reference;
+  await enviarWhatsApp(medplum, secrets, {
+    template: 'pago-no-cubre-sena',
+    to,
+    about: `Appointment/${appt.id}`,
+    identifier: clave,
+    body: alertaRecepcionPagoNoCubre({
+      paciente: await nombreDelPaciente(medplum, pacienteRef),
+      descripcion: appt.description ?? itemCodigo,
+      problema,
+    }),
+  });
+}
 
 /** Id del Schedule (agenda propia) de un profesional (identifier SCH_<codigo>). */
 export async function scheduleIdDeProfesional(medplum: MedplumClient, medicoCodigo: string): Promise<string | undefined> {

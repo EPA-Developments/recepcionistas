@@ -78,8 +78,8 @@ export interface DatosPreferenciaSena {
   /** Texto del turno (p. ej. "Consulta de Cardiología"). */
   descripcion: string;
   senaARS: number;
-  /** A dónde vuelve el paciente después de pagar. */
-  appUrl: string;
+  /** A dónde vuelve el paciente después de pagar: el portal del paciente (quien paga). */
+  urlRegreso: string;
   /** Webhook de pagos (opcional). */
   notificationUrl?: string;
 }
@@ -102,10 +102,37 @@ export function armarPreferenciaSena(d: DatosPreferenciaSena): Record<string, un
     items: [{ title: `Seña 50% · ${d.descripcion}`, quantity: 1, unit_price: d.senaARS, currency_id: 'ARS' }],
     external_reference: d.appointmentId,
     metadata: { appointmentId: d.appointmentId },
-    back_urls: { success: d.appUrl, pending: d.appUrl, failure: d.appUrl },
+    back_urls: { success: d.urlRegreso, pending: d.urlRegreso, failure: d.urlRegreso },
     auto_return: 'approved',
     ...(d.notificationUrl ? { notification_url: d.notificationUrl } : {}),
   };
+}
+
+/** Lo que MercadoPago informa de un pago (`GET /v1/payments/{id}`). */
+export interface PagoMP {
+  status?: string;
+  external_reference?: string;
+  transaction_amount?: number;
+  currency_id?: string;
+}
+
+/**
+ * ¿El pago cubre la seña? La preferencia se crea por el monto exacto de la seña, en pesos:
+ * un pago aprobado por menos, o en otra moneda, no confirma el turno (algo no cierra y lo
+ * revisa Recepción). Tolera $1 de redondeo. undefined = cubre.
+ */
+export function problemaPagoSena(pago: Pick<PagoMP, 'transaction_amount' | 'currency_id'>, senaARS: number): string | undefined {
+  if (pago.currency_id !== 'ARS') {
+    return pago.currency_id ? `el pago es en ${pago.currency_id}, no en pesos` : 'MercadoPago no informó la moneda del pago';
+  }
+  const monto = Number(pago.transaction_amount);
+  if (pago.transaction_amount === undefined || !Number.isFinite(monto)) {
+    return 'MercadoPago no informó el monto del pago';
+  }
+  if (monto + 1 < senaARS) {
+    return `se pagaron $${monto.toLocaleString('es-AR')} y la seña es $${senaARS.toLocaleString('es-AR')}`;
+  }
+  return undefined;
 }
 
 // ───────────────────────────── errores de MercadoPago ─────────────────────────────

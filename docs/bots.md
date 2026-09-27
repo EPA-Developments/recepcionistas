@@ -88,8 +88,8 @@ MercadoPago usan las credenciales propias de SOM.
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
 | `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`): la URL pública `https://api.medplum.com.ar/webhooks/som/mercadopago` (la guarda `npm run webhooks`) | recomendado |
-| `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
-| `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
+| `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) y `som-link-mercadopago` (`back_urls`: después de pagar, el paciente vuelve al portal) | opcional (default `https://app.segundaopinionmedica.org`) |
+| `APP_BASE_URL` | app de Recepción (reservado; hoy ningún bot la lee) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
 | `EMAIL_FROM` | `som-invitar-paciente` (remitente con marca) | opcional |
 | `ANTHROPIC_API_KEY` | `bot-som-report` (redacción del informe), `som-procesar-laboratorio` (transcripción del PDF), `som-borrador-respuesta` ("Sugerir" en Mensajes) | opcional (sin él: informe mínimo / el PDF pasa al equipo / "Sugerir" avisa que está desactivado) |
 
@@ -214,8 +214,34 @@ turno se confirma solo (pending → booked) + WhatsApp.
    el bot recibe el cuerpo.
 
 El bot toma el id del pago, hace `GET /v1/payments/{id}` con el token, y si está
-`approved` confirma el turno por su `external_reference` (= appointmentId). Es
-idempotente (los reintentos de MP no duplican la seña).
+`approved` **y cubre la seña** (en pesos y por el monto, con $1 de redondeo) confirma el
+turno por su `external_reference` (= appointmentId). El Invoice registra lo que
+MercadoPago dice que se pagó y el id del pago (`mp-<id>`). Es idempotente: MercadoPago
+avisa el mismo pago varias veces y no se duplica nada. Un pago aprobado que **no cubre la
+seña** (otro monto u otra moneda) no confirma el turno: Recepción recibe **una** alerta
+por WhatsApp para reintegrarlo o cobrar la diferencia. Uno sobre un turno ya cancelado,
+tampoco (alerta para reintegrar).
+
+Después de pagar, MercadoPago devuelve al paciente al **portal** (`back_urls` =
+`PORTAL_BASE_URL`), no a la app de Recepción.
+
+### Probar de punta a punta (pago real)
+
+```bash
+npm run mercadopago:test                              # credencial y cuenta (no cobra)
+npm run webhooks                                      # la URL pública llega al bot (no cobra)
+npm run mercadopago:e2e -- [--telefono +549…]          # turno de prueba + link + espera el pago
+npm run mercadopago:e2e -- --limpiar --turno <id>      # cancela el turno de prueba
+```
+
+`mercadopago:e2e` verifica la credencial y `MP_WEBHOOK_URL`, reserva un turno tentativo
+(la primera franja libre de teleconsulta de un profesional, desde mañana) para un paciente
+de prueba (tag demo; o `--paciente Patient/<id>`), genera el link de la seña y **espera el
+pago** (`--espera <min>`, 15 por defecto). Cuando el webhook confirma el turno, muestra el
+Invoice (lo pagado y el id del pago) y el WhatsApp de confirmación. **El pago es real:**
+devolverlo desde el panel de MercadoPago (Actividad → el pago → Devolver) y cancelar el
+turno con `--limpiar`. El script nunca cobra ni devuelve plata por su cuenta. Con
+`--turno <id>` retoma la espera o la verificación de un turno ya armado.
 
 > **Retirado:** los bots de combos, de asignación de planes
 > (membresías/paquetes) y de cobro recurrente eran de un catálogo anterior, ajeno

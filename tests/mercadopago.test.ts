@@ -3,10 +3,10 @@
  * que devuelve MercadoPago cuando la credencial no está autorizada para crear links de pago.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Appointment } from '@medplum/fhirtypes';
+import type { Appointment, Communication, Invoice } from '@medplum/fhirtypes';
 import { handler as linkMercadoPago } from '../src/bots/link-mercadopago.js';
 import { handler as webhookMercadoPago } from '../src/bots/webhook-mercadopago.js';
-import { EXT } from '../src/fhir/identifiers.js';
+import { EXT, SYSTEM } from '../src/fhir/identifiers.js';
 import {
   armarPreferenciaSena,
   bloqueaCredencialMP,
@@ -16,6 +16,7 @@ import {
   limpiarTokenMP,
   problemaCredencialMP,
   problemaMontoSena,
+  problemaPagoSena,
   resumenCredencial,
   resumenErrorMP,
   tipoCredencialMP,
@@ -172,12 +173,27 @@ describe('Seña por MercadoPago', () => {
     expect(problemaMontoSena(5000)).toBeUndefined();
   });
 
-  it('la preferencia lleva el turno como referencia externa', () => {
+  it('un pago cubre la seña si es en pesos y por el monto (con $1 de redondeo)', () => {
+    expect(problemaPagoSena({ transaction_amount: 75000, currency_id: 'ARS' }, 75000)).toBeUndefined();
+    expect(problemaPagoSena({ transaction_amount: 74999.5, currency_id: 'ARS' }, 75000)).toBeUndefined();
+    expect(problemaPagoSena({ transaction_amount: 80000, currency_id: 'ARS' }, 75000)).toBeUndefined();
+    expect(problemaPagoSena({ transaction_amount: 74998, currency_id: 'ARS' }, 75000)).toMatch(/\$74\.998.*\$75\.000/);
+    expect(problemaPagoSena({ transaction_amount: 75000, currency_id: 'USD' }, 75000)).toMatch(/USD/);
+    expect(problemaPagoSena({ transaction_amount: 75000 }, 75000)).toMatch(/moneda/);
+    expect(problemaPagoSena({ currency_id: 'ARS' }, 75000)).toMatch(/monto/);
+  });
+
+  it('la preferencia lleva el turno como referencia externa y vuelve al portal', () => {
     expect(
-      armarPreferenciaSena({ appointmentId: 'a1', descripcion: 'Consulta de Cardiología', senaARS: 5000, appUrl: 'https://recepcion.segundaopinionmedica.org' }),
+      armarPreferenciaSena({ appointmentId: 'a1', descripcion: 'Consulta de Cardiología', senaARS: 5000, urlRegreso: 'https://app.segundaopinionmedica.org' }),
     ).toMatchObject({
       items: [{ title: 'Seña 50% · Consulta de Cardiología', quantity: 1, unit_price: 5000, currency_id: 'ARS' }],
       external_reference: 'a1',
+      back_urls: {
+        success: 'https://app.segundaopinionmedica.org',
+        pending: 'https://app.segundaopinionmedica.org',
+        failure: 'https://app.segundaopinionmedica.org',
+      },
       auto_return: 'approved',
     });
   });
@@ -293,5 +309,71 @@ describe('Bot som-webhook-mercadopago', () => {
     const r = await webhookMercadoPago(medplum, ev({ type: 'payment', data: { id: 123 } }, ACCESS));
     expect(r.ok).toBe(false);
     expect(r.motivo).toMatch(/MP payments respondió 403\. MercadoPago bloqueó el pedido \(403 PolicyAgent\): la credencial cargada no está autorizada para consultar los pagos/);
+  });
+  describe('pago aprobado', () => {
+    const turnoConPaciente: Appointment = {
+      ...turno,
+      participant: [{ actor: { reference: 'Patient/p1' }, status: 'accepted' }],
+    };
+    const paciente = { resourceType: 'Patient' as const, id: 'p1', name: [{ text: 'Ana Pérez' }] };
+    const conRecepcion = (token: string) =>
+      ({
+        input: { type: 'payment', data: { id: 123 } },
+        secrets: {
+          ...secretos(token),
+          RECEPCION_WHATSAPP_TO: { name: 'RECEPCION_WHATSAPP_TO', valueString: '+5491100000000' },
+        },
+      }) as never;
+    const pago = (extra: Record<string, unknown>) => () =>
+      respuesta(200, { id: 123, status: 'approved', external_reference: 'a1', transaction_amount: 75000, currency_id: 'ARS', ...extra });
+
+    it('cubre la seña: confirma el turno y el Invoice registra lo pagado (una vez, aunque MP avise dos)', async () => {
+      precio.sena = 75000;
+      stubFetch({ 'https://api.mercadopago.com/v1/payments/123': pago({}) });
+      const { medplum, todos } = fakeMedplum([turnoConPaciente, paciente]);
+
+      const r = await webhookMercadoPago(medplum, conRecepcion(ACCESS));
+      expect(r).toMatchObject({ ok: true, confirmado: true, appointmentId: 'a1', motivo: 'confirmado' });
+      expect(todos<Appointment>('Appointment')[0]?.status).toBe('booked');
+      const [invoice, ...otros] = todos<Invoice>('Invoice');
+      expect(otros).toHaveLength(0);
+      expect(invoice?.totalGross).toEqual({ value: 75000, currency: 'ARS' });
+      expect(invoice?.identifier).toEqual([{ system: SYSTEM.invoice, value: 'mp-123' }]);
+      expect(invoice?.extension).toContainEqual({ url: EXT.medioPago, valueCode: 'mercadopago' });
+
+      const r2 = await webhookMercadoPago(medplum, conRecepcion(ACCESS));
+      expect(r2).toMatchObject({ ok: true, confirmado: true, motivo: 'ya confirmado' });
+      expect(todos('Invoice')).toHaveLength(1);
+    });
+
+    it.each([
+      ['un monto menor', { transaction_amount: 100 }, /se pagaron \$100 y la seña es \$75\.000/],
+      ['otra moneda', { currency_id: 'USD' }, /en USD, no en pesos/],
+      ['sin monto', { transaction_amount: undefined }, /no informó el monto/],
+    ])('%s: no confirma, no hay Invoice y Recepción recibe una sola alerta', async (_caso, extra, problema) => {
+      precio.sena = 75000;
+      stubFetch({ 'https://api.mercadopago.com/v1/payments/123': pago(extra) });
+      const { medplum, todos } = fakeMedplum([turnoConPaciente, paciente]);
+
+      const r = await webhookMercadoPago(medplum, conRecepcion(ACCESS));
+      await webhookMercadoPago(medplum, conRecepcion(ACCESS)); // MercadoPago avisa otra vez
+      expect(r).toMatchObject({ ok: true, confirmado: false, status: 'approved' });
+      expect(r.motivo).toMatch(problema);
+      expect(todos<Appointment>('Appointment')[0]?.status).toBe('pending');
+      expect(todos('Invoice')).toHaveLength(0);
+      const alertas = todos<Communication>('Communication');
+      expect(alertas).toHaveLength(1);
+      expect(alertas[0]?.payload?.[0]?.contentString).toMatch(/Ana Pérez.*no cubre la seña/);
+    });
+
+    it('un pago que no está aprobado no toca nada', async () => {
+      precio.sena = 75000;
+      stubFetch({ 'https://api.mercadopago.com/v1/payments/123': pago({ status: 'in_process' }) });
+      const { medplum, todos } = fakeMedplum([turnoConPaciente, paciente]);
+      const r = await webhookMercadoPago(medplum, conRecepcion(ACCESS));
+      expect(r).toMatchObject({ ok: true, confirmado: false, status: 'in_process' });
+      expect(todos<Appointment>('Appointment')[0]?.status).toBe('pending');
+      expect(todos('Invoice')).toHaveLength(0);
+    });
   });
 });

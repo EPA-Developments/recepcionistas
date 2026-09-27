@@ -98,6 +98,14 @@ export function alertaRecepcionPagoTurnoCancelado(d: { paciente?: string; descri
   );
 }
 
+/** Alerta a Recepción: llegó un pago de MercadoPago que no cubre la seña (no se confirmó el turno). */
+export function alertaRecepcionPagoNoCubre(d: { paciente?: string; descripcion: string; problema: string }): string {
+  return (
+    `${FIRMA} · Cobros: llegó un pago de MercadoPago de ${d.paciente?.trim() || 'una paciente'} para "${d.descripcion}" ` +
+    `que no cubre la seña (${d.problema}). No se confirmó el turno: revisalo en MercadoPago (reintegrar o cobrar la diferencia).`
+  );
+}
+
 /** Aviso al confirmarse el turno con la seña (manual o MercadoPago). */
 export function avisoConfirmacion(d: { descripcion: string; senaARS: number; modalidad?: Modalidad; teleconsultaUrl?: string }): string {
   const tele = d.modalidad === 'teleconsulta' ? lineaTeleconsulta(d.teleconsultaUrl, 'despues') : ' ¡Te esperamos!';

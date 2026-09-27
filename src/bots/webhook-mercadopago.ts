@@ -3,8 +3,9 @@
  *
  * URL pública que MercadoPago llama al cambiar un pago. NO confía en el payload:
  * toma el id del pago y lo VERIFICA contra la API de MP (con el access token).
- * Si el pago está `approved`, confirma el turno (external_reference = appointmentId)
- * reutilizando `confirmarReserva` (idempotente; los reintentos de MP no duplican).
+ * Si el pago está `approved` y cubre la seña (monto y moneda), confirma el turno
+ * (external_reference = appointmentId) reutilizando `confirmarReserva` (idempotente; los
+ * reintentos de MP no duplican). El Invoice registra lo que MercadoPago dice que se pagó.
  *
  * MercadoPago llama a la URL pública del nginx del API
  * (`https://api.medplum.com.ar/webhooks/som/mercadopago`, sin credenciales: nginx agrega
@@ -13,7 +14,14 @@
  * Requiere el secret MERCADOPAGO_ACCESS_TOKEN.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import { bloqueaCredencialMP, explicarErrorMP, limpiarTokenMP, problemaCredencialMP, tipoCredencialMP } from '../lib/mercadopago.js';
+import {
+  bloqueaCredencialMP,
+  explicarErrorMP,
+  limpiarTokenMP,
+  problemaCredencialMP,
+  tipoCredencialMP,
+  type PagoMP,
+} from '../lib/mercadopago.js';
 import { confirmarReserva } from './_shared.js';
 
 interface NotificacionMP {
@@ -61,7 +69,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent): Promise<
     console.error(`som-webhook-mercadopago: ${motivo}`);
     return { ok: false, motivo };
   }
-  const pago = (await resp.json()) as { status?: string; external_reference?: string };
+  const pago = (await resp.json()) as PagoMP;
 
   if (pago.status !== 'approved') {
     return { ok: true, confirmado: false, status: pago.status };
@@ -75,11 +83,12 @@ export async function handler(medplum: MedplumClient, event: BotEvent): Promise<
     appointmentId,
     medioPago: 'mercadopago',
     mpPaymentId: String(paymentId),
+    pagoMP: pago,
   });
   if (r.rechazado) {
-    // El turno ya estaba cancelado (p. ej. venció la retención del portal): la seña no se
-    // aplica; `confirmarReserva` ya avisó a Recepción para reintegrarla.
-    console.error(`som-webhook-mercadopago: pago ${paymentId} de un turno cancelado (${appointmentId})`);
+    // El turno ya estaba cancelado (p. ej. venció la retención del portal) o el pago no
+    // cubre la seña: no se aplica; `confirmarReserva` ya avisó a Recepción.
+    console.error(`som-webhook-mercadopago: pago ${paymentId} no aplicado al turno ${appointmentId}: ${r.rechazado}`);
     return { ok: true, confirmado: false, appointmentId, status: 'approved', motivo: r.rechazado };
   }
   return { ok: true, confirmado: true, appointmentId, status: 'approved', motivo: r.yaConfirmado ? 'ya confirmado' : 'confirmado' };
