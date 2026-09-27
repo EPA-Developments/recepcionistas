@@ -152,6 +152,110 @@ export function problemaPagoSena(pago: Pick<PagoMP, 'transaction_amount' | 'curr
   return undefined;
 }
 
+// ───────────────────────────── pagos (conciliación y calidad) ─────────────────────────────
+
+/** Un pago como lo devuelve MercadoPago: lo que sirve para conciliar y para "Calidad de integración". */
+export interface PagoMPDetalle extends PagoMP {
+  id?: number | string;
+  status_detail?: string;
+  date_created?: string;
+  date_approved?: string;
+  /** false = pago de prueba (usuarios de prueba). */
+  live_mode?: boolean;
+  payment_method_id?: string;
+  payment_type_id?: string;
+  notification_url?: string;
+  statement_descriptor?: string;
+  order?: { id?: number | string; type?: string };
+  payer?: { email?: string };
+  /** Lo que mandó la integración en la preferencia (ítems y comprador). */
+  additional_info?: {
+    items?: Array<{ id?: string; title?: string; description?: string; category_id?: string; quantity?: string | number; unit_price?: string | number }>;
+    payer?: { first_name?: string; last_name?: string };
+  };
+}
+
+const ESTADOS_PAGO: Readonly<Record<string, string>> = {
+  approved: 'aprobado',
+  authorized: 'autorizado (sin capturar)',
+  pending: 'pendiente',
+  in_process: 'en revisión',
+  in_mediation: 'en disputa',
+  rejected: 'rechazado',
+  cancelled: 'cancelado',
+  refunded: 'devuelto',
+  charged_back: 'contracargo',
+};
+
+const DETALLES_PAGO: Readonly<Record<string, string>> = {
+  accredited: 'acreditado',
+  pending_waiting_payment: 'esperando que pague en efectivo o transferencia',
+  pending_contingency: 'MercadoPago lo está procesando',
+  pending_review_manual: 'en revisión manual de MercadoPago',
+  cc_rejected_insufficient_amount: 'la tarjeta no tiene fondos',
+  cc_rejected_bad_filled_security_code: 'código de seguridad incorrecto',
+  cc_rejected_bad_filled_date: 'vencimiento incorrecto',
+  cc_rejected_bad_filled_other: 'datos de la tarjeta incorrectos',
+  cc_rejected_call_for_authorize: 'el banco pide autorizar el pago',
+  cc_rejected_card_disabled: 'tarjeta deshabilitada',
+  cc_rejected_duplicated_payment: 'pago duplicado',
+  cc_rejected_high_risk: 'rechazado por prevención de fraude',
+  cc_rejected_max_attempts: 'demasiados intentos',
+  cc_rejected_other_reason: 'el banco lo rechazó',
+  by_collector: 'cancelado por el vendedor',
+  by_payer: 'cancelado por el comprador',
+  expired: 'vencido',
+};
+
+/** El estado de un pago en palabras de Recepción ("rechazado (la tarjeta no tiene fondos)"). */
+export function estadoPagoEnPalabras(status: string | undefined, detalle?: string): string {
+  const estado = status ? (ESTADOS_PAGO[status] ?? status) : 'sin estado';
+  if (!detalle || detalle === status) {
+    return estado;
+  }
+  return `${estado} (${DETALLES_PAGO[detalle] ?? detalle})`;
+}
+
+/** Un email para mostrar sin exponerlo ("ma***@gmail.com"). */
+export function enmascararEmail(email: string | undefined): string | undefined {
+  if (!email?.trim()) {
+    return undefined;
+  }
+  const [usuario = '', dominio] = email.trim().split('@');
+  return dominio ? `${usuario.slice(0, 2)}***@${dominio}` : '***';
+}
+
+export interface CampoCalidad {
+  campo: string;
+  presente: boolean;
+  nota?: string;
+}
+
+/**
+ * Lo que "Calidad de integración" de MercadoPago mira de un pago, y si llegó: sale de lo que
+ * mandó la preferencia (`additional_info`, `external_reference`, `notification_url`…).
+ * Nombre y apellido del comprador son datos del paciente: se mandan solo si se decide.
+ */
+export function camposCalidadPago(p: PagoMPDetalle): CampoCalidad[] {
+  const item = p.additional_info?.items?.[0];
+  const comprador = p.additional_info?.payer;
+  const hay = (v: unknown): boolean => v !== undefined && v !== null && String(v).trim() !== '';
+  const datoDelPaciente = 'dato del paciente: se manda solo si se decide (privacidad)';
+  return [
+    { campo: 'external_reference', presente: hay(p.external_reference), nota: 'el turno: concilia el pago' },
+    { campo: 'notification_url', presente: hay(p.notification_url), nota: 'el webhook' },
+    { campo: 'items.id', presente: hay(item?.id) },
+    { campo: 'items.title', presente: hay(item?.title) },
+    { campo: 'items.description', presente: hay(item?.description) },
+    { campo: 'items.category_id', presente: hay(item?.category_id) },
+    { campo: 'items.quantity', presente: hay(item?.quantity) },
+    { campo: 'items.unit_price', presente: hay(item?.unit_price) },
+    { campo: 'statement_descriptor', presente: hay(p.statement_descriptor), nota: 'nombre en el resumen de la tarjeta' },
+    { campo: 'payer.first_name', presente: hay(comprador?.first_name), nota: datoDelPaciente },
+    { campo: 'payer.last_name', presente: hay(comprador?.last_name), nota: datoDelPaciente },
+  ];
+}
+
 // ───────────────────────────── errores de MercadoPago ─────────────────────────────
 
 interface CuerpoErrorMP {

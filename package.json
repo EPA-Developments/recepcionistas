@@ -28,6 +28,7 @@
     "webhooks": "tsx src/seed/webhooks.ts",
     "mercadopago:test": "tsx src/seed/diagnostico-mercadopago.ts",
     "mercadopago:e2e": "tsx src/seed/prueba-mercadopago.ts",
+    "mercadopago:ordenes": "tsx src/seed/ordenes-mercadopago.ts",
     "verify": "npm run typecheck && npm run test",
     "dev": "npm run dev --workspace @som/recepcion-app",
     "build:app": "npm run build --workspace @som/recepcion-app",
