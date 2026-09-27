@@ -195,6 +195,46 @@ Medplum (Project Admin → Clients):
 `printf '%s' '<clientId>:<clientSecret>' | base64 -w0`. Después
 `sudo nginx -t && sudo systemctl reload nginx` y volver a correr `npm run webhooks`.
 
+#### Si la URL pública da 401
+
+El 401 lo devuelve Medplum: el pedido llega al bot, pero con un `Authorization` que no
+acepta. `npm run webhooks` repite el pedido **sin nginx**, con la clave de la
+ClientApplication. Si así anda, el Basic de nginx está mal, y el script imprime la
+**huella** del correcto (un hash recortado, que no revela la clave). En el servidor, este
+comando lee la configuración que nginx tiene cargada y, por cada ruta de SOM, dice qué
+`clientId` tiene, si la clave termina en un salto de línea y su huella. Nunca muestra la
+clave:
+
+```bash
+sudo nginx -T 2>/dev/null | python3 -c '
+import re, sys, base64, hashlib
+conf = sys.stdin.read()
+for ruta in ("/webhooks/som/twilio-whatsapp", "/webhooks/som/mercadopago"):
+    m = re.search(r"location\s*=\s*" + re.escape(ruta) + r"\s*\{(.*?)\n\s*\}", conf, re.S)
+    b = m and re.search(r"Authorization\s+\"Basic ([^\"]*)\"", m.group(1))
+    if not b:
+        print(ruta, "-> NO está en la configuración (o no tiene Authorization)"); continue
+    v = b.group(1)
+    try:
+        d = base64.b64decode(v, validate=True).decode()
+    except Exception:
+        print(ruta, "-> el Basic no es base64 válido (¿quedó el placeholder?)"); continue
+    cid, _, clave = d.partition(":")
+    print(ruta, "-> clientId", cid, "| clave de", len(clave.rstrip("\n")), "caracteres",
+          "| ¡TERMINA EN SALTO DE LÍNEA!" if d.endswith("\n") else "| sin salto de línea",
+          "| huella", hashlib.sha256(v.encode()).hexdigest()[:12])
+'
+```
+
+- **Termina en salto de línea:** se armó con `echo 'id:clave' | base64`. Rehacerlo con
+  `printf '%s' '<clientId>:<clientSecret>' | base64 -w0` (en macOS: `base64` sin `-w0`).
+- **Otro `clientId`:** es la clave de otra ClientApplication. Cada ruta lleva la suya.
+- **Misma `clientId`, otra huella:** la clave no es la actual; se copió mal o se regeneró.
+- **No está / placeholder:** falta el bloque, o falta reemplazar el placeholder.
+
+Después: `sudo nginx -t && sudo systemctl reload nginx` (`nginx -T` muestra lo que está en
+disco: sin recargar, nginx sigue usando lo anterior) y volver a correr `npm run webhooks`.
+
 - **Rotar una clave:** regenerar el secret de la ClientApplication en Medplum, actualizar su
   `Authorization` en nginx y recargar. Twilio y MercadoPago no cambian nada.
 - **Si se recrea un bot** cambia su id: actualizarlo en nginx y recargar.
@@ -225,17 +265,54 @@ Medplum (Project Admin → Clients):
 | `TWILIO_WHATSAPP_FROM` | el número de WhatsApp de SOM (`whatsapp:+54…`) |
 | `TWILIO_WEBHOOK_URL` | la URL pública (la guarda `npm run webhooks`): contra ella se valida la firma y a ella van los ✓✓. **Sin ella el webhook rechaza todo** |
 | `RECEPCION_WHATSAPP_TO` | opcional: el número que recibe los avisos internos (no se vuelve paciente si escribe) |
+| `TWILIO_CONTENT_SID_AVISO` | el `ContentSid` (HX…) de la plantilla genérica aprobada (lo guarda `npm run whatsapp:plantillas`): con él, los avisos llegan aunque pasen 24 h |
 
-### 6. Probar
+### 6. Plantillas de Meta (error 63016)
+
+WhatsApp solo deja que **el negocio escriba primero** —o pasadas 24 h del último mensaje del
+paciente— con una **plantilla aprobada por Meta**. Con texto libre, Twilio acepta el envío
+pero no llega: **63016**. Eso afecta a los **avisos** (confirmación, recordatorios,
+reservas, invitación, avisos a Recepción, `whatsapp:test`). Las respuestas en una
+conversación y las automáticas no: salen dentro de la ventana que abrió el paciente.
+
+**La genérica** (`som_aviso`, UTILITY, [`config/plantillas-whatsapp.ts`](../src/config/plantillas-whatsapp.ts)):
+
+> Segunda Opinión Médica: {{1}} Si tenés dudas, respondé este mensaje. 💙
+
+`{{1}}` es el aviso que ya arma [`lib/avisos.ts`](../src/lib/avisos.ts), sin la firma inicial
+ni el 💙 final (los pone la plantilla). No hay copy nuevo más que el cierre, y cualquier
+aviso nuevo sale con ella sin cambiar la plantilla.
+
+```bash
+npm run whatsapp:plantillas              # estado (no toca nada)
+npm run whatsapp:plantillas -- --aplicar # crea en Twilio, manda a Meta y, aprobada, guarda el secret
+```
+
+- `--aplicar` **no es un diagnóstico**: crea la plantilla real en la cuenta de Twilio de
+  SOM y la manda a aprobación de Meta. Usa `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` de los
+  Project Secrets, en memoria.
+- Meta tarda de minutos a 48 h. Volver a correr el comando: cuando está **aprobada** guarda
+  `TWILIO_CONTENT_SID_AVISO` y desde ahí los avisos salen con la plantilla. Hasta entonces
+  salen como texto libre (llegan solo dentro de la ventana de 24 h).
+- Un aviso que no entra en la plantilla (saltos de línea, más de ~950 caracteres) sale como
+  texto libre.
+- **Rechazada:** corregir el texto con **otro nombre** (una plantilla de Twilio no se edita)
+  y volver a correr. **Recategorizada** como MARKETING: se cobra distinto y el paciente la
+  puede silenciar; conviene revisar el texto.
+- Plantillas **específicas** por aviso (con sus variables: fecha, profesional, link) se
+  suman en el mismo catálogo cuando se aprueben sus textos.
+
+### 7. Probar
 
 1. `npm run webhooks` → los dos ✓ de WhatsApp (nginx → bot, y rechaza sin firma).
-2. **Primero escribir** al WhatsApp de SOM desde un celular que no esté en SOM (abre la
+2. **Primero escribir** (sin la plantilla aprobada) al WhatsApp de SOM desde un celular que no esté en SOM (abre la
    ventana de 24 h): llega el acuse (o el aviso de fuera de horario), suena la campanita,
    el contacto aparece en la pestaña **WhatsApp** y la conversación en **Mensajes**.
 3. `npm run whatsapp:test -- +549…` → envío de prueba a ese celular (dice si falta un
    secret o qué rechazó Twilio) y revisión del webhook: qué Project Secrets de Twilio están
-   (nunca sus valores) y si `TWILIO_WEBHOOK_URL` es la URL pública. Con la WABA de
-   producción, fuera de la ventana de 24 h Twilio lo acepta pero no llega (63016).
+   (nunca sus valores) y si `TWILIO_WEBHOOK_URL` es la URL pública. Sin la plantilla
+   aprobada y fuera de la ventana de 24 h, Twilio lo acepta pero no llega (63016); con
+   `TWILIO_CONTENT_SID_AVISO`, llega aunque el celular no haya escrito.
 4. Responder desde la tarjeta y ver llegar los ✓✓; completar la ficha y ver que el aviso
    se resuelve.
 5. Para ver las pantallas con datos sin Twilio: `npm run datos-demo` (un número nuevo con
@@ -263,8 +340,10 @@ Medplum (Project Admin → Clients):
 
 ## Límites y pendientes
 
-- **Plantillas de Meta** (`ContentSid`): para escribirle primero a un paciente por
-  WhatsApp o pasadas las 24 h. Hasta entonces, la respuesta queda en el portal y se avisa.
+- **Plantillas de Meta** (`ContentSid`): los **avisos** usan la genérica `som_aviso` cuando
+  está aprobada (paso 6). Una **respuesta de Recepción** con la ventana de 24 h cerrada
+  todavía no sale por WhatsApp (queda en el portal y se avisa): hace falta una plantilla de
+  "tenés un mensaje nuevo" que invite a responder, para retomar la conversación.
 - **Firma de Twilio** (`X-Twilio-Signature`): la valida el bot con la URL pública; requiere
   Medplum ≥ 4.2 en el servidor. Con la URL directa (temporal) no se valida.
 - **Fichas duplicadas:** si un paciente registrado escribe desde un número que no está en

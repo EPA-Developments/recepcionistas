@@ -82,7 +82,8 @@ MercadoPago usan las credenciales propias de SOM.
 |---|---|---|
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | todos los envíos de WhatsApp | para enviar WhatsApp |
 | `TWILIO_WHATSAPP_FROM` | ídem (número de la WABA de EPA Bienestar IA, `whatsapp:+54...`) | para enviar WhatsApp |
-| `TWILIO_WEBHOOK_URL` | todos los envíos de WhatsApp (`StatusCallback`: los ✓✓ de Mensajes). Es la URL de `som-whatsapp-entrante` con las credenciales de su ClientApplication y `?_medplum-prompt-basic-auth=1` ([`whatsapp.md`](whatsapp.md)) | para ver los ✓✓ |
+| `TWILIO_WEBHOOK_URL` | todos los envíos de WhatsApp (`StatusCallback`: los ✓✓) y la firma de Twilio en `som-whatsapp-entrante`. Es la URL pública de nginx `https://api.medplum.com.ar/webhooks/som/twilio-whatsapp` (la guarda `npm run webhooks`; [`whatsapp.md`](whatsapp.md)) | obligatorio: sin él el webhook rechaza todo |
+| `TWILIO_CONTENT_SID_AVISO` | los avisos (`enviarWhatsApp`): el `ContentSid` de la plantilla genérica `som_aviso` aprobada por Meta (lo guarda `npm run whatsapp:plantillas`) | para que los avisos lleguen fuera de la ventana de 24 h |
 | `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar), `som-reservar-portal` (reserva del portal sin link de pago), seña de un turno ya cancelado (`confirmarReserva`: hay que reintegrar) | opcional |
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
@@ -122,9 +123,10 @@ Account) de EPA Bienestar IA** conectada como *WhatsApp sender* en Twilio:
 
 > Con la WABA real, los mensajes que inicia el negocio (confirmación,
 > recordatorios, invitación) fuera de la ventana de 24 h de WhatsApp solo salen
-> como **plantillas aprobadas por Meta**. Hoy el bot envía texto libre (`Body`):
-> sirve en sandbox o dentro de la ventana de 24 h; el envío con plantillas
-> (Twilio Content, `ContentSid`) queda pendiente.
+> como **plantillas aprobadas por Meta** (si no, Twilio da 63016). Con el secret
+> `TWILIO_CONTENT_SID_AVISO` (plantilla genérica `som_aviso`, `npm run whatsapp:plantillas`)
+> los avisos salen con ella; sin él, como texto libre (solo llega dentro de la ventana de
+> 24 h). Ver [`whatsapp.md`](whatsapp.md), «Plantillas de Meta».
 
 El destinatario sale de `Patient.telecom` (teléfono/SMS). El WhatsApp se dispara
 automático **al reservar** (turno tentativo), **al pagar la seña** (confirmado)

@@ -91,6 +91,7 @@ npm run build:app          # build del front (gate)
 npm run seed               # carga el catálogo en Medplum (credenciales en .env)
 npm run deploy:bots        # deploy de bots (medplum CLI)
 npm run webhooks           # webhooks de Twilio y MercadoPago: ClientApplications, secrets y prueba
+npm run whatsapp:plantillas  # plantillas de Meta (estado; con -- --aplicar crea y manda a aprobación)
 ```
 
 ## Secretos

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { ACCESS_POLICIES } from '../src/fhir/access-policies.js';
 import { controlarFirmaTwilio, firmaTwilio, variantesUrl } from '../src/lib/firma-twilio.js';
 import {
+  basicDeCliente,
   modoUrlWebhook,
   ocultarClaveUrl,
   problemasUrlPublica,
@@ -50,6 +51,13 @@ describe('Webhooks · definición', () => {
     expect(modoUrlWebhook(PUBLICA)).toBe('publica');
     expect(modoUrlWebhook('https://id:clave@api.medplum.com.ar/x')).toBe('directa');
     expect(modoUrlWebhook('no es url')).toBeUndefined();
+  });
+
+  it('El Basic de nginx: base64 de clientId:clave, sin salto de línea', () => {
+    const b = basicDeCliente('cli-1', 's3cr3t');
+    expect(Buffer.from(b, 'base64').toString()).toBe('cli-1:s3cr3t');
+    expect(b).toBe(Buffer.from('cli-1:s3cr3t').toString('base64'));
+    expect(b).not.toBe(Buffer.from('cli-1:s3cr3t\n').toString('base64')); // el error de `echo | base64`
   });
 
   it('Medplum le pasa los encabezados al bot desde la 4.2', () => {

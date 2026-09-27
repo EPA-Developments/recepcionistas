@@ -22,6 +22,7 @@
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { Communication, ProjectSetting } from '@medplum/fhirtypes';
+import { PLANTILLA_AVISO } from '../config/plantillas-whatsapp.js';
 import { BOT_WHATSAPP_ENTRANTE } from '../fhir/identifiers.js';
 import { modoUrlWebhook, problemasUrlWebhookTwilio, SECRETS_TWILIO, WEBHOOK_TWILIO } from '../lib/webhooks.js';
 import { conectarMedplum } from './conexion.js';
@@ -105,6 +106,14 @@ async function revisarWebhook(medplum: MedplumClient, projectId: string, baseUrl
     console.log(`  ${valorSecreto(secretos, nombre) ? '✓' : '✗'} ${nombre}`);
   }
   console.log(`  ${valorSecreto(secretos, 'RECEPCION_WHATSAPP_TO') ? '✓' : '·'} RECEPCION_WHATSAPP_TO (opcional)`);
+  if (valorSecreto(secretos, PLANTILLA_AVISO.secret)) {
+    console.log(`  ✓ ${PLANTILLA_AVISO.secret}: los avisos salen con la plantilla aprobada (llegan aunque pasen 24 h).`);
+  } else {
+    console.log(
+      `  · ${PLANTILLA_AVISO.secret}: sin plantilla aprobada, los avisos (y esta prueba) salen como texto libre y solo\n` +
+        '    llegan si el celular escribió en las últimas 24 h; si no, Twilio da 63016 → npm run whatsapp:plantillas',
+    );
+  }
 
   const cliente = await medplum.searchOne('ClientApplication', { 'name:exact': WEBHOOK_TWILIO.cliente });
   const url = valorSecreto(secretos, 'TWILIO_WEBHOOK_URL');

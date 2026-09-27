@@ -560,6 +560,48 @@ describe('enviarWhatsApp · avisos automáticos (confirmación, recordatorios, �
     expect(estadoEntregaDe(c)).toBe('en-cola');
   });
 
+  it('Con la plantilla genérica aprobada, el aviso sale con ella (llega aunque pasen 24 h)', async () => {
+    const fetchMock = twilioOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum } = fakeMedplum([paciente('p1', '+5491150000000')]);
+    const secrets = {
+      ...SECRETS,
+      TWILIO_CONTENT_SID_AVISO: { name: 'TWILIO_CONTENT_SID_AVISO', valueString: 'HXaviso' },
+    } as unknown as BotEvent['secrets'];
+    const body = 'Segunda Opinión Médica: ¡tu turno quedó confirmado! Consulta de Cardiología. ¡Te esperamos! 💙';
+
+    const c = await enviarWhatsApp(medplum, secrets, { template: 'turno-confirmado', body, pacienteRef: 'Patient/p1' });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const form = formDe(fetchMock.mock.calls[0]);
+    expect(form.get('ContentSid')).toBe('HXaviso');
+    expect(JSON.parse(form.get('ContentVariables')!)).toEqual({ '1': '¡tu turno quedó confirmado! Consulta de Cardiología. ¡Te esperamos!' });
+    expect(form.has('Body')).toBe(false);
+    expect(form.get('StatusCallback')).toBe(URL_WEBHOOK);
+    // En la ficha queda lo que recibió el paciente.
+    expect(c.payload?.[0]?.contentString).toBe(
+      'Segunda Opinión Médica: ¡tu turno quedó confirmado! Consulta de Cardiología. ¡Te esperamos! Si tenés dudas, respondé este mensaje. 💙',
+    );
+    expect(c.status).toBe('completed');
+  });
+
+  it('Sin la plantilla aprobada (o si el aviso no entra en ella), sale como texto libre', async () => {
+    const fetchMock = twilioOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum } = fakeMedplum([paciente('p1', '+5491150000000')]);
+    await enviarWhatsApp(medplum, SECRETS, { template: 't', body: 'Hola', pacienteRef: 'Patient/p1' });
+    const conSid = {
+      ...SECRETS,
+      TWILIO_CONTENT_SID_AVISO: { name: 'TWILIO_CONTENT_SID_AVISO', valueString: 'HXaviso' },
+    } as unknown as BotEvent['secrets'];
+    await enviarWhatsApp(medplum, conSid, { template: 't', body: 'Línea 1\nLínea 2', pacienteRef: 'Patient/p1' });
+    for (const llamada of fetchMock.mock.calls) {
+      const form = formDe(llamada);
+      expect(form.has('ContentSid')).toBe(false);
+      expect(form.get('Body')).toBeTruthy();
+    }
+  });
+
   it('Un teléfono que no es un celular válido no se manda y queda el motivo', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
