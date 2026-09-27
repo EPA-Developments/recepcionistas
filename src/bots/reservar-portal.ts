@@ -19,7 +19,7 @@
  * `som-solicitar-turno` y `som-solicitar` (policy del portal).
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type { Appointment, Reference } from '@medplum/fhirtypes';
+import type { Appointment } from '@medplum/fhirtypes';
 import type { Modalidad } from '../domain/types.js';
 import { RETENCION_RESERVA_PORTAL_MIN } from '../config/reglas.js';
 import { EXT } from '../fhir/identifiers.js';
@@ -74,8 +74,8 @@ async function nombreDe(medplum: MedplumClient, pacienteRef: string): Promise<st
 
 export async function handler(medplum: MedplumClient, event: BotEvent<EntradaReservaPortal>): Promise<ResultadoReservaPortal> {
   const e = event.input ?? ({} as EntradaReservaPortal);
-  // Quién ejecuta: Medplum lo informa en `requester` (no está en el tipo de BotEvent).
-  const requester = (event as BotEvent<EntradaReservaPortal> & { requester?: Reference }).requester?.reference;
+  // Quién ejecuta: Medplum lo informa en `requester`.
+  const requester = event.requester?.reference;
   const v = validarPedidoPortal(e, requester);
   if (!v.ok) {
     return { ok: false, mensaje: v.error };

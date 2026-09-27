@@ -12,6 +12,7 @@ import {
   BOT_BIENESTAR_INSCRIBIR,
   BOT_BORRADOR_RESPUESTA,
   BOT_GLP1_INSCRIBIR,
+  BOT_WEBHOOK_MERCADOPAGO,
   BOT_WHATSAPP_ENTRANTE,
   BOT_WHATSAPP_RESPONDER,
   EXT,
@@ -83,9 +84,10 @@ export const POLICY_RECEPCIONISTA: AccessPolicy = {
 };
 
 /**
- * Webhook de Twilio (WhatsApp): la policy de la ClientApplication cuyas credenciales van
- * en la URL que llama Twilio. Solo puede ejecutar `som-whatsapp-entrante` (el bot corre
- * con su propia identidad): si la URL se filtrara, no da acceso a ningún dato.
+ * Webhooks públicos (Twilio, MercadoPago): cada uno tiene su ClientApplication dedicada,
+ * cuyas credenciales agrega nginx al reenviar al `$execute` del bot (la URL pública no las
+ * lleva). Cada policy solo deja ejecutar su bot (que corre con su propia identidad): si la
+ * clave se filtrara, no da acceso a ningún dato.
  */
 export const NOMBRE_POLICY_WEBHOOK_TWILIO = 'Webhook Twilio — WhatsApp entrante';
 
@@ -93,6 +95,14 @@ export const POLICY_WEBHOOK_TWILIO: AccessPolicy = {
   resourceType: 'AccessPolicy',
   name: NOMBRE_POLICY_WEBHOOK_TWILIO,
   resource: [{ resourceType: 'Bot', readonly: true, criteria: `Bot?name=${BOT_WHATSAPP_ENTRANTE}` }],
+};
+
+export const NOMBRE_POLICY_WEBHOOK_MERCADOPAGO = 'Webhook MercadoPago — pagos';
+
+export const POLICY_WEBHOOK_MERCADOPAGO: AccessPolicy = {
+  resourceType: 'AccessPolicy',
+  name: NOMBRE_POLICY_WEBHOOK_MERCADOPAGO,
+  resource: [{ resourceType: 'Bot', readonly: true, criteria: `Bot?name=${BOT_WEBHOOK_MERCADOPAGO}` }],
 };
 
 /** Director Médico — acceso clínico completo. */
@@ -231,7 +241,7 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
 };
 
 /**
- * Roles del seed (más la policy del webhook de Twilio). Los roles clínicos propios de
+ * Roles del seed (más las policies de los webhooks). Los roles clínicos propios de
  * SOM (equipo médico) se definen aparte; los del catálogo anterior se retiraron.
  */
 export const ACCESS_POLICIES: AccessPolicy[] = [
@@ -239,4 +249,5 @@ export const ACCESS_POLICIES: AccessPolicy[] = [
   POLICY_DIRECTOR_MEDICO,
   POLICY_PACIENTE_PORTAL,
   POLICY_WEBHOOK_TWILIO,
+  POLICY_WEBHOOK_MERCADOPAGO,
 ];

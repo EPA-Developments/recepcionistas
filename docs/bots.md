@@ -15,7 +15,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-estado-turno` | Check-in/out: cambia el estado del turno, gestiona el `Encounter` (`class` AMB/VR según la modalidad) y libera la sala al completar/cancelar. En una consulta del Plan Bienestar marca la actividad del plan; si se cancela, la tarea vuelve a quedar por agendar. | `executeBot` desde el front (clic en el turno). |
 | `som-pagar-sena` | Registra la seña (50%), confirma el turno (pending→booked) y envía WhatsApp de confirmación. | `executeBot` (clic en turno tentativo). |
 | `som-link-mercadopago` | Genera un link de MercadoPago (Checkout Pro) por el monto de la seña. Antes valida la credencial (Access Token, no Public Key) y el monto (no hay link por $0); si MercadoPago la rechaza (401 / 403 PolicyAgent) lee la cuenta y dice qué corregir. Con `{ diagnosticar: true }` solo revisa credencial y cuenta (`npm run mercadopago:test`). | `executeBot` (botón en turno tentativo). |
-| `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública que llama MercadoPago. |
+| `som-webhook-mercadopago` | Webhook de MP: verifica el pago contra la API de MP y confirma el turno automáticamente al acreditarse. | URL pública de nginx (`/webhooks/som/mercadopago`) que llama MercadoPago. |
 | `som-recordatorios` | **Cron:** recuerda los turnos confirmados a 48 h y 2 h por WhatsApp (en teleconsulta, con el link) y manda los avisos de las consultas del **Plan Bienestar** (se abrió la ventana; a mitad de ventana, segundo aviso + alerta a Recepción). | `cronTimer` del Bot (cada ~30 min). |
 | `som-alta-paciente` | Alta de cliente: crea/actualiza el `Patient` (dedupe por DNI/email/teléfono; el teléfono en cualquiera de sus formas y sin unir DNIs distintos, así completa el **número nuevo** que llegó por WhatsApp sin duplicarlo y **resuelve su aviso** de la pestaña WhatsApp, `ficha-completada`). | `executeBot` (Atender → Nuevo paciente; Mensajes y WhatsApp → Completar ficha). |
 | `som-invitar-paciente` | Invita al paciente al **portal** (invite de Medplum) y entrega el link por WhatsApp/email/QR. **Requiere admin.** | `executeBot` (Atender → Invitar al portal). |
@@ -86,7 +86,7 @@ MercadoPago usan las credenciales propias de SOM.
 | `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar), `som-reservar-portal` (reserva del portal sin link de pago), seña de un turno ya cancelado (`confirmarReserva`: hay que reintegrar) | opcional |
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
-| `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`) | opcional |
+| `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`): la URL pública `https://api.medplum.com.ar/webhooks/som/mercadopago` (la guarda `npm run webhooks`) | recomendado |
 | `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) | opcional (default `https://app.segundaopinionmedica.org`) |
 | `APP_BASE_URL` | `som-link-mercadopago` (`back_urls`) | opcional (default `https://recepcion.segundaopinionmedica.org`) |
 | `EMAIL_FROM` | `som-invitar-paciente` (remitente con marca) | opcional |
@@ -135,7 +135,8 @@ y en los **recordatorios** (ver abajo).
 > el `status` de la `Communication`: `completed` (Twilio aceptó), `preparation`
 > (falta algún secret) o `entered-in-error` (Twilio rechazó: sandbox/FROM/número).
 > Después revisa el webhook de entrada (Project Secrets y `TWILIO_WEBHOOK_URL`, sin
-> mostrar valores); `npm run whatsapp:webhook` lo deja listo (ver `docs/whatsapp.md`).
+> mostrar valores); `npm run webhooks` lo deja listo y prueba la URL pública (ver
+> `docs/whatsapp.md`).
 
 ### Email (AWS SES)
 
@@ -193,20 +194,22 @@ quedan fuera. Si la app empieza a llamar un bot nuevo, sumarlo ahí:
 Cuando el paciente paga la seña por el link, MercadoPago avisa a un **webhook** y el
 turno se confirma solo (pending → booked) + WhatsApp.
 
-1. Crear el bot `som-webhook-mercadopago` (UI) y `npm run deploy:bots`.
+1. `npm run deploy:bots` (crea y deploya `som-webhook-mercadopago`) y `npm run seed`
+   (AccessPolicy "Webhook MercadoPago — pagos").
 2. Cargar el secret `MERCADOPAGO_ACCESS_TOKEN` (el mismo del link).
-3. En MercadoPago (Tus integraciones → tu app → **Webhooks**, evento **Pagos**),
-   configurar la **URL** del `$execute` del bot:
-   `https://api.medplum.com.ar/fhir/R4/Bot/<id-de-som-webhook-mercadopago>/$execute`
-   - Como MP no envía headers de auth, se usa una **ClientApplication dedicada** y
-     se embeben las credenciales en la URL:
-     `https://<clientId>:<clientSecret>@api.medplum.com.ar/fhir/R4/Bot/<id>/$execute`
-   - (Esta parte la validamos juntos: confirmamos que MP acepte la URL con
-     credenciales. El bot, además, **verifica el pago contra la API de MP**, así
-     que no confía en el payload.)
-4. (Opcional) Setear el secret `MP_WEBHOOK_URL` con esa URL: el link de pago la
-   manda como `notification_url` por preferencia. Si no, alcanza con la config
-   global del paso 3.
+3. **URL pública sin credenciales:** MercadoPago rechaza URLs con `usuario:clave@`, así que
+   la autenticación la agrega **nginx** (misma receta que el webhook de WhatsApp, ver
+   `docs/whatsapp.md`): MP llama a
+   `https://api.medplum.com.ar/webhooks/som/mercadopago` y nginx reenvía al `$execute` del
+   bot con el `Authorization` de la ClientApplication dedicada **`Webhook MercadoPago`**,
+   que solo puede ejecutar ese bot. El bloque está en
+   [`deploy/nginx-webhooks-som.conf`](../deploy/nginx-webhooks-som.conf).
+4. `npm run webhooks` crea la ClientApplication, guarda esa URL en el secret
+   **`MP_WEBHOOK_URL`** (el link de pago la manda como `notification_url` de cada
+   preferencia) y prueba la URL pública con un evento que el bot ignora.
+5. En MercadoPago (Tus integraciones → tu app → **Webhooks**, **modo productivo**, evento
+   **Pagos**) configurar la misma URL. **Webhooks, no IPN:** IPN viaja en la query string y
+   el bot recibe el cuerpo.
 
 El bot toma el id del pago, hace `GET /v1/payments/{id}` con el token, y si está
 `approved` confirma el turno por su `external_reference` (= appointmentId). Es

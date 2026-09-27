@@ -6,8 +6,11 @@
  * Si el pago está `approved`, confirma el turno (external_reference = appointmentId)
  * reutilizando `confirmarReserva` (idempotente; los reintentos de MP no duplican).
  *
- * Configurar en MercadoPago (Webhooks, evento "Pagos") la URL del $execute de este
- * bot. Requiere el secret MERCADOPAGO_ACCESS_TOKEN.
+ * MercadoPago llama a la URL pública del nginx del API
+ * (`https://api.medplum.com.ar/webhooks/som/mercadopago`, sin credenciales: nginx agrega
+ * las de la ClientApplication "Webhook MercadoPago"; ver docs/bots.md). Configurarla en
+ * MercadoPago (Webhooks, evento "Pagos") y en el secret MP_WEBHOOK_URL (`npm run webhooks`).
+ * Requiere el secret MERCADOPAGO_ACCESS_TOKEN.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import { bloqueaCredencialMP, explicarErrorMP, limpiarTokenMP, problemaCredencialMP, tipoCredencialMP } from '../lib/mercadopago.js';

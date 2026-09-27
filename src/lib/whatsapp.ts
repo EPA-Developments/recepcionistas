@@ -208,7 +208,7 @@ export type WebhookTwilio =
   | { tipo: 'desconocido'; motivo: string };
 
 /** Los campos del POST de Twilio (form-urlencoded: llega como texto o ya parseado). */
-function camposTwilio(input: unknown): Record<string, string> {
+export function camposTwilio(input: unknown): Record<string, string> {
   if (typeof input === 'string') {
     return Object.fromEntries(new URLSearchParams(input));
   }
@@ -298,94 +298,6 @@ export function explicarErrorTwilio(codigo: string | number | undefined): string
   }
   const texto = ERRORES_TWILIO[c];
   return texto ? `WhatsApp no entregó el mensaje: ${texto} (Twilio ${c}).` : `WhatsApp no entregó el mensaje (Twilio ${c}: https://www.twilio.com/docs/api/errors/${c}).`;
-}
-
-// ───────────────────────────── configuración del webhook ─────────────────────────────
-
-/** ClientApplication cuyas credenciales van en la URL que llama Twilio (docs/whatsapp.md). */
-export const NOMBRE_CLIENTE_WEBHOOK_TWILIO = 'Webhook Twilio';
-
-/**
- * Project Secrets que necesita el canal WhatsApp: enviar, validar la cuenta del webhook
- * y pedir los ✓✓. (`RECEPCION_WHATSAPP_TO` es opcional.)
- */
-export const SECRETS_TWILIO = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM', 'TWILIO_WEBHOOK_URL'] as const;
-
-/** Ruta del `$execute` de un bot bajo el servidor Medplum (respeta un prefijo en la base). */
-function rutaExecute(baseUrl: string, botId: string): URL {
-  return new URL(`fhir/R4/Bot/${encodeURIComponent(botId)}/$execute`, baseUrl.replace(/\/?$/, '/'));
-}
-
-/**
- * La URL que llama Twilio (mensajes entrantes y ✓✓): el `$execute` de
- * `som-whatsapp-entrante` con las credenciales de la ClientApplication "Webhook Twilio".
- * `_medplum-prompt-basic-auth=1` es obligatorio: Twilio manda las credenciales solo si el
- * servidor responde 401 con `WWW-Authenticate: Basic`, y Medplum lo hace solo con él.
- */
-export function urlWebhookTwilio(p: { baseUrl: string; botId: string; clientId: string; clientSecret: string }): string {
-  const u = rutaExecute(p.baseUrl, p.botId);
-  u.username = p.clientId;
-  u.password = p.clientSecret;
-  u.searchParams.set('_medplum-prompt-basic-auth', '1');
-  return u.toString();
-}
-
-/**
- * La URL con la clave tapada, para mostrarla. Solo muestra URLs http(s): `id:clave` sin
- * esquema también "parsea" (esquema `id:`) y se vería entera.
- */
-export function ocultarClaveUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-      return '(URL inválida)';
-    }
-    if (u.password) {
-      u.password = '***';
-    }
-    return u.toString();
-  } catch {
-    return '(URL inválida)';
-  }
-}
-
-/**
- * Qué está mal en la URL del webhook de Twilio (vacío = bien). Los textos nunca incluyen
- * la clave: se pueden mostrar.
- */
-export function problemasUrlWebhookTwilio(
-  url: string | undefined,
-  esperado: { baseUrl: string; botId: string; clientId?: string },
-): string[] {
-  if (!url?.trim()) {
-    return ['falta: sin ella no hay ✓✓, y es la URL que va en Twilio'];
-  }
-  let u: URL;
-  try {
-    u = new URL(url.trim());
-  } catch {
-    return ['no es una URL válida'];
-  }
-  const ruta = rutaExecute(esperado.baseUrl, esperado.botId);
-  const problemas: string[] = [];
-  if (u.protocol !== 'https:') {
-    problemas.push('tiene que ser https');
-  }
-  if (u.host !== ruta.host) {
-    problemas.push(`apunta a ${u.host}, no a ${ruta.host}`);
-  }
-  if (!u.username || !u.password) {
-    problemas.push(`no lleva las credenciales de "${NOMBRE_CLIENTE_WEBHOOK_TWILIO}" (https://<clientId>:<clientSecret>@…)`);
-  } else if (esperado.clientId && decodeURIComponent(u.username) !== esperado.clientId) {
-    problemas.push(`las credenciales no son las de "${NOMBRE_CLIENTE_WEBHOOK_TWILIO}" (clientId ${esperado.clientId})`);
-  }
-  if (u.pathname !== ruta.pathname) {
-    problemas.push(`la ruta tiene que ser ${ruta.pathname} (el bot som-whatsapp-entrante)`);
-  }
-  if (u.searchParams.get('_medplum-prompt-basic-auth') !== '1') {
-    problemas.push('falta ?_medplum-prompt-basic-auth=1: sin él Twilio nunca manda las credenciales');
-  }
-  return problemas;
 }
 
 // ───────────────────────────── mensajes del canal WhatsApp ─────────────────────────────

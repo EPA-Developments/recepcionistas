@@ -19,6 +19,7 @@ import type { Bot, Subscription } from '@medplum/fhirtypes';
 import {
   BOT_SOM_LABORATORIO,
   BOT_SOM_REPORT,
+  BOT_WEBHOOK_MERCADOPAGO,
   BOT_WHATSAPP_ENTRANTE,
   BOT_WHATSAPP_RESPONDER,
   COD,
@@ -43,7 +44,7 @@ const BOTS: DefBot[] = [
   { name: 'som-estado-turno', source: 'src/bots/estado-turno.ts', dist: 'dist/bots/estado-turno.js', description: 'Cambia el estado del turno (check-in/out), gestiona el Encounter (clase AMB/VR según la modalidad), libera la sala y actualiza las consultas del Plan Bienestar.' },
   { name: 'som-pagar-sena', source: 'src/bots/pagar-sena.ts', dist: 'dist/bots/pagar-sena.js', description: 'Registra la seña (50%), confirma el turno y envía WhatsApp.' },
   { name: 'som-link-mercadopago', source: 'src/bots/link-mercadopago.ts', dist: 'dist/bots/link-mercadopago.js', description: 'Genera link de MercadoPago para pagar la seña.' },
-  { name: 'som-webhook-mercadopago', source: 'src/bots/webhook-mercadopago.ts', dist: 'dist/bots/webhook-mercadopago.js', description: 'Webhook de MercadoPago: confirma el turno al acreditarse el pago.' },
+  { name: BOT_WEBHOOK_MERCADOPAGO, source: 'src/bots/webhook-mercadopago.ts', dist: 'dist/bots/webhook-mercadopago.js', description: 'Webhook de MercadoPago: confirma el turno al acreditarse el pago.' },
   { name: 'som-recordatorios', source: 'src/bots/recordatorios.ts', dist: 'dist/bots/recordatorios.js', description: 'Cron: recordatorios de turnos confirmados a 48 h y 2 h (con el link en teleconsulta) y avisos de las consultas del Plan Bienestar 100 Días® (WhatsApp).' },
   { name: 'som-alta-paciente', source: 'src/bots/alta-paciente.ts', dist: 'dist/bots/alta-paciente.js', description: 'Alta de paciente (Patient) con dedupe por DNI/email/teléfono; al completar un número nuevo de WhatsApp resuelve su aviso.' },
   { name: 'som-invitar-paciente', source: 'src/bots/invitar-paciente.ts', dist: 'dist/bots/invitar-paciente.js', description: 'Invita al paciente al portal (invite Medplum) y entrega el link por WhatsApp/email/QR. Requiere admin.' },
