@@ -109,9 +109,30 @@ async function listar(medplum: MedplumClient, token: string): Promise<void> {
   }
 }
 
+/**
+ * La aplicación de MercadoPago que creó el pago: el `client_id` de su preferencia (o el
+ * `application_id` de su orden). "Calidad de integración" solo mide pagos de SU aplicación.
+ */
+async function aplicacionDelPago(token: string, p: PagoMPDetalle): Promise<string | undefined> {
+  if (!p.order?.id) {
+    return undefined;
+  }
+  const orden = await mp<{ application_id?: string | number; preference_id?: string }>(token, `/merchant_orders/${p.order.id}`).catch(
+    () => undefined,
+  );
+  const pref = orden?.preference_id
+    ? await mp<{ client_id?: string | number }>(token, `/checkout/preferences/${encodeURIComponent(orden.preference_id)}`).catch(
+        () => undefined,
+      )
+    : undefined;
+  const app = pref?.client_id ?? orden?.application_id;
+  return app === undefined || app === null ? undefined : String(app);
+}
+
 async function detalle(medplum: MedplumClient, token: string, id: string): Promise<void> {
   const p = await mp<PagoMPDetalle>(token, `/v1/payments/${encodeURIComponent(id)}`);
   const item = p.additional_info?.items?.[0];
+  const app = await aplicacionDelPago(token, p);
   console.log(
     `\nPago ${p.id}${p.live_mode === false ? ' (PRUEBA)' : ''}\n` +
       `  Estado:   ${estadoPagoEnPalabras(p.status, p.status_detail)}\n` +
@@ -120,6 +141,8 @@ async function detalle(medplum: MedplumClient, token: string, id: string): Promi
       `  Turno:    ${p.external_reference ?? '(sin external_reference)'}\n` +
       `  Order ID: ${p.order?.id ?? '(sin orden)'}${p.order?.id ? `  ← el que pide "Calidad de integración" (${p.order.type ?? 'orden'})` : ''}\n` +
       `  Vendedor: cuenta ${p.collector_id ?? '?'}\n` +
+      `  Aplicación: ${app ?? '(no se pudo leer)'}  ← "Calidad de integración" solo acepta pagos de la aplicación\n` +
+      '              del panel donde medís (el número en la URL: /developers/panel/app/<número>)\n' +
       `  Ítem:     ${item?.title ?? '(sin ítem)'}\n` +
       `  Comprador: ${enmascararEmail(p.payer?.email) ?? '(sin email)'}\n` +
       `  Medplum:  ${await enMedplum(medplum, p)}`,
