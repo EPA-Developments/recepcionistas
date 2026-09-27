@@ -8,7 +8,9 @@ import { enviarWhatsApp } from '../src/bots/_shared.js';
 import { handler as entrante } from '../src/bots/whatsapp-entrante.js';
 import { handler as responder } from '../src/bots/whatsapp-responder.js';
 import { handler as altaPaciente } from '../src/bots/alta-paciente.js';
+import { firmaTwilio } from '../src/lib/firma-twilio.js';
 import {
+  camposTwilio,
   CATEGORIA_WHATSAPP,
   construirConversacionWhatsApp,
   construirLeadWhatsApp,
@@ -29,14 +31,21 @@ const AR = (fechaHora: string): Date => new Date(`${fechaHora}:00-03:00`);
 const LUNES_12 = AR('2026-09-28T12:00'); // centro abierto
 const DOMINGO_10 = AR('2026-10-04T10:00'); // centro cerrado
 
+/** La URL pública del webhook (nginx): la que llama Twilio y contra la que firma. */
+const URL_WEBHOOK = 'https://api.medplum.com.ar/webhooks/som/twilio-whatsapp';
+
 const SECRETS = {
   TWILIO_ACCOUNT_SID: { name: 'TWILIO_ACCOUNT_SID', valueString: 'AC123' },
   TWILIO_AUTH_TOKEN: { name: 'TWILIO_AUTH_TOKEN', valueString: 'tok' },
   TWILIO_WHATSAPP_FROM: { name: 'TWILIO_WHATSAPP_FROM', valueString: 'whatsapp:+14155238886' },
+  TWILIO_WEBHOOK_URL: { name: 'TWILIO_WEBHOOK_URL', valueString: URL_WEBHOOK },
 } as unknown as BotEvent['secrets'];
 
+/** Como llega al bot: con los encabezados y la firma que pone Twilio sobre la URL pública. */
 function evento<T>(input: T, secrets: BotEvent['secrets'] = SECRETS): BotEvent<T> {
-  return { input, secrets, bot: { reference: 'Bot/b' }, contentType: 'application/x-www-form-urlencoded' } as BotEvent<T>;
+  const token = secrets['TWILIO_AUTH_TOKEN']?.valueString;
+  const headers = token ? { 'x-twilio-signature': firmaTwilio(token, URL_WEBHOOK, camposTwilio(input)) } : {};
+  return { input, secrets, headers, bot: { reference: 'Bot/b' }, contentType: 'application/x-www-form-urlencoded' } as BotEvent<T>;
 }
 
 /** Lo que manda Twilio cuando un paciente escribe (ya parseado por Medplum). */
@@ -264,6 +273,39 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     expect(r).toMatchObject({ ok: false, tipo: 'ignorado' });
     expect(todos('Communication')).toHaveLength(0);
     expect(todos('Patient')).toHaveLength(0);
+  });
+
+  it('Webhook público: sin la firma de Twilio, con otra firma o sin encabezados (Medplum < 4.2) no entra nada', async () => {
+    const { medplum, todos } = fakeMedplum();
+    const valido = evento(mensaje());
+    const casos: Array<[string, BotEvent<Record<string, string>>]> = [
+      ['sin firma', { ...valido, headers: {} }],
+      ['firma de otro token', { ...valido, headers: { 'x-twilio-signature': firmaTwilio('otro', URL_WEBHOOK, mensaje()) } }],
+      ['texto cambiado', { ...valido, input: mensaje({ Body: 'Otro texto' }) }],
+      ['sin encabezados', { ...valido, headers: undefined }],
+      ['sin TWILIO_WEBHOOK_URL', evento(mensaje(), { ...SECRETS, TWILIO_WEBHOOK_URL: undefined } as unknown as BotEvent['secrets'])],
+    ];
+    for (const [caso, ev] of casos) {
+      const r = await entrante(medplum, ev);
+      expect(r, caso).toMatchObject({ ok: false, tipo: 'ignorado' });
+    }
+    expect(todos('Communication')).toHaveLength(0);
+    expect(todos('Patient')).toHaveLength(0);
+    expect(todos('Task')).toHaveLength(0);
+  });
+
+  it('URL directa (temporal, credenciales en la URL): Medplum ya autenticó, no exige firma', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(LUNES_12);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ sid: 'SMauto', status: 'queued' }), { status: 201 })));
+    const { medplum, todos } = fakeMedplum();
+    const secrets = {
+      ...SECRETS,
+      TWILIO_WEBHOOK_URL: { name: 'TWILIO_WEBHOOK_URL', valueString: 'https://id:clave@api.medplum.com.ar/fhir/R4/Bot/b/$execute' },
+    } as unknown as BotEvent['secrets'];
+    const r = await entrante(medplum, { ...evento(mensaje(), secrets), headers: undefined });
+    expect(r).toMatchObject({ ok: true, tipo: 'entrante' });
+    expect(todos('Patient')).toHaveLength(1);
   });
 
   it('El número de Recepción (el que recibe los avisos) no se vuelve paciente', async () => {

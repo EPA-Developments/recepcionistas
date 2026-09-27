@@ -65,7 +65,12 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
   `git grep -niE '\bbw[-_]|biowellness|bio\.medplum' -- . ':!CLAUDE.md'`
 - **Medplum:** `https://api.medplum.com.ar/`, proyecto SOM
   `7ce5e559-f315-4538-abf2-61fa4922f996` (`MEDPLUM_PROJECT_ID`: seed, deploy y
-  diagnósticos abortan si las credenciales son de otro proyecto).
+  diagnósticos abortan si las credenciales son de otro proyecto). SDK `@medplum/*` **5.1**
+  (Node ≥ 22.18); el servidor tiene que ser ≥ 4.2 (los bots reciben los encabezados HTTP).
+- **Webhooks públicos** (Twilio, MercadoPago): URL limpia en el nginx del API
+  (`/webhooks/som/…`, `deploy/nginx-webhooks-som.conf`), que agrega la autenticación de una
+  ClientApplication dedicada. **Nunca credenciales en una URL**; el bot valida la firma
+  (Twilio) o consulta el pago (MercadoPago).
 
 ## Flujo de trabajo
 
@@ -85,6 +90,7 @@ npm run bots:bundle        # bundlea los bots sin servidor (gate)
 npm run build:app          # build del front (gate)
 npm run seed               # carga el catálogo en Medplum (credenciales en .env)
 npm run deploy:bots        # deploy de bots (medplum CLI)
+npm run webhooks           # webhooks de Twilio y MercadoPago: ClientApplications, secrets y prueba
 ```
 
 ## Secretos

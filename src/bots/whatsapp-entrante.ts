@@ -19,15 +19,18 @@
  *  2) **Estado de entrega** (`StatusCallback` de lo que salió): actualiza los ✓✓
  *     (enviado → entregado → leído, o fallido con el motivo).
  *
- * Seguridad: la URL lleva las credenciales de una ClientApplication dedicada, que solo
- * puede ejecutar este bot (AccessPolicy "Webhook Twilio"), y el bot rechaza lo que no
- * venga de la cuenta de Twilio de SOM (`AccountSid` = secret `TWILIO_ACCOUNT_SID`).
- * Ver `docs/whatsapp.md`.
+ * Seguridad: Twilio llama a la URL pública del nginx del API (sin credenciales; nginx
+ * agrega las de una ClientApplication dedicada que solo puede ejecutar este bot), así que
+ * el bot acepta solo lo que Twilio **firmó** con el Auth Token de SOM (`X-Twilio-Signature`,
+ * `lib/firma-twilio.ts`; hace falta Medplum ≥ 4.2 para ver los encabezados). Además
+ * rechaza lo que no venga de la cuenta de Twilio de SOM (`AccountSid`). Ver
+ * `docs/whatsapp.md`.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Attachment, Communication, Patient, Task } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
 import { respuestaAutomatica, type TipoRespuestaAutomatica } from '../lib/auto-respuesta.js';
+import { controlarFirmaTwilio } from '../lib/firma-twilio.js';
 import { busquedaAvisoContacto, construirAvisoContacto } from '../lib/contactos-whatsapp.js';
 import {
   aE164AR,
@@ -82,6 +85,18 @@ export async function handler(
   medplum: MedplumClient,
   event: BotEvent<Record<string, string> | string>,
 ): Promise<ResultadoWebhookWhatsApp> {
+  // La URL pública (nginx) la puede llamar cualquiera: solo pasa lo que firmó Twilio.
+  const firma = controlarFirmaTwilio({
+    urlWebhook: event.secrets['TWILIO_WEBHOOK_URL']?.valueString,
+    authToken: event.secrets['TWILIO_AUTH_TOKEN']?.valueString,
+    headers: event.headers,
+    input: event.input,
+  });
+  if (!firma.ok) {
+    console.error(`som-whatsapp-entrante: ${firma.motivo} Se ignora.`);
+    return { ok: false, tipo: 'ignorado', motivo: firma.motivo };
+  }
+
   const w = leerWebhookTwilio(event.input);
   if (w.tipo === 'desconocido') {
     return { ok: true, tipo: 'ignorado', motivo: w.motivo };

@@ -50,9 +50,9 @@ export async function handler(
     return { ok: false, mensaje: v.error };
   }
 
-  // Quién ejecuta: Medplum lo informa en `requester` (no está en el tipo de
-  // @medplum/core 3.3; si el servidor no lo manda, rigen los demás controles).
-  const requester = (event as BotEvent<SolicitudSom> & { requester?: Reference }).requester?.reference;
+  // Quién ejecuta: Medplum lo informa en `requester` (si el servidor no lo manda,
+  // rigen los demás controles).
+  const requester = event.requester?.reference;
   const quien = validarSolicitante(requester, e.pacienteRef);
   if (!quien.ok) {
     return { ok: false, mensaje: quien.error };

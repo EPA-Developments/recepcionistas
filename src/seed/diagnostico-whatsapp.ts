@@ -16,15 +16,14 @@
  * número del sandbox, y TWILIO_WHATSAPP_FROM debe ser el del sandbox.
  *
  * Al final revisa el webhook de entrada (WhatsApp en Mensajes): los Project Secrets de
- * Twilio (solo si están, nunca sus valores) y que `TWILIO_WEBHOOK_URL` llame al bot con
- * las credenciales de "Webhook Twilio" (`npm run whatsapp:webhook` lo deja listo). Ver
- * docs/whatsapp.md.
+ * Twilio (solo si están, nunca sus valores) y que `TWILIO_WEBHOOK_URL` sea la URL pública
+ * de nginx (`npm run webhooks` la deja lista y la prueba). Ver docs/whatsapp.md.
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { Communication, ProjectSetting } from '@medplum/fhirtypes';
 import { BOT_WHATSAPP_ENTRANTE } from '../fhir/identifiers.js';
-import { NOMBRE_CLIENTE_WEBHOOK_TWILIO, problemasUrlWebhookTwilio, SECRETS_TWILIO } from '../lib/whatsapp.js';
+import { modoUrlWebhook, problemasUrlWebhookTwilio, SECRETS_TWILIO, WEBHOOK_TWILIO } from '../lib/webhooks.js';
 import { conectarMedplum } from './conexion.js';
 import { leerSecretos, valorSecreto } from './secretos.js';
 
@@ -107,24 +106,24 @@ async function revisarWebhook(medplum: MedplumClient, projectId: string, baseUrl
   }
   console.log(`  ${valorSecreto(secretos, 'RECEPCION_WHATSAPP_TO') ? '✓' : '·'} RECEPCION_WHATSAPP_TO (opcional)`);
 
-  const cliente = await medplum.searchOne('ClientApplication', { 'name:exact': NOMBRE_CLIENTE_WEBHOOK_TWILIO });
+  const cliente = await medplum.searchOne('ClientApplication', { 'name:exact': WEBHOOK_TWILIO.cliente });
+  const url = valorSecreto(secretos, 'TWILIO_WEBHOOK_URL');
   const problemas = [
-    ...(cliente?.id ? [] : [`falta la ClientApplication "${NOMBRE_CLIENTE_WEBHOOK_TWILIO}"`]),
-    ...problemasUrlWebhookTwilio(valorSecreto(secretos, 'TWILIO_WEBHOOK_URL'), {
-      baseUrl,
-      botId: entrante.id,
-      clientId: cliente?.id,
-    }),
+    ...(cliente?.id ? [] : [`falta la ClientApplication "${WEBHOOK_TWILIO.cliente}" (la que usa nginx)`]),
+    ...problemasUrlWebhookTwilio(url, { baseUrl, botId: entrante.id, clientId: cliente?.id }),
   ];
-  if (problemas.length === 0) {
-    console.log(`  ✓ TWILIO_WEBHOOK_URL llama a ${BOT_WHATSAPP_ENTRANTE} con las credenciales de "${NOMBRE_CLIENTE_WEBHOOK_TWILIO}".`);
-    console.log('    En Twilio va esa misma URL: webhook de mensajes entrantes del número de SOM (POST).');
-  } else {
+  if (problemas.length > 0) {
     for (const p of problemas) {
       console.error(`  ✗ TWILIO_WEBHOOK_URL: ${p}`);
     }
-    console.error('  → npm run whatsapp:webhook lo deja listo.');
+    console.error('  → npm run webhooks lo deja listo (y prueba la URL pública).');
     process.exitCode = 1;
+  } else if (url && modoUrlWebhook(url) === 'publica') {
+    console.log(`  ✓ TWILIO_WEBHOOK_URL es la URL pública: ${url}`);
+    console.log('    Es la que va en Twilio (webhook de mensajes entrantes del número de SOM, POST).');
+    console.log('    Que nginx la reenvíe y el bot valide la firma lo prueba: npm run webhooks');
+  } else {
+    console.log(`  ⚠️ TWILIO_WEBHOOK_URL es la URL directa (con la clave): es temporal. Pasar a nginx: npm run webhooks`);
   }
   console.log('  Pasos completos: docs/whatsapp.md');
 }

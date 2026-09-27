@@ -284,6 +284,8 @@ export function urlServicio(codigo: string): string {
 export const BOT_WHATSAPP_ENTRANTE = 'som-whatsapp-entrante';
 /** Mensajes: manda por WhatsApp la respuesta de Recepción si el paciente escribió por ahí. */
 export const BOT_WHATSAPP_RESPONDER = 'som-whatsapp-responder';
+/** MercadoPago: webhook de pagos (confirma el turno al acreditarse la seña). */
+export const BOT_WEBHOOK_MERCADOPAGO = 'som-webhook-mercadopago';
 
 /** Plan Bienestar 100 Días®: plantilla (PlanDefinition) con sus tres consultas programadas. */
 export const PLAN_BIENESTAR_URL = `${BASE}/PlanDefinition/plan-bienestar-100`;

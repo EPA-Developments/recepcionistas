@@ -16,6 +16,7 @@ describe('Seed — composición', () => {
       'Director Médico — Clínico completo',
       'Paciente SOM — Portal',
       'Webhook Twilio — WhatsApp entrante',
+      'Webhook MercadoPago — pagos',
     ]);
     // 12 consultas por especialidad + consulta del Plan Bienestar + control GLP-1.
     expect(seed.activityDefinitions.length).toBe(14);

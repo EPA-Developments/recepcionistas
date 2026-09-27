@@ -49,7 +49,8 @@ Recepción responde (en Mensajes o en la tarjeta de WhatsApp) ─► queda en el
 ```
 
 1. **Llega un WhatsApp.** `som-whatsapp-entrante`:
-   - descarta lo que no viene de la cuenta de SOM (`AccountSid` ≠ `TWILIO_ACCOUNT_SID`)
+   - acepta solo lo que firmó Twilio (`X-Twilio-Signature`, la URL es pública) y descarta
+     lo que no viene de la cuenta de SOM (`AccountSid` ≠ `TWILIO_ACCOUNT_SID`)
      y no duplica si Twilio reintenta (identifier `MessageSid`);
    - busca al paciente por el número, en cualquiera de las formas en que puede estar en
      la ficha (`+549…`, `11 2233-4455`, `011 15 2233-4455`, …); si no existe, crea un
@@ -135,73 +136,109 @@ persona.
 
 ## Puesta en marcha
 
+Twilio llama a una **URL pública sin credenciales** en el nginx del API; nginx agrega el
+`Authorization` de una ClientApplication dedicada y reenvía al bot. Ninguna clave queda en
+la consola de Twilio, en el `StatusCallback` de cada envío ni en los logs: vive solo en el
+servidor. Como la URL es pública, el bot acepta solo lo que **firmó Twilio**
+(`X-Twilio-Signature`). Es la misma receta que el webhook de MercadoPago
+([`bots.md`](bots.md)).
+
+```
+Twilio ─POST─► https://api.medplum.com.ar/webhooks/som/twilio-whatsapp   (sin clave)
+                 └─ nginx: + Authorization Basic de "Webhook Twilio"
+                      └─► /fhir/R4/Bot/<som-whatsapp-entrante>/$execute
+                            └─ el bot valida X-Twilio-Signature contra TWILIO_WEBHOOK_URL
+```
+
+Requisito: **Medplum ≥ 4.2** en el servidor (le pasa los encabezados al bot; SOM usa el SDK
+5.1). Con un servidor más viejo el bot no ve la firma y, con la URL pública, rechaza todo.
+
 ### 1. Bots y seed
 
 ```bash
-npm run deploy:bots   # som-whatsapp-entrante y som-whatsapp-responder
-npm run seed          # extensiones nuevas + AccessPolicy "Webhook Twilio — WhatsApp entrante"
-                      # + la policy de Recepción (bots nuevos y acceso a archivos)
+npm run deploy:bots   # som-whatsapp-entrante, som-whatsapp-responder, som-webhook-mercadopago
+npm run seed          # AccessPolicies "Webhook Twilio — WhatsApp entrante" y "Webhook
+                      # MercadoPago — pagos" + la policy de Recepción
 ```
 
-### 2. Una ClientApplication solo para Twilio y la URL del webhook
+### 2. ClientApplication, secret y prueba: `npm run webhooks`
 
 ```bash
-npm run whatsapp:webhook   # idempotente; con -- --dry-run solo muestra qué haría
+npm run webhooks                # idempotente; con -- --dry-run solo muestra qué haría
 ```
 
-- Crea la ClientApplication **`Webhook Twilio`** con la AccessPolicy **"Webhook Twilio —
-  WhatsApp entrante"**: solo puede ejecutar `som-whatsapp-entrante` (el bot corre con su
-  propia identidad), así que si la URL se filtrara no da acceso a ningún dato. Si ya
-  existe, verifica su membership (esa policy, sin admin) y la corrige.
-- Arma la URL del webhook y la guarda en el Project Secret **`TWILIO_WEBHOOK_URL`** sin
-  tocar los demás (el endpoint de secrets reemplaza la lista entera: el script lee,
-  fusiona y verifica que no se haya perdido ninguno; si no ve ningún secret, no escribe).
-- La clave no se imprime: la URL completa se copia de Medplum (Project → **Secrets** →
-  `TWILIO_WEBHOOK_URL`) para pegarla en Twilio (paso 4).
+Para WhatsApp y MercadoPago:
+
+- Crea la ClientApplication dedicada (**`Webhook Twilio`**, **`Webhook MercadoPago`**) con
+  su AccessPolicy: solo puede ejecutar su bot (que corre con su propia identidad), así que
+  si una clave se filtrara no da acceso a ningún dato. Si ya existe, corrige su membership
+  (esa policy, sin admin).
+- Guarda la URL pública en el Project Secret (**`TWILIO_WEBHOOK_URL`**, **`MP_WEBHOOK_URL`**)
+  sin tocar los demás: el endpoint de secrets reemplaza la lista entera, así que el script
+  lee, fusiona y verifica que no se haya perdido ninguno (si no ve ningún secret, no escribe).
+- Imprime los valores de los placeholders de nginx (ids de los bots y qué ClientApplication
+  va en cada `Authorization`) y avisa si el servidor es anterior a Medplum 4.2.
+- **Prueba las URLs públicas de punta a punta:** a WhatsApp le manda un estado de entrega
+  firmado de un mensaje que no existe (no escribe nada) y el mismo sin firma, que tiene que
+  rechazar; a MercadoPago, un evento que el bot ignora. Si nginx todavía no tiene el
+  bloque, lo dice (404).
 - Hace falta que la ClientApplication del `.env` sea admin del proyecto.
-- **Rotar la clave** (si la URL se filtró): regenerar el secret de `Webhook Twilio` en
-  Medplum, volver a correr el script y pegar la URL nueva en Twilio.
 
-### 3. La URL del webhook
+### 3. nginx del API
 
-```
-https://<clientId>:<clientSecret>@api.medplum.com.ar/fhir/R4/Bot/<id de som-whatsapp-entrante>/$execute?_medplum-prompt-basic-auth=1
-```
+[`deploy/nginx-webhooks-som.conf`](../deploy/nginx-webhooks-som.conf): un `location` por
+webhook, **dentro** del `server` de `api.medplum.com.ar` que ya existe (antes de su
+`location /`). Las rutas llevan el prefijo `/webhooks/som/` para no chocar con las de otros
+proyectos del mismo servidor, y usan la variable `$simbolo_pesos` que ese nginx ya declara
+(no repetirla). El `Authorization` se arma **en el servidor** con la clave que muestra
+Medplum (Project Admin → Clients):
+`printf '%s' '<clientId>:<clientSecret>' | base64 -w0`. Después
+`sudo nginx -t && sudo systemctl reload nginx` y volver a correr `npm run webhooks`.
 
-- La arma `npm run whatsapp:webhook`; `npm run whatsapp:test` verifica que el secret
-  apunte al bot con las credenciales de `Webhook Twilio` (sin mostrar la clave).
-- **`?_medplum-prompt-basic-auth=1` es obligatorio:** Twilio manda el primer pedido
-  **sin** credenciales y solo las agrega si el servidor responde 401 con
-  `WWW-Authenticate: Basic`; Medplum manda ese encabezado solo con ese parámetro.
+- **Rotar una clave:** regenerar el secret de la ClientApplication en Medplum, actualizar su
+  `Authorization` en nginx y recargar. Twilio y MercadoPago no cambian nada.
+- **Si se recrea un bot** cambia su id: actualizarlo en nginx y recargar.
 
 ### 4. Twilio Console
 
-- **Número de WhatsApp de SOM** (Messaging → Senders → WhatsApp senders → el número):
-  en *Webhook URL for incoming messages*, la URL del paso 3 (POST). Si el número está en
-  un *Messaging Service*, configurarla en el servicio (Integration → *Send a webhook*).
-  El *Status callback URL* del número puede quedar vacío: cada envío pide sus ✓✓.
+- **Número de WhatsApp de SOM** (Messaging → Senders → WhatsApp senders → el número): en
+  *Webhook URL for incoming messages*, `https://api.medplum.com.ar/webhooks/som/twilio-whatsapp`
+  (POST). Si el número está en un *Messaging Service*, configurarla en el servicio
+  (Integration → *Send a webhook*). El *Status callback URL* del número puede quedar vacío:
+  cada envío pide sus ✓✓ a la misma URL.
 - **Sandbox** (para probar): Messaging → Try it out → Send a WhatsApp message →
   *Sandbox settings* → *When a message comes in*.
+
+> **Temporal, sin nginx:** `npm run webhooks -- --directa` guarda en `TWILIO_WEBHOOK_URL`
+> la URL con las credenciales de `Webhook Twilio` en la URL
+> (`https://<clientId>:<clientSecret>@…/Bot/<id>/$execute?_medplum-prompt-basic-auth=1`;
+> el parámetro es obligatorio: Twilio manda las credenciales solo si el servidor responde
+> 401 con `WWW-Authenticate: Basic`). Esa URL **expone la clave** en Twilio y en cada
+> envío: solo para probar hasta que nginx tenga el bloque. En ese modo el bot no exige la
+> firma (la autenticación la hizo Medplum).
 
 ### 5. Project Secrets (Medplum → Project → Secrets)
 
 | Secret | Para qué |
 |---|---|
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | enviar, bajar la media y validar que el webhook es de la cuenta de SOM |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | enviar, bajar la media, validar la firma y que el webhook es de la cuenta de SOM |
 | `TWILIO_WHATSAPP_FROM` | el número de WhatsApp de SOM (`whatsapp:+54…`) |
-| `TWILIO_WEBHOOK_URL` | la URL del paso 3 (la guarda `npm run whatsapp:webhook`): sin ella no hay ✓✓ |
+| `TWILIO_WEBHOOK_URL` | la URL pública (la guarda `npm run webhooks`): contra ella se valida la firma y a ella van los ✓✓. **Sin ella el webhook rechaza todo** |
 | `RECEPCION_WHATSAPP_TO` | opcional: el número que recibe los avisos internos (no se vuelve paciente si escribe) |
 
 ### 6. Probar
 
-1. `npm run whatsapp:test -- +549…` → envío de prueba (dice si falta un secret o qué
-   rechazó Twilio) y revisión del webhook: qué Project Secrets de Twilio están (nunca sus
-   valores) y si `TWILIO_WEBHOOK_URL` está bien armada.
-2. Escribirle al WhatsApp de SOM desde un celular que no esté en SOM: llega el acuse,
-   suena la campanita, el contacto aparece en la pestaña **WhatsApp** y la conversación
-   en **Mensajes**. Responder desde la tarjeta y ver llegar los ✓✓; completar la ficha y
-   ver que el aviso se resuelve.
-3. Para ver las pantallas con datos sin Twilio: `npm run datos-demo` (un número nuevo con
+1. `npm run webhooks` → los dos ✓ de WhatsApp (nginx → bot, y rechaza sin firma).
+2. **Primero escribir** al WhatsApp de SOM desde un celular que no esté en SOM (abre la
+   ventana de 24 h): llega el acuse (o el aviso de fuera de horario), suena la campanita,
+   el contacto aparece en la pestaña **WhatsApp** y la conversación en **Mensajes**.
+3. `npm run whatsapp:test -- +549…` → envío de prueba a ese celular (dice si falta un
+   secret o qué rechazó Twilio) y revisión del webhook: qué Project Secrets de Twilio están
+   (nunca sus valores) y si `TWILIO_WEBHOOK_URL` es la URL pública. Con la WABA de
+   producción, fuera de la ventana de 24 h Twilio lo acepta pero no llega (63016).
+4. Responder desde la tarjeta y ver llegar los ✓✓; completar la ficha y ver que el aviso
+   se resuelve.
+5. Para ver las pantallas con datos sin Twilio: `npm run datos-demo` (un número nuevo con
    su acuse y su aviso en la pestaña WhatsApp, una conversación por WhatsApp con
    respuesta y una del portal).
 
@@ -228,8 +265,8 @@ https://<clientId>:<clientSecret>@api.medplum.com.ar/fhir/R4/Bot/<id de som-what
 
 - **Plantillas de Meta** (`ContentSid`): para escribirle primero a un paciente por
   WhatsApp o pasadas las 24 h. Hasta entonces, la respuesta queda en el portal y se avisa.
-- **Firma de Twilio** (`X-Twilio-Signature`): Medplum 3.3 no le pasa los encabezados al
-  bot; la seguridad es la ClientApplication dedicada + el `AccountSid`.
+- **Firma de Twilio** (`X-Twilio-Signature`): la valida el bot con la URL pública; requiere
+  Medplum ≥ 4.2 en el servidor. Con la URL directa (temporal) no se valida.
 - **Fichas duplicadas:** si un paciente registrado escribe desde un número que no está en
   su ficha, entra como número nuevo (y deja su aviso). Unir fichas queda para después.
 - La pestaña WhatsApp muestra solo los números nuevos: los otros avisos del demo (lista
