@@ -235,8 +235,10 @@ npm run mercadopago:e2e -- --limpiar --turno <id>      # cancela el turno de pru
 ```
 
 `mercadopago:e2e` verifica la credencial y `MP_WEBHOOK_URL`, reserva un turno tentativo
-(la primera franja libre de teleconsulta de un profesional, desde mañana) para un paciente
-de prueba (tag demo; o `--paciente Patient/<id>`), genera el link de la seña y **espera el
+(la primera franja libre de un profesional desde mañana; **presencial** por defecto, porque
+la teleconsulta exige el consentimiento que el paciente firma en el portal, R-21; o
+`--modalidad teleconsulta`) para un paciente de prueba (tag demo; o
+`--paciente Patient/<id>`), genera el link de la seña y **espera el
 pago** (`--espera <min>`, 15 por defecto). Cuando el webhook confirma el turno, muestra el
 Invoice (lo pagado y el id del pago) y el WhatsApp de confirmación. Con `--turno <id>`
 retoma la espera o la verificación de un turno ya armado; `--limpiar` cancela el turno.

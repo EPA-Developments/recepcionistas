@@ -4,12 +4,15 @@
  *   npm run mercadopago:e2e                          → arma el turno de prueba, da el link y espera el pago
  *   npm run mercadopago:e2e -- --telefono +549…      → ídem, y el paciente de prueba recibe el WhatsApp
  *   npm run mercadopago:e2e -- --paciente Patient/…  → con un paciente que ya existe
+ *   npm run mercadopago:e2e -- --modalidad teleconsulta → teleconsulta (el paciente tiene que
+ *                                                    haber firmado su consentimiento, R-21)
  *   npm run mercadopago:e2e -- --turno <id>          → sigue esperando / verifica un turno ya armado
  *   npm run mercadopago:e2e -- --limpiar --turno <id> → cancela el turno de prueba (libera la franja)
  *   (--espera <min>: cuánto espera el pago; 15 por defecto)
  *
  * El circuito es el mismo que usa Recepción: `som-reservar-turno` (turno tentativo, la
- * primera franja libre de teleconsulta de un profesional, desde mañana) → `som-link-mercadopago`
+ * primera franja libre de un profesional desde mañana; presencial por defecto, que no depende
+ * del consentimiento de teleconsulta, o `--modalidad teleconsulta`) → `som-link-mercadopago`
  * (link de la seña) → **pagás** → MercadoPago avisa a la URL pública del webhook →
  * `som-webhook-mercadopago` verifica el pago y confirma el turno. El script espera a que el
  * turno pase a confirmado y verifica el Invoice (lo pagado, el id del pago) y el WhatsApp.
@@ -24,6 +27,7 @@
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { Appointment, Communication, Invoice, Patient, Slot } from '@medplum/fhirtypes';
+import type { Modalidad } from '../domain/types.js';
 import { getServicio, ofreceModalidad, SERVICIOS_POR_CODIGO } from '../config/catalogo.js';
 import { MEDICOS, type Medico } from '../config/medicos.js';
 import { RUTA_WEBHOOK_MERCADOPAGO } from '../config/urls.js';
@@ -86,19 +90,41 @@ async function pacienteDePrueba(medplum: MedplumClient): Promise<string> {
   return `Patient/${creado.id}`;
 }
 
-/** Una consulta con seña que el profesional atiende por teleconsulta (sin consultorio). */
-function consultaConSena(m: Medico): string | undefined {
+/**
+ * Modalidad del turno de prueba. Presencial por defecto: el pago de la seña es el mismo y
+ * no depende del consentimiento de teleconsulta (R-21), que el paciente firma en el portal.
+ */
+function modalidadPrueba(): Modalidad {
+  const m = arg('modalidad') ?? 'presencial';
+  if (m !== 'presencial' && m !== 'teleconsulta') {
+    throw new Error(`--modalidad tiene que ser presencial o teleconsulta (no "${m}").`);
+  }
+  return m;
+}
+
+/** Una consulta con seña que el profesional atiende en esa modalidad. */
+function consultaConSena(m: Medico, modalidad: Modalidad): string | undefined {
+  if (modalidad === 'presencial' && !m.consultorioCodigo) {
+    return undefined; // sin consultorio propio, lo presencial lo elige Recepción (R-22)
+  }
   return m.servicios.find((c) => {
     const s = SERVICIOS_POR_CODIGO.get(c);
-    return s && !s.incluidaEnPlan && ofreceModalidad(s, 'teleconsulta');
+    return s && !s.incluidaEnPlan && ofreceModalidad(s, modalidad);
   });
 }
 
-/** La primera franja libre de teleconsulta de algún profesional, desde mañana. */
-async function franjaLibre(medplum: MedplumClient): Promise<{ slot: Slot; medico: Medico; servicioCodigo: string } | undefined> {
+interface Candidata {
+  slot: Slot;
+  medico: Medico;
+  servicioCodigo: string;
+}
+
+/** Franjas libres de esa modalidad desde mañana, de los profesionales que la atienden (las primeras de cada uno). */
+async function franjasLibres(medplum: MedplumClient, modalidad: Modalidad): Promise<Candidata[]> {
   const desde = new Date(Date.now() + 24 * 3_600_000).toISOString();
+  const candidatas: Candidata[] = [];
   for (const medico of MEDICOS) {
-    const servicioCodigo = consultaConSena(medico);
+    const servicioCodigo = consultaConSena(medico, modalidad);
     if (!servicioCodigo || medico.disponibilidad.length === 0) {
       continue;
     }
@@ -110,42 +136,52 @@ async function franjaLibre(medplum: MedplumClient): Promise<{ slot: Slot; medico
       'Slot',
       `schedule=Schedule/${schedule.id}&status=free&start=ge${desde}&_sort=start&_count=100`,
     );
-    const slot = slots.find((s) => permiteModalidad(s, 'teleconsulta'));
-    if (slot) {
-      return { slot, medico, servicioCodigo };
+    for (const slot of slots.filter((s) => permiteModalidad(s, modalidad)).slice(0, 5)) {
+      candidatas.push({ slot, medico, servicioCodigo });
     }
   }
-  return undefined;
+  return candidatas.sort((x, y) => (x.slot.start ?? '').localeCompare(y.slot.start ?? ''));
 }
 
-/** Arma el turno tentativo y su link de seña. Devuelve el id del turno. */
+/** Arma el turno tentativo: prueba franjas hasta que una se pueda reservar. Devuelve el id del turno. */
 async function armar(medplum: MedplumClient): Promise<string | undefined> {
   const pacienteRef = await pacienteDePrueba(medplum);
-  console.log(`Paciente de la prueba: ${pacienteRef}`);
+  const modalidad = modalidadPrueba();
+  console.log(`Paciente de la prueba: ${pacienteRef} · modalidad ${modalidad}`);
 
-  const franja = await franjaLibre(medplum);
-  if (!franja) {
-    console.error('\n✗ No hay franjas libres de teleconsulta desde mañana. Generá la agenda (bot som-generar-agenda) y volvé a correr.');
+  const candidatas = await franjasLibres(medplum, modalidad);
+  if (candidatas.length === 0) {
+    console.error(`\n✗ No hay franjas libres (${modalidad}) desde mañana. Generá la agenda (bot som-generar-agenda) y volvé a correr.`);
     process.exitCode = 1;
     return undefined;
   }
-  const { slot, medico, servicioCodigo } = franja;
-  console.log(`Franja: ${medico.nombre} · ${getServicio(servicioCodigo).nombre} · ${slot.start}`);
-
-  const r = (await medplum.executeBot(await botId(medplum, 'som-reservar-turno'), {
-    pacienteRef,
-    servicioCodigo,
-    slotId: slot.id,
-    modalidad: 'teleconsulta',
-    origen: 'recepcion',
-  })) as ResultadoReserva;
-  if (!r.creado || !r.appointmentId) {
-    console.error(`\n✗ No se pudo reservar: ${r.bloqueos?.map((b) => `${b.regla}: ${b.mensaje}`).join(' · ') || 'sin detalle'}`);
-    process.exitCode = 1;
-    return undefined;
+  const reservar = await botId(medplum, 'som-reservar-turno');
+  let ultimo = '';
+  for (const { slot, medico, servicioCodigo } of candidatas) {
+    const r = (await medplum.executeBot(reservar, {
+      pacienteRef,
+      servicioCodigo,
+      slotId: slot.id,
+      modalidad,
+      origen: 'recepcion',
+    })) as ResultadoReserva;
+    if (r.creado && r.appointmentId) {
+      console.log(`Franja: ${medico.nombre} · ${getServicio(servicioCodigo).nombre} · ${slot.start}`);
+      console.log(`✓ Turno tentativo: Appointment/${r.appointmentId} (${r.descripcion ?? ''})`);
+      return r.appointmentId;
+    }
+    ultimo = r.bloqueos?.map((b) => `${b.regla}: ${b.mensaje}`).join(' · ') || 'sin detalle';
+    console.log(`  · ${medico.nombre} ${slot.start}: no se pudo (${ultimo}); pruebo otra franja.`);
+    if (r.bloqueos?.some((b) => b.regla === 'R-21')) {
+      break; // el consentimiento falta para cualquier franja de teleconsulta
+    }
   }
-  console.log(`✓ Turno tentativo: Appointment/${r.appointmentId} (${r.descripcion ?? ''})`);
-  return r.appointmentId;
+  console.error(`\n✗ No se pudo reservar: ${ultimo}`);
+  if (modalidad === 'teleconsulta') {
+    console.error('  Sin el consentimiento de teleconsulta del paciente, probá presencial (sin --modalidad).');
+  }
+  process.exitCode = 1;
+  return undefined;
 }
 
 /** El link de la seña del turno (idempotente: MercadoPago devuelve la misma preferencia). */
