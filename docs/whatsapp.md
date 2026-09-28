@@ -53,7 +53,10 @@ Recepción responde (en Mensajes o en la tarjeta de WhatsApp) ─► queda en el
      lo que no viene de la cuenta de SOM (`AccountSid` ≠ `TWILIO_ACCOUNT_SID`)
      y no duplica si Twilio reintenta (identifier `MessageSid`);
    - busca al paciente por el número, en cualquiera de las formas en que puede estar en
-     la ficha (`+549…`, `11 2233-4455`, `011 15 2233-4455`, …); si no existe, crea un
+     la ficha (`+549…`, `11 2233-4455`, `011 15 2233-4455`, …). Si hay varios con ese
+     número elige, en orden: uno real antes que uno de prueba (tag `demo`, p. ej. el de
+     `mercadopago:e2e -- --telefono`), activo, que ya sea paciente (no lead) y el
+     actualizado más recientemente. Si no existe, crea un
      **lead** del CRM (`origen-lead = whatsapp`) con el nombre del perfil de WhatsApp como
      apodo, marca el mensaje **inicio de contacto** y deja un **aviso** a Recepción (`Task`
      `whatsapp-nuevo-contacto`, uno por número: pestaña WhatsApp y campanita);
@@ -313,8 +316,10 @@ Después de **cada** paso, `npm run whatsapp:seguimiento -- +549…` (el celular
 muestra qué ya pasó, qué falta y qué falló: el paciente o lead, el aviso a Recepción, la
 conversación con la respuesta automática, la de Recepción y sus ✓✓, la ventana de 24 h y,
 del lado de Twilio, sus mensajes (con el error explicado) y las alertas del webhook. Cruza
-los dos lados: un mensaje que Twilio recibió y SOM no registró es **un webhook que no
-llegó**. Solo lee (no manda ni cambia nada).
+los dos lados buscando cada mensaje por su `MessageSid` en todo SOM: uno que Twilio recibió
+y SOM no registró es **un webhook que no llegó** (y muestra las últimas ejecuciones del bot:
+si Twilio lo llama y por qué ignoró algo); uno que quedó en **otro paciente con el mismo
+número** lo dice. Solo lee (no manda ni cambia nada).
 
 1. `npm run whatsapp:seguimiento` (sin celular) → Twilio manda los entrantes a la URL pública
    de SOM (ver *4. Twilio Console*).

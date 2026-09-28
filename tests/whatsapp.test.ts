@@ -367,6 +367,19 @@ describe('WhatsApp · el número nuevo es un lead', () => {
     expect(elegirPacientePorTelefono([lead, inactivo])?.id).toBe('lead');
     expect(elegirPacientePorTelefono([])).toBeUndefined();
   });
+
+  it('Un paciente de prueba (tag demo) con el mismo número nunca le gana a uno real', () => {
+    const demo: Patient = {
+      resourceType: 'Patient',
+      id: 'prueba-mp',
+      meta: { lastUpdated: '2026-09-28T00:00:00Z', tag: [{ system: SYSTEM.demo, code: 'demo' }] },
+    };
+    const real: Patient = { resourceType: 'Patient', id: 'real', meta: { lastUpdated: '2025-01-01T00:00:00Z' } };
+    const lead = { ...construirLeadWhatsApp('+5491122334455'), id: 'lead', meta: { lastUpdated: '2025-01-01T00:00:00Z' } };
+    expect(elegirPacientePorTelefono([demo, real])?.id).toBe('real');
+    expect(elegirPacientePorTelefono([demo, lead])?.id).toBe('lead');
+    expect(elegirPacientePorTelefono([demo])?.id).toBe('prueba-mp');
+  });
 });
 
 describe('WhatsApp · textos largos', () => {

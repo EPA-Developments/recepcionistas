@@ -5,6 +5,7 @@ import { RUTA_WEBHOOK_TWILIO } from '../src/config/urls.js';
 import { construirAvisoContacto, resolverAviso } from '../src/lib/contactos-whatsapp.js';
 import {
   alertasRelevantes,
+  entrantesEnOtroPaciente,
   entrantesSinRegistrar,
   explicarAlertaTwilio,
   lineaMensajeTwilio,
@@ -12,8 +13,8 @@ import {
   pasosSeguimiento,
   revisarRuteoEntrante,
   rutaDeUrl,
-  sidsRegistrados,
   textoVentana,
+  ubicacionesPorSid,
   type EstadoPaso,
   type SenderTwilio,
   type ServicioTwilio,
@@ -183,10 +184,11 @@ describe('textoVentana', () => {
 });
 
 describe('cruce con Twilio', () => {
-  const registrados = sidsRegistrados([entrante(), acuse(), respuesta({ entrega: 'entregado' })]);
+  const ubicaciones = ubicacionesPorSid([entrante(), acuse(), respuesta({ entrega: 'entregado' })]);
 
-  it('los MessageSid que SOM registró (entrantes y salientes)', () => {
-    expect([...registrados].sort()).toEqual(['SMacuse', 'SMin1', 'SMresp']);
+  it('dónde registró SOM cada MessageSid (entrantes y salientes)', () => {
+    expect([...ubicaciones.keys()].sort()).toEqual(['SMacuse', 'SMin1', 'SMresp']);
+    expect(ubicaciones.get('SMin1')).toBe(PAC);
   });
 
   it('un entrante que Twilio recibió y SOM no: el webhook no llegó', () => {
@@ -195,22 +197,37 @@ describe('cruce con Twilio', () => {
       { sid: 'SMin2', direction: 'inbound', status: 'received' },
       { sid: 'SMaviso', direction: 'outbound-api', status: 'failed', error_code: 63016 },
     ];
-    expect(entrantesSinRegistrar(twilio, registrados).map((m) => m.sid)).toEqual(['SMin2']);
-    expect(lineaMensajeTwilio(twilio[1]!, registrados, AHORA)).toContain('NO llegó a SOM');
-    const saliente = lineaMensajeTwilio(twilio[2]!, registrados, AHORA);
+    expect(entrantesSinRegistrar(twilio, ubicaciones).map((m) => m.sid)).toEqual(['SMin2']);
+    expect(lineaMensajeTwilio(twilio[1]!, ubicaciones, PAC, AHORA)).toContain('NO llegó a SOM');
+    const saliente = lineaMensajeTwilio(twilio[2]!, ubicaciones, PAC, AHORA);
     expect(saliente).toContain('24 h');
-    expect(saliente).toContain('fuera de la conversación');
+    expect(saliente).toContain('sin registro en SOM');
+  });
+
+  it('un entrante que quedó en otro paciente con el mismo número: está en SOM, y dice en cuál', () => {
+    const enOtro = ubicacionesPorSid([{ ...entrante('SMotro'), subject: { reference: 'Patient/prueba-mp' } }, entrante()]);
+    const twilio = [
+      { sid: 'SMotro', direction: 'inbound', status: 'received' },
+      { sid: 'SMin1', direction: 'inbound', status: 'received' },
+    ];
+    expect(entrantesSinRegistrar(twilio, enOtro)).toEqual([]);
+    expect(lineaMensajeTwilio(twilio[0]!, enOtro, PAC, AHORA)).toContain('en Patient/prueba-mp, otro paciente');
+    expect(lineaMensajeTwilio(twilio[1]!, enOtro, PAC, AHORA)).toMatch(/en SOM ✓$/);
+    expect([...entrantesEnOtroPaciente(twilio, enOtro, PAC)]).toEqual([['Patient/prueba-mp', 1]]);
   });
 
   it('fechas de Twilio en RFC 2822 (y sin fecha no revienta)', () => {
     const linea = lineaMensajeTwilio(
       { sid: 'SMin1', direction: 'inbound', status: 'received', date_created: 'Mon, 28 Sep 2026 13:00:00 +0000' },
-      registrados,
+      ubicaciones,
+      PAC,
       AHORA,
     );
     expect(linea).toContain('hoy 10:00');
     expect(linea).toContain('en SOM ✓');
-    expect(lineaMensajeTwilio({ sid: 'SMx', direction: 'inbound', date_created: 'no es fecha' }, registrados, AHORA)).toContain('¿cuándo?');
+    expect(lineaMensajeTwilio({ sid: 'SMx', direction: 'inbound', date_created: 'no es fecha' }, ubicaciones, PAC, AHORA)).toContain(
+      '¿cuándo?',
+    );
   });
 
   it('alertas: solo las del webhook de SOM o de los mensajes del celular', () => {
