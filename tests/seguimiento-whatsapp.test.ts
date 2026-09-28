@@ -8,11 +8,15 @@ import {
   entrantesSinRegistrar,
   explicarAlertaTwilio,
   lineaMensajeTwilio,
+  mismoRemitente,
   pasosSeguimiento,
+  revisarRuteoEntrante,
   rutaDeUrl,
   sidsRegistrados,
   textoVentana,
   type EstadoPaso,
+  type SenderTwilio,
+  type ServicioTwilio,
 } from '../src/lib/seguimiento-whatsapp.js';
 import {
   conEnvioWhatsApp,
@@ -225,5 +229,94 @@ describe('cruce con Twilio', () => {
     expect(rutaDeUrl('https://id:clave@api.medplum.com.ar/fhir/R4/Bot/x/$execute')).toBe('/fhir/R4/Bot/x/$execute');
     expect(rutaDeUrl('no es url')).toBeUndefined();
     expect(rutaDeUrl(undefined)).toBeUndefined();
+  });
+});
+
+describe('revisarRuteoEntrante: paso 1, a dónde manda Twilio los mensajes que llegan', () => {
+  const URL_SOM = `https://api.medplum.com.ar${RUTA_WEBHOOK_TWILIO}`;
+  const FROM = 'whatsapp:+5491155556666';
+  function sender(webhook: SenderTwilio['webhook'], status = 'ONLINE'): SenderTwilio {
+    return { sid: 'XE1', sender_id: 'whatsapp:+5491155556666', status, webhook };
+  }
+  function servicio(extra: Partial<ServicioTwilio>): ServicioTwilio {
+    return { sid: 'MG1', friendly_name: 'SOM', remitentes: [FROM], ...extra };
+  }
+  function revisar(senders: SenderTwilio[], servicios: ServicioTwilio[] = [], from: string | undefined = FROM) {
+    return revisarRuteoEntrante({ from, urlEsperada: URL_SOM, senders, servicios });
+  }
+
+  it('el número manda a la URL pública de SOM por POST: todo ✓', () => {
+    const h = revisar([sender({ callback_url: URL_SOM, callback_method: 'POST' })]);
+    expect(h.map((x) => x.estado)).toEqual(['ok', 'ok']);
+    expect(h[1]!.texto).toContain('Webhook URL for incoming messages');
+  });
+
+  it('sin URL, otra URL o GET: falla y dice cuál poner', () => {
+    expect(revisar([sender({})])[1]).toMatchObject({ estado: 'falla' });
+    expect(revisar([sender({})])[1]!.texto).toContain(URL_SOM);
+    const otra = revisar([sender({ callback_url: 'https://demo.twilio.com/welcome/sms/', callback_method: 'POST' })])[1]!;
+    expect(otra.estado).toBe('falla');
+    expect(otra.texto).toContain('demo.twilio.com');
+    expect(revisar([sender({ callback_url: URL_SOM, callback_method: 'GET' })])[1]!.texto).toContain('POST');
+  });
+
+  it('casi igual (barra final): falla porque la firma no validaría', () => {
+    const h = revisar([sender({ callback_url: `${URL_SOM}/`, callback_method: 'POST' })])[1]!;
+    expect(h.estado).toBe('falla');
+    expect(h.texto).toContain('EXACTAMENTE');
+  });
+
+  it('una URL con clave se muestra sin la clave', () => {
+    const h = revisar([sender({ callback_url: 'https://id:secreto@api.medplum.com.ar/fhir/R4/Bot/x/$execute' })])[1]!;
+    expect(h.texto).not.toContain('secreto');
+  });
+
+  it('el sender que no está ONLINE: falla', () => {
+    expect(revisar([sender({ callback_url: URL_SOM }, 'OFFLINE')])[0]!.estado).toBe('falla');
+    expect(revisar([sender({ callback_url: URL_SOM }, 'ONLINE:UPDATING')])[0]!.estado).toBe('ok');
+  });
+
+  it('un Messaging Service con "Send a webhook" manda sobre el número', () => {
+    const bien = revisar(
+      [sender({ callback_url: 'https://otra.example.com' })],
+      [servicio({ inbound_request_url: URL_SOM, inbound_method: 'POST' })],
+    );
+    expect(bien[1]).toMatchObject({ estado: 'ok' });
+    expect(bien[1]!.texto).toContain('Messaging Service «SOM»');
+    const mal = revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: 'https://otra.example.com/in' })]);
+    expect(mal[1]!.estado).toBe('falla');
+  });
+
+  it('un Messaging Service que no reenvía (sin webhook ni "Defer"): falla', () => {
+    const h = revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: null })]);
+    expect(h[1]!.estado).toBe('falla');
+    expect(h[1]!.texto).toContain("Defer to sender's webhook");
+  });
+
+  it('un Messaging Service que cede el webhook al número ("Defer"): vale la del número', () => {
+    const h = revisar(
+      [sender({ callback_url: URL_SOM, callback_method: 'POST' })],
+      [servicio({ use_inbound_webhook_on_number: true, inbound_request_url: 'https://otra.example.com' })],
+    );
+    expect(h[1]).toMatchObject({ estado: 'ok' });
+  });
+
+  it('sin FROM, con un FROM que no está en la cuenta, o el sandbox', () => {
+    expect(revisar([], [], undefined)[0]!.estado).toBe('falla');
+    const ajeno = revisar([sender({ callback_url: URL_SOM })], [], 'whatsapp:+5491100000000')[0]!;
+    expect(ajeno.estado).toBe('falla');
+    expect(ajeno.texto).toContain('TWILIO_WHATSAPP_FROM');
+    expect(revisar([], [], 'whatsapp:+14155238886')[0]!.texto).toContain('Sandbox settings');
+  });
+
+  it('un Status callback del número a otro lado no molesta', () => {
+    const h = revisar([sender({ callback_url: URL_SOM, callback_method: 'POST', status_callback_url: 'https://otra.example.com/st' })]);
+    expect(h.map((x) => x.estado)).toEqual(['ok', 'ok', 'ok']);
+  });
+
+  it('mismoRemitente: con o sin "whatsapp:", espacios o guiones', () => {
+    expect(mismoRemitente('whatsapp:+54 9 11 5555-6666', '+5491155556666')).toBe(true);
+    expect(mismoRemitente('whatsapp:+5491155556666', 'whatsapp:+5491155556667')).toBe(false);
+    expect(mismoRemitente(undefined, '')).toBe(false);
   });
 });

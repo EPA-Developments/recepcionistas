@@ -11,6 +11,7 @@ import type { Communication, Patient, Task } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
 import { textoRestante, ventana24h } from './auto-respuesta.js';
 import { esAvisoContacto } from './contactos-whatsapp.js';
+import { ocultarClaveUrl } from './webhooks.js';
 import {
   estadoEntregaDe,
   esInicioContacto,
@@ -365,4 +366,168 @@ export function rutaDeUrl(url: string | null | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+// ───────────────────────────── paso 1: a dónde manda Twilio los entrantes ─────────────────────────────
+
+/** El webhook de un sender de WhatsApp (Senders API v2 de Twilio). */
+export interface WebhookSenderTwilio {
+  callback_url?: string | null;
+  callback_method?: string | null;
+  fallback_url?: string | null;
+  status_callback_url?: string | null;
+}
+
+/** Un sender de WhatsApp de la cuenta (`messaging.twilio.com/v2/Channels/Senders`). */
+export interface SenderTwilio {
+  sid?: string;
+  /** `whatsapp:+54…` */
+  sender_id?: string;
+  /** `ONLINE`, `OFFLINE`, `CREATING`… */
+  status?: string;
+  webhook?: WebhookSenderTwilio | null;
+}
+
+/** Un Messaging Service con los remitentes que tiene (números y senders de WhatsApp). */
+export interface ServicioTwilio {
+  sid: string;
+  friendly_name?: string;
+  /** Integration → "Send a webhook". */
+  inbound_request_url?: string | null;
+  inbound_method?: string | null;
+  /** Integration → "Defer to sender's webhook". */
+  use_inbound_webhook_on_number?: boolean | null;
+  remitentes: string[];
+}
+
+export interface Hallazgo {
+  estado: EstadoPaso;
+  texto: string;
+}
+
+/** Número del sandbox de WhatsApp de Twilio. */
+const SANDBOX_TWILIO = '14155238886';
+
+function digitos(remitente: string | undefined): string {
+  return (remitente ?? '').replace(/^whatsapp:/i, '').replace(/\D/g, '');
+}
+
+/** El mismo remitente, esté escrito `whatsapp:+54…`, `+54…` o con espacios. */
+export function mismoRemitente(a: string | undefined, b: string | undefined): boolean {
+  const da = digitos(a);
+  return da.length > 0 && da === digitos(b);
+}
+
+/** La URL comparable: host en minúsculas y sin barra final (para explicar un "casi igual"). */
+function comparable(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    return `${u.protocol}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}${u.search}`;
+  } catch {
+    return url.trim();
+  }
+}
+
+/**
+ * Paso 1 de la prueba: ¿Twilio manda los mensajes que llegan al WhatsApp de SOM a la URL
+ * pública de SOM? La que manda es la del Messaging Service si el número está en uno con
+ * "Send a webhook"; si no, la del número (sender). Tiene que ser **exactamente**
+ * `TWILIO_WEBHOOK_URL`: Twilio firma sobre la URL que llama y el bot valida contra esa.
+ */
+export function revisarRuteoEntrante(p: {
+  from: string | undefined;
+  /** TWILIO_WEBHOOK_URL (la URL pública de nginx). */
+  urlEsperada: string;
+  senders: SenderTwilio[];
+  servicios: ServicioTwilio[];
+}): Hallazgo[] {
+  if (!p.from) {
+    return [{ estado: 'falla', texto: 'Falta el Project Secret TWILIO_WHATSAPP_FROM (el número de WhatsApp de SOM).' }];
+  }
+  if (digitos(p.from) === SANDBOX_TWILIO) {
+    return [
+      {
+        estado: 'pendiente',
+        texto:
+          `Es el sandbox de Twilio: la URL va en Messaging → Try it out → Sandbox settings → "When a message comes in" ` +
+          `(${p.urlEsperada}, POST); la API no la muestra.`,
+      },
+    ];
+  }
+
+  const hallazgos: Hallazgo[] = [];
+  const sender = p.senders.find((s) => mismoRemitente(s.sender_id, p.from));
+  if (!sender) {
+    const otros = p.senders.map((s) => s.sender_id).filter(Boolean);
+    return [
+      {
+        estado: 'falla',
+        texto:
+          `No encontré el sender de WhatsApp ${p.from} en la cuenta de Twilio` +
+          `${otros.length ? ` (hay: ${otros.join(', ')})` : ''}: revisá TWILIO_WHATSAPP_FROM.`,
+      },
+    ];
+  }
+  const estado = (sender.status ?? '').toUpperCase();
+  hallazgos.push(
+    estado.startsWith('ONLINE')
+      ? { estado: 'ok', texto: `Sender ${sender.sender_id} ${estado}.` }
+      : {
+          estado: 'falla',
+          texto: `El sender ${sender.sender_id} está ${estado || 'sin estado'}: mientras no esté ONLINE no recibe ni manda mensajes.`,
+        },
+  );
+
+  const servicio = p.servicios.find((s) => s.remitentes.some((r) => mismoRemitente(r, p.from)));
+  let url: string | null | undefined;
+  let metodo: string | null | undefined;
+  let donde: string;
+  if (servicio && !servicio.use_inbound_webhook_on_number) {
+    const nombre = `el Messaging Service «${servicio.friendly_name ?? servicio.sid}»`;
+    if (!servicio.inbound_request_url) {
+      hallazgos.push({
+        estado: 'falla',
+        texto:
+          `El número está en ${nombre} y el servicio no reenvía los mensajes (manda sobre el número). En Twilio → ` +
+          `Messaging → Services → ${servicio.friendly_name ?? servicio.sid} → Integration: "Send a webhook" con ` +
+          `${p.urlEsperada} (POST), o "Defer to sender's webhook".`,
+      });
+      return hallazgos;
+    }
+    url = servicio.inbound_request_url;
+    metodo = servicio.inbound_method;
+    donde = `${nombre} (Integration → Send a webhook; manda sobre la del número)`;
+  } else {
+    url = sender.webhook?.callback_url;
+    metodo = sender.webhook?.callback_method;
+    donde = `el número (Webhook URL for incoming messages)${servicio ? `, porque «${servicio.friendly_name ?? servicio.sid}» le cede el webhook` : ''}`;
+  }
+
+  if (!url?.trim()) {
+    hallazgos.push({
+      estado: 'falla',
+      texto: `No hay URL para los mensajes entrantes en ${donde}: poné ${p.urlEsperada} (POST).`,
+    });
+  } else if (url.trim() !== p.urlEsperada.trim()) {
+    const casi = comparable(url) === comparable(p.urlEsperada);
+    hallazgos.push({
+      estado: 'falla',
+      texto:
+        `${donde} manda a ${ocultarClaveUrl(url)} y tiene que ser ${p.urlEsperada}` +
+        `${casi ? ' EXACTAMENTE (difiere en la barra final o en mayúsculas): Twilio firma sobre la URL que llama y la firma no validaría' : ''}.`,
+    });
+  } else if (metodo && metodo.toUpperCase() !== 'POST') {
+    hallazgos.push({ estado: 'falla', texto: `${donde} usa ${metodo.toUpperCase()}: tiene que ser POST.` });
+  } else {
+    hallazgos.push({ estado: 'ok', texto: `Twilio manda los mensajes entrantes a ${p.urlEsperada} (POST), desde ${donde}.` });
+  }
+
+  const estados = sender.webhook?.status_callback_url?.trim();
+  if (estados && estados !== p.urlEsperada.trim()) {
+    hallazgos.push({
+      estado: 'ok',
+      texto: `El Status callback del número apunta a ${ocultarClaveUrl(estados)}: no molesta, cada envío de SOM pide sus ✓✓ a ${p.urlEsperada}.`,
+    });
+  }
+  return hallazgos;
 }
