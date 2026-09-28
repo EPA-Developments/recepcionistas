@@ -10,25 +10,29 @@
  *                                                     del proyecto y re-apunta la membership del
  *                                                     paciente a la policy "Paciente SOM — Portal".
  *
- * Por qué existe: el seed hace upsert de la AccessPolicy "Paciente SOM — Portal" (que ya
- * concede ObservationDefinition / Questionnaire / Invoice), pero NO setea el
- * `defaultPatientAccessPolicy` del proyecto ni re-apunta las `ProjectMembership` ya
- * creadas. Si un paciente fue invitado antes de tener la policy correcta —o quedó en
- * otro proyecto— el portal le da 403 al leer esos recursos readonly. Este script
- * detecta ese desfasaje y, con --apply, lo corrige sin tener que entrar a la consola.
+ * Por qué existe: el portal le da 403 "Forbidden" al paciente cuando la policy efectiva no
+ * concede un recurso que el portal busca (p. ej. sin `PractitionerRole`, "Reservar un
+ * turno" no muestra profesionales). Pasa por dos motivos, y este script distingue cuál:
+ *  - La AccessPolicy "Paciente SOM — Portal" del servidor quedó atrasada respecto del
+ *    repo (`src/fhir/access-policies.ts`): el seed no corrió desde el último cambio.
+ *    Se arregla con `npm run seed` (upsert por nombre); acá solo se informa.
+ *  - El seed NO setea el `defaultPatientAccessPolicy` del proyecto ni re-apunta las
+ *    `ProjectMembership` ya creadas: un paciente invitado antes de tener la policy
+ *    correcta —o que quedó en otro proyecto— sigue con otra policy. Con --apply se
+ *    corrige sin entrar a la consola.
+ * La lista de recursos que busca el portal y la comparación con el repo viven en
+ * `src/lib/diagnostico-acceso.ts` (lógica pura, testeada).
  *
  * Idempotente y seguro: sin --apply no escribe nada. Con --apply solo toca el
  * `defaultPatientAccessPolicy` del Project y el `accessPolicy` de la membership del
- * paciente indicado; no borra nada.
+ * paciente indicado; no borra nada ni modifica la policy.
  */
 import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { AccessPolicy, Patient, Project, ProjectMembership, Reference } from '@medplum/fhirtypes';
 import { NOMBRE_POLICY_PACIENTE } from '../fhir/access-policies.js';
+import { RECURSOS_CLAVE_PORTAL, diagnosticarPolicy, tiposConcedidos } from '../lib/diagnostico-acceso.js';
 import { conectarMedplum } from './conexion.js';
-
-/** Recursos readonly que el portal lee y que dan 403 si la policy no está efectiva. */
-const RECURSOS_CLAVE = ['ObservationDefinition', 'Questionnaire', 'Invoice'] as const;
 
 /** --paciente=<x> → x (email | id | Patient/id). undefined si no se pasó. */
 function parsePaciente(): string | undefined {
@@ -49,11 +53,6 @@ async function resolverPaciente(medplum: MedplumClient, ref: string): Promise<Pa
     // Puede ser un nombre/identificador suelto: último intento por telecom/identifier.
     return medplum.searchOne('Patient', `identifier=${encodeURIComponent(ref)}`);
   }
-}
-
-/** Lista los resourceTypes que la policy concede (para mostrar y para chequear los clave). */
-function tiposConcedidos(policy: AccessPolicy): Set<string> {
-  return new Set((policy.resource ?? []).map((r) => r.resourceType).filter((t): t is string => Boolean(t)));
 }
 
 function refId(ref?: Reference): string | undefined {
@@ -81,15 +80,26 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const tipos = tiposConcedidos(policy);
-  const faltantes = RECURSOS_CLAVE.filter((t) => !tipos.has(t));
+  const { faltantes, entradasFaltantes } = diagnosticarPolicy(policy);
+  const policyOk = faltantes.length === 0 && entradasFaltantes.length === 0;
   console.log(`\n  AccessPolicy "${policy.name}" → AccessPolicy/${policy.id}`);
-  console.log(`    Recursos concedidos: ${[...tipos].sort().join(', ')}`);
+  console.log(`    Recursos concedidos: ${[...tiposConcedidos(policy)].sort().join(', ')}`);
   if (faltantes.length) {
-    console.log(`    ⚠️  Le faltan recursos clave del portal: ${faltantes.join(', ')}`);
-    console.log('        Actualizá la policy en src/fhir/access-policies.ts y corré: npm run seed');
+    console.log('    ⚠️  Le faltan recursos que el portal busca (Medplum responde 403 y la pantalla queda vacía):');
+    for (const f of faltantes) {
+      console.log(`        • ${f.resourceType} → ${f.pantalla}`);
+    }
   } else {
-    console.log(`    ✓ Concede los recursos que daban 403: ${RECURSOS_CLAVE.join(', ')}`);
+    console.log(`    ✓ Concede los ${RECURSOS_CLAVE_PORTAL.length} recursos de solo lectura que el portal busca.`);
+  }
+  if (entradasFaltantes.length) {
+    console.log('    ⚠️  Está atrasada respecto del repo (src/fhir/access-policies.ts); le faltan estas entradas:');
+    for (const e of entradasFaltantes) {
+      console.log(`        • ${e}`);
+    }
+    console.log('        Aplicá el seed: npm run seed  (hace upsert de la policy por nombre; este script no la toca)');
+  } else {
+    console.log('    ✓ Igual a la del repo (src/fhir/access-policies.ts).');
   }
 
   const policyRef: Reference<AccessPolicy> = { reference: `AccessPolicy/${policy.id}` };
@@ -143,12 +153,19 @@ async function main(): Promise<void> {
   const reparaMembership = Boolean(membership) && !membershipOk;
 
   if (!reparaDefault && !reparaMembership) {
-    console.log('\n✅ Todo en orden: la policy concede los recursos y los punteros apuntan bien.');
-    console.log('   Si el portal sigue dando 403, el login del paciente está en OTRO proyecto.');
+    if (policyOk) {
+      console.log('\n✅ Todo en orden: la policy concede los recursos y los punteros apuntan bien.');
+      console.log('   Si el portal sigue dando 403, el login del paciente está en OTRO proyecto.');
+    } else {
+      console.log('\n⚠️  Los punteros apuntan bien, pero la policy del servidor está atrasada: corré npm run seed.');
+    }
     return;
   }
 
   console.log('\n  Cambios necesarios:');
+  if (!policyOk) {
+    console.log('    • Correr npm run seed para actualizar la policy (este script no la modifica)');
+  }
   if (reparaDefault) {
     console.log(`    • Setear defaultPatientAccessPolicy → AccessPolicy/${policy.id}`);
   }

@@ -157,7 +157,12 @@ Secrets (`RECEPCION_WHATSAPP_TO` y los de Twilio; ver [`bots.md`](bots.md)).
 
 4. **Recursos que lee/escribe el portal = los de la policy.** Si el portal
    necesita algo que la policy no concede, se agrega en
-   `src/fhir/access-policies.ts` (fuente de verdad) y se actualiza el espejo.
+   `src/fhir/access-policies.ts` (fuente de verdad), se actualiza el espejo y, si el
+   portal lo busca al cargar una pantalla, se suma a `RECURSOS_CLAVE_PORTAL`
+   (`src/lib/diagnostico-acceso.ts`). `npm run diagnostico-acceso` compara la policy
+   del servidor con la del repo y nombra la pantalla que se rompe: sin
+   `PractitionerRole`, por ejemplo, "Reservar un turno" no muestra profesionales y el
+   portal dice "Forbidden" hasta que corra `npm run seed`.
 
 5. **URL del portal** = `https://app.segundaopinionmedica.org` (si otro entorno
    usa otra URL, cargarla en el Project Secret `PORTAL_BASE_URL`).
