@@ -1,9 +1,15 @@
 /**
- * Seguimiento de la prueba de WhatsApp de punta a punta, para un celular.
+ * Seguimiento de la prueba de WhatsApp de punta a punta.
  *
- *   npm run whatsapp:seguimiento -- +5491122334455
+ *   npm run whatsapp:seguimiento                    → Twilio → SOM: a dónde manda Twilio los
+ *                                                     mensajes que llegan (paso 1 de la prueba)
+ *   npm run whatsapp:seguimiento -- +5491122334455  → ídem y el paso a paso de ese celular
  *
- * Lee de Medplum lo que dejó ese número (paciente o lead, aviso a Recepción, su conversación
+ * Twilio → SOM: lee el sender de WhatsApp de SOM (y el Messaging Service, si está en uno: su
+ * webhook manda sobre el del número) y controla que la URL de los mensajes entrantes sea
+ * EXACTAMENTE `TWILIO_WEBHOOK_URL` (POST): Twilio firma sobre la URL que llama.
+ *
+ * Con un celular, lee de Medplum lo que dejó ese número (paciente o lead, aviso a Recepción, su conversación
  * de Mensajes con las respuestas automáticas, las de Recepción y sus ✓✓) y de Twilio lo que
  * pasó con sus mensajes y las alertas del webhook; muestra el **paso a paso** (qué ya pasó,
  * qué falta y qué falló) y cruza los dos lados: un mensaje que Twilio recibió y SOM no
@@ -25,13 +31,17 @@ import {
   lineaMensajeTwilio,
   marcaPaso,
   pasosSeguimiento,
+  revisarRuteoEntrante,
   rutaDeUrl,
   sidsRegistrados,
   textoEntrega,
   textoVentana,
   type AlertaTwilio,
   type MensajeTwilio,
+  type SenderTwilio,
+  type ServicioTwilio,
 } from '../lib/seguimiento-whatsapp.js';
+import { modoUrlWebhook } from '../lib/webhooks.js';
 import {
   aE164AR,
   elegirPacientePorTelefono,
@@ -48,6 +58,7 @@ import { leerSecretos, valorSecreto } from './secretos.js';
 
 const API_TWILIO = 'https://api.twilio.com/2010-04-01';
 const MONITOR_TWILIO = 'https://monitor.twilio.com/v1';
+const MESSAGING_TWILIO = 'https://messaging.twilio.com';
 
 async function twilio<T>(auth: string, url: string): Promise<T> {
   const resp = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
@@ -86,6 +97,61 @@ async function alertasTwilio(auth: string, ahora: Date): Promise<AlertaTwilio[]>
   return r.alerts ?? [];
 }
 
+/** Los senders de WhatsApp de la cuenta, con su webhook (Senders API v2). */
+async function sendersTwilio(auth: string): Promise<SenderTwilio[]> {
+  const r = await twilio<{ senders?: SenderTwilio[] }>(auth, `${MESSAGING_TWILIO}/v2/Channels/Senders?Channel=whatsapp&PageSize=100`);
+  return r.senders ?? [];
+}
+
+/** Los Messaging Services de la cuenta, cada uno con sus remitentes (números y senders de WhatsApp). */
+async function serviciosTwilio(auth: string): Promise<ServicioTwilio[]> {
+  const r = await twilio<{ services?: Array<Omit<ServicioTwilio, 'remitentes'>> }>(auth, `${MESSAGING_TWILIO}/v1/Services?PageSize=100`);
+  const servicios: ServicioTwilio[] = [];
+  for (const s of r.services ?? []) {
+    const numeros = await twilio<{ phone_numbers?: Array<{ phone_number?: string }> }>(
+      auth,
+      `${MESSAGING_TWILIO}/v1/Services/${s.sid}/PhoneNumbers?PageSize=100`,
+    ).catch(() => ({ phone_numbers: [] }));
+    const canales = await twilio<{ senders?: Array<{ sender?: string }> }>(
+      auth,
+      `${MESSAGING_TWILIO}/v1/Services/${s.sid}/ChannelSenders?PageSize=100`,
+    ).catch(() => ({ senders: [] }));
+    servicios.push({
+      ...s,
+      remitentes: [
+        ...(numeros.phone_numbers ?? []).map((n) => n.phone_number),
+        ...(canales.senders ?? []).map((c) => c.sender),
+      ].filter((x): x is string => Boolean(x)),
+    });
+  }
+  return servicios;
+}
+
+/** Twilio → SOM: a dónde manda Twilio los mensajes que llegan al WhatsApp de SOM. */
+async function revisarTwilioASom(auth: string, from: string | undefined, url: string | undefined): Promise<boolean> {
+  console.log('\nTwilio → SOM: ¿a dónde manda Twilio los mensajes que llegan al WhatsApp de SOM?');
+  if (!url || modoUrlWebhook(url) !== 'publica') {
+    console.error('  ✗ TWILIO_WEBHOOK_URL no es la URL pública de nginx: npm run webhooks la deja lista.');
+    return false;
+  }
+  let senders: SenderTwilio[];
+  let servicios: ServicioTwilio[];
+  try {
+    [senders, servicios] = await Promise.all([sendersTwilio(auth), serviciosTwilio(auth)]);
+  } catch (err) {
+    console.error(
+      `  ? No pude leer la configuración de Twilio (${err instanceof Error ? err.message : String(err)}). Revisalo a mano:\n` +
+        `    Messaging → Senders → WhatsApp senders → ${from ?? 'el número de SOM'} → Webhook URL for incoming messages = ${url} (POST).`,
+    );
+    return false;
+  }
+  const hallazgos = revisarRuteoEntrante({ from, urlEsperada: url, senders, servicios });
+  for (const h of hallazgos) {
+    console.log(`  ${marcaPaso(h.estado)} ${h.texto}`);
+  }
+  return !hallazgos.some((h) => h.estado === 'falla');
+}
+
 /** Los mensajes de la conversación más reciente del paciente (la del último mensaje). */
 async function conversacionReciente(medplum: MedplumClient, pacienteRef: string): Promise<Communication[]> {
   const recientes = await medplum.searchResources('Communication', { subject: pacienteRef, _sort: '-sent', _count: '50' });
@@ -109,14 +175,38 @@ function quien(m: Communication): string {
 async function main(): Promise<void> {
   const crudo = process.argv[2] ?? process.env.DIAG_WHATSAPP_TO;
   const e164 = aE164AR(crudo);
-  if (!e164) {
-    console.error(`Uso: npm run whatsapp:seguimiento -- +5491122334455${crudo ? ` ("${crudo}" no es un celular válido)` : ''}`);
+  if (crudo && !e164) {
+    console.error(`"${crudo}" no es un celular válido. Uso: npm run whatsapp:seguimiento [-- +5491122334455]`);
     process.exitCode = 1;
     return;
   }
   const ahora = new Date();
   const { medplum, projectId, baseUrl } = await conectarMedplum();
-  console.log(`Conectado a ${baseUrl} (project ${projectId}). Celular: ${formatoTelefono(e164)}`);
+  console.log(`Conectado a ${baseUrl} (project ${projectId}).${e164 ? ` Celular: ${formatoTelefono(e164)}` : ''}`);
+
+  const secretos = await leerSecretos(medplum, projectId);
+  const cuenta = valorSecreto(secretos, 'TWILIO_ACCOUNT_SID');
+  const token = valorSecreto(secretos, 'TWILIO_AUTH_TOKEN');
+  if (!cuenta || !token) {
+    console.error('\n✗ Faltan los Project Secrets TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN: no puedo mirar Twilio.');
+    process.exitCode = 1;
+    return;
+  }
+  const auth = Buffer.from(`${cuenta}:${token}`).toString('base64');
+
+  // ── Twilio → SOM (paso 1 de la prueba) ──
+  const ruteoOk = await revisarTwilioASom(auth, valorSecreto(secretos, 'TWILIO_WHATSAPP_FROM'), valorSecreto(secretos, 'TWILIO_WEBHOOK_URL'));
+  if (!ruteoOk) {
+    process.exitCode = 1;
+  }
+  if (!e164) {
+    console.log(
+      ruteoOk
+        ? '\nSiguiente: npm run webhooks (los dos ✓ de WhatsApp) y, con el celular de la prueba,\n  npm run whatsapp:seguimiento -- +549… antes de escribirle al WhatsApp de SOM.'
+        : '\nCorregilo en Twilio y volvé a correr npm run whatsapp:seguimiento.',
+    );
+    return;
+  }
 
   // ── Medplum ──
   const candidatos = await medplum.searchResources('Patient', { phone: variantesTelefonoAR(e164).join(','), _count: '20' });
@@ -127,7 +217,7 @@ async function main(): Promise<void> {
     : undefined;
   const mensajes = pacienteRef ? await conversacionReciente(medplum, pacienteRef) : [];
   if (candidatos.length > 1) {
-    console.log(`  (hay ${candidatos.length} pacientes con ese número; se usa Patient/${paciente?.id ?? '?'})`);
+    console.log(`\n  (hay ${candidatos.length} pacientes con ese número; se usa Patient/${paciente?.id ?? '?'})`);
   }
 
   console.log('\nPaso a paso:');
@@ -149,16 +239,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── Twilio ──
-  const secretos = await leerSecretos(medplum, projectId);
-  const cuenta = valorSecreto(secretos, 'TWILIO_ACCOUNT_SID');
-  const token = valorSecreto(secretos, 'TWILIO_AUTH_TOKEN');
-  if (!cuenta || !token) {
-    console.error('\n✗ Faltan los Project Secrets TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN: no puedo mirar Twilio.');
-    process.exitCode = 1;
-    return;
-  }
-  const auth = Buffer.from(`${cuenta}:${token}`).toString('base64');
+  // ── Twilio: los mensajes de este celular ──
   const registrados = sidsRegistrados(mensajes);
 
   const enTwilio = await mensajesTwilio(auth, cuenta, e164);
