@@ -301,6 +301,9 @@ describe('Bot bot-som-report — consentimiento y Claude', () => {
     expect(body.system).toMatch(/NO uses parámetros.*medicina funcional/);
     expect(body.messages[0].content).toMatch(/Estadificación CKM \(Guía AHA\/ACC\/ADA\/ASN 2026\)/);
     expect(body.messages[0].content).toMatch(/Seguimiento según la guía/);
+    // Las alertas del catálogo firmado van al prompt y la instrucción dice cómo usarlas.
+    expect(body.messages[0].content).toMatch(/Catálogo del Plan Bienestar 100 Días®/);
+    expect(body.system).toMatch(/catálogo firmado del Plan Bienestar 100 Días®.*sin agregar otras ni cambiar su umbral/);
     // El RiskAssessment queda ligado a la solicitud (así lo encuentra el portal) y
     // lleva el estadío CKM en el mismo recurso (un solo RiskAssessment por solicitud).
     const [ra, ...otros] = todos<RiskAssessment>('RiskAssessment');
@@ -384,12 +387,22 @@ describe('Bot bot-som-report — PREVENT, estadío CKM y plan de la Guía 2026',
     expect(notas).toMatch(/Guía AHA\/ACC\/ADA\/ASN 2026/);
     expect(notas).toMatch(/SGLT2i o terapia basada en GLP-1/); // DM2 con PREVENT-CVD ≥ 7,5 %
     expect(notas).toMatch(/iniciar tratamiento hipolipemiante/); // PREVENT-ASCVD ≥ 5 %
+    // Catálogo firmado del Plan Bienestar 100 Días®: alertas del estadío 2 que ya cumple
+    // (HTA con DM2, DM2) y sus derivaciones del día 0; el losartán cuenta como RASi.
+    expect(notas).toMatch(/Catálogo del Plan Bienestar 100 Días® \(firmado el 2026-09-27\), Estadío 2/);
+    expect(notas).toMatch(/- E2-HTA-MED-04 · ERC con UACR ≥ 30 o DM2/);
+    expect(notas).toMatch(/- E2-DM2-MED-01 · DM2/);
+    expect(notas).toMatch(/\nDerivaciones:\n- E2-DER-01 · /);
+    expect(notas).not.toMatch(/E3-|E4-/);
     // Sin Claude (sin consentimiento), "pending-studies" lista lo que sugiere la guía.
     const dr = todos<DiagnosticReport>('DiagnosticReport')[0]!;
     const pendientes = dr.extension?.[0]?.extension?.find((e) => e.url === 'pending-studies')?.valueString ?? '';
     expect(pendientes).toMatch(/albuminuria \(UACR\)/);
     expect(pendientes).toMatch(/NT-proBNP/); // PREVENT-HF ≥ 5 %
     expect(pendientes).toMatch(/calcio coronario/); // PREVENT-ASCVD 3 % a < 10 %
+    // …y "conclusions" trae las alertas del catálogo, a confirmar por el médico.
+    const conclusiones = dr.extension?.[0]?.extension?.find((e) => e.url === 'conclusions')?.valueString ?? '';
+    expect(conclusiones).toMatch(/Catálogo del Plan Bienestar 100 Días®[\s\S]*E2-HTA-MED-04[\s\S]*A confirmar por el médico\./);
   });
 
   it('con ECV clínica no usa PREVENT (Estadío 4a) y lo explica en la nota', async () => {
@@ -411,5 +424,9 @@ describe('Bot bot-som-report — PREVENT, estadío CKM y plan de la Guía 2026',
     const notas = ra?.note?.map((n) => n.text).join('\n') ?? '';
     expect(notas).toMatch(/no se usa con ECV clínica/);
     expect(notas).not.toMatch(/hipolipemiante/);
+    // El catálogo pasa al estadío 4: prevención secundaria (ASCVD) y nada del estadío 3.
+    expect(notas).toMatch(/Catálogo del Plan Bienestar 100 Días®.*Estadío 4 \(Enfermedad cardiovascular establecida\)/);
+    expect(notas).toMatch(/- E4-ASCVD-MED-/);
+    expect(notas).not.toMatch(/- E3-/);
   });
 });

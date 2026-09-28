@@ -10,8 +10,10 @@
  *     (Patient, Condition, Observation, MedicationRequest, DocumentReference).
  *  2) Calcula PREVENT (AHA, modelo base: ECV total, ASCVD e IC a 10 y 30 años; no se
  *     usa con ECV clínica), el estadío CKM y el plan de la Guía AHA/ACC/ADA/ASN 2026
- *     (seguimiento, evaluaciones, umbrales de la Tabla 8, potenciadores) → crea un
- *     `RiskAssessment` (predicciones PREVENT + extensión `ckm-stage` + notas).
+ *     (seguimiento, evaluaciones, umbrales de la Tabla 8, potenciadores) y las alertas
+ *     al médico y derivaciones del catálogo firmado del Plan Bienestar 100 Días® que el
+ *     paciente ya cumple (día 0 y eventos) → crea un `RiskAssessment` (predicciones
+ *     PREVENT + extensión `ckm-stage` + notas).
  *  3) Llama a Claude (`claude-sonnet-4-6`, secret `ANTHROPIC_API_KEY`) para
  *     redactar las 6 secciones del informe — solo si el paciente firmó el
  *     consentimiento informado (sin él, ningún dato clínico sale hacia el LLM).
@@ -34,7 +36,8 @@ import type {
 import { COD, LOINC_INFORME, MODELO_CLAUDE_SOM, SYSTEM } from '../fhir/identifiers.js';
 import { UMBRALES_PREVENT_GUIA } from '../config/ckm.js';
 import { estadificarCkm, resumenCkm, type EntradaCkm } from '../lib/ckm.js';
-import { entradaCkmDesdeFhir, potenciadoresCkm, ultimoValor } from '../lib/ckm-fhir.js';
+import { MOMENTOS_INFORME_SOM, alertasCatalogo, perfilCatalogo, resumenAlertasCatalogo } from '../lib/ckm-catalogo.js';
+import { condicionesExtrasDesdeFhir, entradaCkmDesdeFhir, potenciadoresCkm, ultimoValor } from '../lib/ckm-fhir.js';
 import { planCkm, resumenPlanCkm } from '../lib/ckm-guia.js';
 import { calcularPrevent, sinPrevent, type EntradaPrevent } from '../lib/prevent.js';
 import {
@@ -109,9 +112,15 @@ export async function handler(
         : sinPrevent(`faltan datos: ${faltan.join(', ')}`);
   const ckm = estadificarCkm({ ...datosCkm, riesgo10a: riesgo10aDePrevent(prevent) });
   const potenciadores = potenciadoresCkm(condiciones, observaciones, UMBRALES_PREVENT_GUIA.pcrUs);
-  const plan = planCkm(ckm, datosCkm, riesgosDePrevent(prevent), potenciadores, entrada ? [] : faltan);
+  const riesgos = riesgosDePrevent(prevent);
+  const plan = planCkm(ckm, datosCkm, riesgos, potenciadores, entrada ? [] : faltan);
+  // Catálogo firmado del Plan Bienestar 100 Días®: qué alertas al médico y derivaciones
+  // cumple hoy este paciente (día 0 y eventos), con la medicación y los antecedentes de la historia.
+  const extras = condicionesExtrasDesdeFhir({ condiciones, observaciones, medicacion, potenciadores, edad: datosCkm.edad });
+  const perfil = perfilCatalogo(ckm, datosCkm, riesgos, extras);
+  const catalogo = { perfil, alertas: alertasCatalogo(perfil, { momentos: MOMENTOS_INFORME_SOM }) };
   const riskAssessment = await medplum.createResource(
-    construirRiskAssessment(prevent, { pacienteRef, serviceRequestRef: srRef }, ckm, plan),
+    construirRiskAssessment(prevent, { pacienteRef, serviceRequestRef: srRef }, ckm, plan, catalogo),
   );
 
   // 3) Claude → secciones.
@@ -125,6 +134,7 @@ export async function handler(
     resumenRiesgo: resumenRiesgo(prevent),
     resumenCkm: resumenCkm(ckm),
     resumenPlan: resumenPlanCkm(plan),
+    resumenAlertas: resumenAlertasCatalogo(catalogo.alertas, perfil),
     evaluacionesSugeridas: plan.evaluaciones.map((e) => `${e.texto} (${e.fuente})`),
   };
   // Sin consentimiento informado firmado no se envía ningún dato clínico al LLM
@@ -298,6 +308,7 @@ function seccionesFallback(contexto: ContextoClinico): Partial<Secciones> {
     'executive-summary':
       'Análisis automático no disponible en este momento. Un cardiólogo revisará la solicitud manualmente.',
     'risk-assessment': [contexto.resumenRiesgo, contexto.resumenCkm].filter(Boolean).join('\n\n'),
+    ...(contexto.resumenAlertas ? { conclusions: `${contexto.resumenAlertas}\n\nA confirmar por el médico.` } : {}),
     'pending-studies': contexto.evaluacionesSugeridas?.length
       ? `Sugeridos por la guía CKM 2026 (a confirmar por el médico):\n${contexto.evaluacionesSugeridas.map((e) => `- ${e}`).join('\n')}`
       : 'Pendiente de revisión médica.',

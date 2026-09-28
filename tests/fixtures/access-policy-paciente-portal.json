@@ -44,6 +44,10 @@
       "criteria": "CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/menopausia-cardiovascular"
     },
     {
+      "resourceType": "CarePlan",
+      "criteria": "CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/pb100d-ckm"
+    },
+    {
       "resourceType": "Goal",
       "criteria": "Goal?subject=%patient"
     },

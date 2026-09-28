@@ -34,6 +34,16 @@ export type CategoriaServicio =
   | 'TISIONEUMONOLOGIA'
   | 'NEUROLOGIA'
   | 'GINECOLOGIA'
+  // Derivaciones del catálogo firmado del Plan Bienestar 100 Días® (estadíos CKM 0 a 4).
+  | 'NEFROLOGIA'
+  | 'HEPATOLOGIA'
+  | 'OFTALMOLOGIA'
+  | 'CIRUGIA_VASCULAR'
+  | 'PSICOLOGIA'
+  | 'TRABAJO_SOCIAL'
+  | 'PODOLOGIA'
+  | 'FARMACIA_CLINICA'
+  | 'KINESIOLOGIA'
   | 'PLAN_BIENESTAR'
   | 'SEGUIMIENTO_GLP1';
 

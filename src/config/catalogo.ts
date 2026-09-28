@@ -10,6 +10,13 @@
  * Además, la consulta programada del Plan Bienestar (incluida en el plan; ver
  * `src/config/plan-bienestar.ts`) y el control del seguimiento GLP-1.
  *
+ * Derivaciones del catálogo firmado del Plan Bienestar 100 Días® (estadíos CKM 0 a 4,
+ * 27/09/2026): Nefrología, Hepatología, Oftalmología, Cirugía Vascular, Psicología,
+ * Trabajo Social, Podología, Farmacia Clínica y Kinesiología. Se agendan desde la tarea
+ * de derivación del plan (R-20). Las cuatro primeras son consultas médicas por
+ * especialidad y toman el precio de lista (R-17); las cinco restantes no están en la
+ * lista oficial: precio PENDIENTE (ver docs/decisiones-pendientes.md).
+ *
  * Modalidad (R-21): cada consulta se ofrece presencial y por teleconsulta. Es un
  * atributo del turno, no un servicio aparte: "Teleconsulta de Cardiología" es la misma
  * consulta de Cardiología por videollamada (`nombreSegunModalidad`).
@@ -28,6 +35,7 @@
  * Duración: 30 minutos por consulta (misma decisión), sobre la grilla de 30.
  */
 import type { CategoriaServicio, Especialidad, Modalidad, Servicio, Split } from '../domain/types.js';
+import type { ResponsableCatalogo } from './catalogo-pb100d.js';
 
 const SOM100: Split = { tipo: 'SOM_100' };
 
@@ -58,7 +66,30 @@ export const GRUPOS_ESPECIALIDAD = [
   { codigo: 'tisioneumonologia', nombre: 'Tisioneumonología' },
   { codigo: 'neurologia', nombre: 'Neurología' },
   { codigo: 'ginecologia', nombre: 'Ginecología' },
+  // Derivaciones del catálogo firmado del Plan Bienestar 100 Días® (27/09/2026).
+  { codigo: 'nefrologia', nombre: 'Nefrología' },
+  { codigo: 'hepatologia', nombre: 'Hepatología' },
+  { codigo: 'oftalmologia', nombre: 'Oftalmología' },
+  { codigo: 'cirugia-vascular', nombre: 'Cirugía Vascular' },
+  { codigo: 'psicologia', nombre: 'Psicología' },
+  { codigo: 'trabajo-social', nombre: 'Trabajo Social' },
+  { codigo: 'podologia', nombre: 'Podología' },
+  { codigo: 'farmacia-clinica', nombre: 'Farmacia Clínica' },
+  { codigo: 'kinesiologia', nombre: 'Kinesiología' },
 ] as const;
+
+/** Grupos de las derivaciones del Plan Bienestar 100 Días®: se agendan desde su tarea. */
+export const GRUPOS_DERIVACION_PB100D: readonly GrupoEspecialidad[] = [
+  'nefrologia',
+  'hepatologia',
+  'oftalmologia',
+  'cirugia-vascular',
+  'psicologia',
+  'trabajo-social',
+  'podologia',
+  'farmacia-clinica',
+  'kinesiologia',
+];
 
 export type GrupoEspecialidad = (typeof GRUPOS_ESPECIALIDAD)[number]['codigo'];
 
@@ -172,6 +203,93 @@ const CONSULTAS: DefConsulta[] = [
     grupo: 'ginecologia',
     especialidad: { snomed: '394586005', snomedDisplay: 'Gynecology', nombre: 'Ginecología' },
   },
+  // Derivaciones del catálogo firmado del Plan Bienestar 100 Días® (27/09/2026). Se
+  // agendan desde la tarea de derivación (R-20). Las consultas médicas por especialidad
+  // toman el precio de lista (R-17).
+  {
+    codigo: 'NEFROLOGIA',
+    nombre: 'Consulta de Nefrología',
+    categoria: 'NEFROLOGIA',
+    grupo: 'nefrologia',
+    soloDesdeTarea: true,
+    especialidad: { snomed: '394589003', snomedDisplay: 'Nephrology', nombre: 'Nefrología' },
+  },
+  {
+    codigo: 'HEPATOLOGIA',
+    nombre: 'Consulta de Hepatología',
+    categoria: 'HEPATOLOGIA',
+    grupo: 'hepatologia',
+    soloDesdeTarea: true,
+    especialidad: { snomed: '408472002', snomedDisplay: 'Hepatology', nombre: 'Hepatología' },
+  },
+  {
+    codigo: 'OFTALMOLOGIA',
+    nombre: 'Consulta de Oftalmología',
+    categoria: 'OFTALMOLOGIA',
+    grupo: 'oftalmologia',
+    soloDesdeTarea: true,
+    especialidad: { snomed: '394594003', snomedDisplay: 'Ophthalmology', nombre: 'Oftalmología' },
+  },
+  {
+    codigo: 'CIRUGIA_VASCULAR',
+    nombre: 'Consulta de Cirugía Vascular',
+    categoria: 'CIRUGIA_VASCULAR',
+    grupo: 'cirugia-vascular',
+    soloDesdeTarea: true,
+    // Código c80-practice-codes a confirmar en el navegador oficial de SNOMED CT: solo texto.
+    especialidad: { nombre: 'Cirugía Vascular' },
+  },
+  // Profesiones fuera de la lista oficial de precios: precio PENDIENTE.
+  {
+    codigo: 'PSICOLOGIA',
+    nombre: 'Consulta de Psicología',
+    categoria: 'PSICOLOGIA',
+    grupo: 'psicologia',
+    soloDesdeTarea: true,
+    precioARS: 0,
+    especialidad: { nombre: 'Psicología' },
+    nota: PRECIO_PENDIENTE,
+  },
+  {
+    codigo: 'TRABAJO_SOCIAL',
+    nombre: 'Consulta de Trabajo Social',
+    categoria: 'TRABAJO_SOCIAL',
+    grupo: 'trabajo-social',
+    soloDesdeTarea: true,
+    precioARS: 0,
+    especialidad: { nombre: 'Trabajo Social' },
+    nota: PRECIO_PENDIENTE,
+  },
+  {
+    codigo: 'PODOLOGIA',
+    nombre: 'Consulta de Podología',
+    categoria: 'PODOLOGIA',
+    grupo: 'podologia',
+    soloDesdeTarea: true,
+    precioARS: 0,
+    especialidad: { nombre: 'Podología' },
+    nota: PRECIO_PENDIENTE,
+  },
+  {
+    codigo: 'FARMACIA_CLINICA',
+    nombre: 'Consulta de Farmacia Clínica',
+    categoria: 'FARMACIA_CLINICA',
+    grupo: 'farmacia-clinica',
+    soloDesdeTarea: true,
+    precioARS: 0,
+    especialidad: { nombre: 'Farmacia Clínica' },
+    nota: PRECIO_PENDIENTE,
+  },
+  {
+    codigo: 'KINESIOLOGIA',
+    nombre: 'Consulta de Kinesiología',
+    categoria: 'KINESIOLOGIA',
+    grupo: 'kinesiologia',
+    soloDesdeTarea: true,
+    precioARS: 0,
+    especialidad: { nombre: 'Kinesiología' },
+    nota: PRECIO_PENDIENTE,
+  },
   // Plan Bienestar 100 Días®: las tres consultas programadas (días 1, 50 y 100).
   {
     codigo: CODIGO_CONSULTA_PB100D,
@@ -230,6 +348,43 @@ export function getServicio(codigo: string): Servicio {
 
 /** Consultas por especialidad (las que tienen grupo), en el orden del catálogo. */
 export const CONSULTAS_POR_ESPECIALIDAD: Servicio[] = SERVICIOS.filter((s) => s.grupo);
+
+/** Consultas de la lista oficial: las que el portal ofrece sin tarea previa. */
+export const CONSULTAS_LISTA_OFICIAL: Servicio[] = CONSULTAS_POR_ESPECIALIDAD.filter((s) => !s.soloDesdeTarea);
+
+/** Derivaciones del Plan Bienestar 100 Días®: sólo desde la tarea de derivación del plan. */
+export const DERIVACIONES_PB100D: Servicio[] = CONSULTAS_POR_ESPECIALIDAD.filter((s) => s.soloDesdeTarea);
+
+/**
+ * Consulta del catálogo que atiende cada derivación del catálogo firmado del plan
+ * (`responsable` de `src/config/catalogo-pb100d.ts`). Los responsables sin consulta
+ * propia (equipo, enfermería, educador, coordinación, imagen, la persona) no se agendan
+ * como consulta y quedan fuera. Obstetricia se atiende en Ginecología (tocoginecología).
+ */
+export const SERVICIO_POR_RESPONSABLE_PB100D: Partial<Record<ResponsableCatalogo, string>> = {
+  cardiologia: 'CARDIOLOGIA',
+  electrofisiologia: 'ELECTROFISIOLOGIA',
+  rehabilitacion: 'REHABILITACION_CV',
+  endocrinologia: 'DIABETOLOGIA_ENDOCRINOLOGIA',
+  nutricion: 'NUTRICION',
+  neumonologia: 'TISIONEUMONOLOGIA',
+  neurologia: 'NEUROLOGIA',
+  obstetricia: 'GINECOLOGIA',
+  nefrologia: 'NEFROLOGIA',
+  hepatologia: 'HEPATOLOGIA',
+  oftalmologia: 'OFTALMOLOGIA',
+  'cirugia-vascular': 'CIRUGIA_VASCULAR',
+  psicologia: 'PSICOLOGIA',
+  'trabajo-social': 'TRABAJO_SOCIAL',
+  farmacia: 'FARMACIA_CLINICA',
+  kinesiologia: 'KINESIOLOGIA',
+};
+
+/** Consulta del catálogo para una derivación del plan, si la especialidad tiene consulta propia. */
+export function servicioDeDerivacion(responsable: ResponsableCatalogo): Servicio | undefined {
+  const codigo = SERVICIO_POR_RESPONSABLE_PB100D[responsable];
+  return codigo ? SERVICIOS_POR_CODIGO.get(codigo) : undefined;
+}
 
 /** ¿El servicio se ofrece en esa modalidad? (R-21). */
 export function ofreceModalidad(s: Pick<Servicio, 'modalidades'>, modalidad: Modalidad): boolean {

@@ -171,12 +171,17 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Subscription', criteria: 'Subscription?type=websocket' },
 
     // Planes de cuidado: lee todos los suyos (Plan Bienestar, seguimiento GLP-1, …);
-    // escribe solo el Plan Bienestar, que inicia el propio paciente.
+    // escribe solo el Plan Bienestar, que inicia el propio paciente: la plantilla de
+    // menopausia y la única por estadío CKM 0–4 (`pb100d-ckm`, catálogo firmado).
     { resourceType: 'CarePlan', readonly: true, criteria: 'CarePlan?subject=%patient' },
     {
       resourceType: 'CarePlan',
       criteria:
         'CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/menopausia-cardiovascular',
+    },
+    {
+      resourceType: 'CarePlan',
+      criteria: 'CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/pb100d-ckm',
     },
     // Sus metas (las del Plan Bienestar las crea él; la del GLP-1, el equipo médico).
     { resourceType: 'Goal', criteria: 'Goal?subject=%patient' },

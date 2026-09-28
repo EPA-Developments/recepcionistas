@@ -12,6 +12,7 @@
 import type { DiagnosticReport, Extension, RiskAssessment } from '@medplum/fhirtypes';
 import { EXT, SOM_SECCIONES, type SomSeccion } from '../fhir/identifiers.js';
 import { resumenCkm, type EntradaCkm, type ResultadoCkm } from './ckm.js';
+import { resumenAlertasCatalogo, type AlertaCatalogo, type PerfilCatalogo } from './ckm-catalogo.js';
 import { resumenPlanCkm, type PlanCkm, type RiesgosPrevent } from './ckm-guia.js';
 import { ORDEN_PREVENT, riesgoPrevent, type ResultadoPrevent } from './prevent.js';
 
@@ -35,8 +36,15 @@ export const NOTA_PENDIENTE_VALIDACION =
 
 const UCUM = 'http://unitsofmeasure.org';
 
+/** Alertas al médico y derivaciones del catálogo firmado del plan que aplican al paciente. */
+export interface AlertasCatalogoInforme {
+  perfil: PerfilCatalogo;
+  alertas: AlertaCatalogo[];
+}
+
 /**
- * RiskAssessment a partir del resultado PREVENT (y del estadío CKM y el plan de la guía).
+ * RiskAssessment a partir del resultado PREVENT (y del estadío CKM, el plan de la guía y
+ * las alertas del catálogo firmado del Plan Bienestar 100 Días®, cada uno en su nota).
  *
  * Contrato con el portal (`EPA-Developments/app`, `src/fhir/som.ts`):
  *  - `basedOn` = la ServiceRequest: el portal busca `RiskAssessment?subject=…` y
@@ -54,6 +62,7 @@ export function construirRiskAssessment(
   refs: { pacienteRef: string; serviceRequestRef: string },
   ckm?: ResultadoCkm,
   plan?: PlanCkm,
+  catalogo?: AlertasCatalogoInforme,
 ): RiskAssessment {
   // El estadío CKM va en ESTE RiskAssessment (no en otro): el portal toma el primer
   // RiskAssessment con basedOn = la solicitud para leer PREVENT.
@@ -64,6 +73,7 @@ export function construirRiskAssessment(
       : []),
     ...(ckm ? [{ text: resumenCkm(ckm) }] : []),
     ...(plan ? [{ text: resumenPlanCkm(plan) }] : []),
+    ...(catalogo ? [{ text: resumenAlertasCatalogo(catalogo.alertas, catalogo.perfil) }] : []),
   ];
   const prediction =
     prevent.predicciones.length === 0
@@ -182,6 +192,8 @@ export interface ContextoClinico {
   resumenCkm?: string;
   /** Plan de la guía: seguimiento, evaluaciones, umbrales y potenciadores. */
   resumenPlan?: string;
+  /** Alertas al médico y derivaciones del catálogo firmado del Plan Bienestar 100 Días® que aplican. */
+  resumenAlertas?: string;
   /** Evaluaciones que sugiere la guía (para "pending-studies" si Claude no está). */
   evaluacionesSugeridas?: string[];
 }
@@ -196,7 +208,11 @@ export const SYSTEM_PROMPT =
   'rangos "óptimos" ni recomendaciones de medicina funcional o integrativa. Usá el estadío ' +
   'CKM, el riesgo PREVENT y el plan de la guía que te damos (son estimaciones del sistema ' +
   'pendientes de validación médica; no los recalcules) en "risk-assessment", y las ' +
-  'evaluaciones sugeridas en "pending-studies". Analizá la información del paciente y ' +
+  'evaluaciones sugeridas en "pending-studies". Si te damos alertas al médico y ' +
+  'derivaciones del catálogo firmado del Plan Bienestar 100 Días®, son umbrales de la ' +
+  'guía que el paciente ya cumple: retomalas con su código y evidencia en "conclusions" ' +
+  '(alertas) y en "pending-studies" (derivaciones), sin agregar otras ni cambiar su ' +
+  'umbral; la decisión es del médico. Analizá la información del paciente y ' +
   'devolvé EXCLUSIVAMENTE un JSON válido con estas claves exactas (strings, en español, ' +
   'claras y prudentes): ' +
   SOM_SECCIONES.map((s) => `"${s}"`).join(', ') +
@@ -217,6 +233,7 @@ export function construirPromptUsuario(c: ContextoClinico): string {
     `Riesgo PREVENT (AHA, modelo base; pendiente de validación médica):\n${c.resumenRiesgo}`,
     ...(c.resumenCkm ? [c.resumenCkm] : []),
     ...(c.resumenPlan ? [c.resumenPlan] : []),
+    ...(c.resumenAlertas ? [c.resumenAlertas] : []),
   ].join('\n\n');
 }
 

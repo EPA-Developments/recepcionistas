@@ -14,6 +14,17 @@ import type { EcvClinica, Ecocardiograma, EntradaCkm } from './ckm.js';
 
 /** Códigos LOINC por dato (solo códigos estándar conocidos). */
 export const LOINC_CKM = {
+  // Para las condiciones del catálogo del Plan Bienestar 100 Días® (`ckm-catalogo.ts`).
+  potasio: ['2823-3', '6298-4'],
+  ferritina: ['2276-4'],
+  saturacionTransferrina: ['2502-3'],
+  ast: ['1920-8'],
+  alt: ['1742-6'],
+  plaquetas: ['777-3', '26515-7'],
+  phq9: ['44261-6'],
+  phq2: ['55758-7'],
+  gad7: ['70274-6'],
+  gad2: ['70272-0'],
   imc: ['39156-5'],
   cintura: ['8280-0'],
   glucemiaAyunas: ['1558-6'],
@@ -35,6 +46,8 @@ export const LOINC_CKM = {
 
 /** Conversión a la unidad de los umbrales (mg/dL, mg/g, ng/L, pg/mL). */
 const CONVERSIONES: Record<string, Record<string, number>> = {
+  ferritina: { 'ug/L': 1, 'pmol/L': 0.445 },
+  plaquetas: { '10*9/L': 1, '/uL': 0.001, '/mm3': 0.001 },
   glucemiaAyunas: { 'mmol/L': 18.016 },
   trigliceridos: { 'mmol/L': 88.57 },
   hdl: { 'mmol/L': 38.67 },
@@ -372,5 +385,136 @@ export function potenciadoresCkm(condiciones: Condition[], obs: Observation[], u
   const out = POTENCIADORES.filter((p) => validas.some((c) => cumple(c, p.criterio))).map((p) => p.etiqueta);
   const pcr = ultimoValor(obs, 'pcrUs');
   if (pcr !== undefined && pcr >= umbralPcrUs) out.push(`PCR us ${pcr} mg/L (≥ ${umbralPcrUs})`);
+  return out;
+}
+
+// ───────────── Condiciones del catálogo del Plan Bienestar 100 Días® ─────────────
+//
+// Lo que el catálogo firmado (`src/config/catalogo-pb100d.ts`) necesita saber del
+// paciente y no sale de la estadificación: medicación en curso, hábitos, antecedentes
+// y cuestionarios. Mismos principios que arriba: códigos estándar con respaldo por
+// texto; lo que no está codificado ni nombrado de forma reconocible no se infiere.
+
+/** Fármacos por clase (nombre genérico o de clase; el texto de la prescripción). */
+export const RE_MEDICACION = {
+  sglt2i: /gliflozin|\bSGLT-?2/i,
+  glp1: /semaglutid|liraglutid|dulaglutid|tirzepatid|exenatid|lixisenatid|\bGLP-?1\b|ozempic|wegovy|mounjaro|saxenda|victoza|trulicity|rybelsus/i,
+  rasiMra:
+    /(enala|lisino|rami|perindo|capto|quina|benaze|fosino|trando)pril|sart[aá]n\b|sacubitril|espironolact|eplerenon|finerenon|\bIECA\b|\bARA-? ?II\b|\bARNI\b/i,
+  estatina: /statina|atorvast|rosuvast|simvast|pravast|pitavast|lovast|fluvast|estatina/i,
+  antitrombotico:
+    /aspirina|[aá]cido acetilsalic|\bAAS\b|clopidogrel|prasugrel|ticagrelor|apixab|rivaroxab|dabigatr|edoxab|warfarin|acenocumarol|anticoagul|antiagreg/i,
+  obesidad: /orlistat|naltrexon|fentermin|wegovy|zepbound|saxenda/i,
+  hipoglucemiantes: /insulin|glibenclamid|gliclazid|glimepirid|glipizid|sulfonilurea|repaglinid|nateglinid/i,
+} as const;
+
+const FUMADOR: Criterio = {
+  icd10: /^F17|^Z72\.?0/,
+  snomed: ['77176002', '449868002'],
+  texto: /fumador|tabaquismo|tabaquista|\bsmoker\b|tobacco (use|dependence)/i,
+  excluir: /ex[- ]?fumador|no fumador|former|never/i,
+};
+/** Menopausia (los mismos hallazgos SNOMED que escribe el Plan Bienestar en el portal). */
+const MENOPAUSIA: Criterio = {
+  icd10: /^N95\.?1|^E28\.?3|^Z78\.?0/,
+  snomed: ['289903006', '373717006', '307409000', '76498008', '67207009'],
+  texto: /menopaus|posmenopaus|perimenopaus|climaterio/i,
+};
+const EMBARAZO: Criterio = { icd10: /^Z3[34]/, snomed: ['77386006'], texto: /embaraz(o|ada)|gestante|pregnan/i };
+const DMG_PREVIA: Criterio = { icd10: /^O24\.?4|^Z86\.?32/, snomed: ['11687002'], texto: /diabetes gestacional|gestational diabetes/i };
+const ALCOHOL: Criterio = { icd10: /^F10/, snomed: ['7200002', '15167005'], texto: /alcoholismo|consumo (excesivo|nocivo|de riesgo) de alcohol|alcohol (use|abuse|dependence)/i };
+
+/** Estado de tabaquismo (LOINC 72166-2): fumador actual. */
+function fumaPorObservacion(obs: Observation[]): boolean {
+  return obs.some(
+    (o) =>
+      !anulada(o) &&
+      o.code?.coding?.some((c) => esLoinc(c.system) && c.code === '72166-2') &&
+      /current|fumador actual|every day|some day|diario|ocasional/i.test(textoDe(o.valueCodeableConcept)),
+  );
+}
+
+/** FIB-4 = (edad × AST) / (plaquetas [10⁹/L] × √ALT). undefined si falta algo. */
+export function fib4(edad: number | undefined, ast: number | undefined, alt: number | undefined, plaquetas: number | undefined): number | undefined {
+  if (edad === undefined || ast === undefined || alt === undefined || plaquetas === undefined || alt <= 0 || plaquetas <= 0) {
+    return undefined;
+  }
+  return (edad * ast) / (plaquetas * Math.sqrt(alt));
+}
+
+/** Umbrales de las condiciones que se leen de la historia (fuente en el catálogo firmado). */
+export const UMBRALES_CATALOGO = {
+  /** FIB-4 > 2,67: riesgo alto de fibrosis → hepatología (Tabla 47 / AASLD). */
+  fib4Alto: 2.67,
+  /** Potasio > 5,5 mmol/L (E3-ERC-MED-04). */
+  potasio: 5.5,
+  /** Déficit de hierro en IC: ferritina < 100, o 100 a 299 con saturación < 20 % (E4-IC-MED-12). */
+  ferritina: 100,
+  ferritinaConSaturacion: 300,
+  saturacionTransferrina: 20,
+  /** PHQ-2 / GAD-2 ≥ 3; PHQ-9 / GAD-7 ≥ 10 (E0-MED-09). */
+  phq2: 3,
+  phq9: 10,
+  /** ≥ 5 fármacos activos (E4-MED-12). */
+  polifarmacia: 5,
+} as const;
+
+/**
+ * Condiciones del catálogo que se leen de la historia (no de la estadificación):
+ * medicación por clase, tabaquismo, menopausia, embarazo, DMG previa, alcohol,
+ * cuestionarios PHQ/GAD, potasio, hierro, FIB-4, polifarmacia y potenciadores. Se
+ * completan con las que deriva `condicionesCatalogo` (`ckm-catalogo.ts`).
+ */
+export function condicionesExtrasDesdeFhir(d: {
+  condiciones: Condition[];
+  observaciones: Observation[];
+  medicacion: MedicationRequest[];
+  /** Potenciadores ya detectados (`potenciadoresCkm`). */
+  potenciadores?: string[];
+  edad?: number;
+}): string[] {
+  const out: string[] = [];
+  const conds = condicionesActivas(d.condiciones);
+  const obs = d.observaciones;
+  const meds = d.medicacion.filter((m) => !m.status || m.status === 'active').map(textoMedicacion);
+  const toma = (re: RegExp): boolean => meds.some((t) => re.test(t));
+
+  if (toma(RE_MEDICACION.glp1)) out.push('toma-glp1');
+  if (toma(RE_MEDICACION.sglt2i)) out.push('toma-sglt2i');
+  if (toma(RE_MEDICACION.rasiMra)) out.push('toma-rasi-mra');
+  if (toma(RE_MEDICACION.estatina)) out.push('toma-estatina');
+  if (toma(RE_MEDICACION.antitrombotico)) out.push('toma-antitrombotico');
+  if (toma(RE_MEDICACION.obesidad)) out.push('farmaco-obesidad');
+  if (toma(RE_MEDICACION.hipoglucemiantes)) out.push('riesgo-hipoglucemia');
+  if (meds.length >= UMBRALES_CATALOGO.polifarmacia) out.push('polifarmacia');
+
+  if (conds.some((c) => cumple(c, FUMADOR)) || fumaPorObservacion(obs)) out.push('fuma');
+  if (conds.some((c) => cumple(c, MENOPAUSIA))) out.push('menopausia');
+  if (conds.some((c) => cumple(c, EMBARAZO))) out.push('embarazo');
+  if (conds.some((c) => cumple(c, ALCOHOL))) out.push('alcohol');
+  // Un antecedente obstétrico cuenta aunque esté resuelto.
+  if (d.condiciones.some((c) => cumple(c, DMG_PREVIA))) out.push('dmg-previa');
+
+  const phq = [ultimoValor(obs, 'phq2'), ultimoValor(obs, 'gad2')];
+  const phqLargo = [ultimoValor(obs, 'phq9'), ultimoValor(obs, 'gad7')];
+  if (phq.some((v) => v !== undefined && v >= UMBRALES_CATALOGO.phq2) || phqLargo.some((v) => v !== undefined && v >= UMBRALES_CATALOGO.phq9)) {
+    out.push('phq-gad-positivo');
+  }
+
+  const potasio = ultimoValor(obs, 'potasio');
+  if (potasio !== undefined && potasio > UMBRALES_CATALOGO.potasio) out.push('hiperpotasemia');
+  const ferritina = ultimoValor(obs, 'ferritina');
+  const tsat = ultimoValor(obs, 'saturacionTransferrina');
+  if (
+    ferritina !== undefined &&
+    (ferritina < UMBRALES_CATALOGO.ferritina ||
+      (ferritina < UMBRALES_CATALOGO.ferritinaConSaturacion && tsat !== undefined && tsat < UMBRALES_CATALOGO.saturacionTransferrina))
+  ) {
+    out.push('deficit-hierro');
+  }
+  const f4 = fib4(d.edad, ultimoValor(obs, 'ast'), ultimoValor(obs, 'alt'), ultimoValor(obs, 'plaquetas'));
+  if (f4 !== undefined && f4 > UMBRALES_CATALOGO.fib4Alto) out.push('fib4-alto');
+
+  if ((d.potenciadores?.length ?? 0) > 0) out.push('potenciadores');
   return out;
 }

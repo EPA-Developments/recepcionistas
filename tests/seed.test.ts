@@ -18,8 +18,9 @@ describe('Seed — composición', () => {
       'Webhook Twilio — WhatsApp entrante',
       'Webhook MercadoPago — pagos',
     ]);
-    // 12 consultas por especialidad + consulta del Plan Bienestar + control GLP-1.
-    expect(seed.activityDefinitions.length).toBe(14);
+    // 12 consultas por especialidad + 9 derivaciones del catálogo firmado del plan +
+    // consulta del Plan Bienestar + control GLP-1.
+    expect(seed.activityDefinitions.length).toBe(12 + 9 + 2);
     expect(seed.planDefinitions.map((p) => p.url)).toEqual([PLAN_GLP1_URL, PLAN_BIENESTAR_URL]);
     expect(seed.locations.length).toBe(4); // 2 consultorios + agenda de teleconsulta + sala de rehabilitación
     // Una agenda por recurso físico más una por profesional (R-22).
@@ -147,6 +148,8 @@ describe('Seed — AccessPolicy del portal del paciente', () => {
     expect(entradas).toEqual(
       expect.arrayContaining([
         'CarePlan CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/menopausia-cardiovascular',
+        // La PlanDefinition única por estadío CKM 0–4 del catálogo firmado (fase 3).
+        'CarePlan CarePlan?subject=%patient&instantiates-canonical=https://epa-bienestar.ar/fhir/PlanDefinition/pb100d-ckm',
         'Task Task?patient=%patient&intent=plan',
         'CareTeam CareTeam?subject=%patient',
         'Condition (lectura) Condition?subject=%patient',

@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   CODIGO_CONSULTA_PB100D,
   CODIGO_CONTROL_GLP1,
+  CONSULTAS_LISTA_OFICIAL,
   CONSULTAS_POR_ESPECIALIDAD,
+  DERIVACIONES_PB100D,
   DURACION_CONSULTA_MIN,
+  GRUPOS_DERIVACION_PB100D,
   GRUPOS_ESPECIALIDAD,
   PRECIO_CONSULTA_ESPECIALIDAD_ARS,
   VALOR_REFERENCIA_CONSULTA_PB100D_ARS,
@@ -24,10 +27,13 @@ const C80: Record<string, string> = {
   '418112009': 'Pulmonary medicine',
   '394591006': 'Neurology',
   '394586005': 'Gynecology',
+  '394589003': 'Nephrology',
+  '408472002': 'Hepatology',
+  '394594003': 'Ophthalmology',
 };
 
 describe('Catálogo — consultas por especialidad (definidas por el Dr. D’Alessandro y el Dr. Barbagelata)', () => {
-  it('los siete grupos del Plan Bienestar, en el orden de la lista', () => {
+  it('los siete grupos del Plan Bienestar, en el orden de la lista, y después las derivaciones del catálogo firmado', () => {
     expect(GRUPOS_ESPECIALIDAD.map((g) => g.nombre)).toEqual([
       'DBT / Endocrino',
       'Nutrición',
@@ -36,10 +42,20 @@ describe('Catálogo — consultas por especialidad (definidas por el Dr. D’Ale
       'Tisioneumonología',
       'Neurología',
       'Ginecología',
+      'Nefrología',
+      'Hepatología',
+      'Oftalmología',
+      'Cirugía Vascular',
+      'Psicología',
+      'Trabajo Social',
+      'Podología',
+      'Farmacia Clínica',
+      'Kinesiología',
     ]);
     for (const g of GRUPOS_ESPECIALIDAD) {
       expect(CONSULTAS_POR_ESPECIALIDAD.some((s) => s.grupo === g.codigo)).toBe(true);
     }
+    expect(GRUPOS_ESPECIALIDAD.slice(7).map((g) => g.codigo)).toEqual([...GRUPOS_DERIVACION_PB100D]);
   });
 
   it('Cardiología con especialidad = las seis subespecialidades cardiológicas', () => {
@@ -53,9 +69,10 @@ describe('Catálogo — consultas por especialidad (definidas por el Dr. D’Ale
     ]);
   });
 
-  it('toda consulta por especialidad se ofrece presencial y por teleconsulta, con cargo: ARS 150.000 y 30 min (lista 26/09/2026)', () => {
-    expect(CONSULTAS_POR_ESPECIALIDAD).toHaveLength(12);
-    for (const s of CONSULTAS_POR_ESPECIALIDAD) {
+  it('toda consulta de la lista oficial se ofrece presencial y por teleconsulta, con cargo: ARS 150.000 y 30 min (lista 26/09/2026)', () => {
+    expect(CONSULTAS_LISTA_OFICIAL).toHaveLength(12);
+    expect(CONSULTAS_POR_ESPECIALIDAD).toHaveLength(12 + 9);
+    for (const s of CONSULTAS_LISTA_OFICIAL) {
       expect(s.modalidades).toEqual(['presencial', 'teleconsulta']);
       expect(s.incluidaEnPlan).toBeUndefined();
       expect(s.soloDesdeTarea).toBeUndefined();
@@ -66,6 +83,40 @@ describe('Catálogo — consultas por especialidad (definidas por el Dr. D’Ale
       expect(s.valorReferenciaARS).toBeUndefined();
       expect(s.nota ?? '').not.toMatch(/PENDIENTE/);
     }
+  });
+
+  it('las nueve derivaciones del catálogo firmado (27/09/2026) se agendan solo desde la tarea del plan (R-20)', () => {
+    expect(DERIVACIONES_PB100D.map((s) => s.codigo)).toEqual([
+      'NEFROLOGIA',
+      'HEPATOLOGIA',
+      'OFTALMOLOGIA',
+      'CIRUGIA_VASCULAR',
+      'PSICOLOGIA',
+      'TRABAJO_SOCIAL',
+      'PODOLOGIA',
+      'FARMACIA_CLINICA',
+      'KINESIOLOGIA',
+    ]);
+    for (const s of DERIVACIONES_PB100D) {
+      expect(s.soloDesdeTarea).toBe(true);
+      expect(seAgendaSinTarea(s.codigo)).toBe(false);
+      expect(s.incluidaEnPlan).toBeUndefined();
+      expect(s.modalidades).toEqual(['presencial', 'teleconsulta']);
+      expect(s.duracionMin).toBe(30);
+      expect(GRUPOS_DERIVACION_PB100D).toContain(s.grupo);
+    }
+    // Consultas médicas por especialidad: precio de lista (R-17). Profesiones fuera de la lista: PENDIENTE.
+    for (const codigo of ['NEFROLOGIA', 'HEPATOLOGIA', 'OFTALMOLOGIA', 'CIRUGIA_VASCULAR']) {
+      expect(getServicio(codigo).precioARS).toBe(150_000);
+      expect(getServicio(codigo).nota ?? '').not.toMatch(/PENDIENTE/);
+    }
+    for (const codigo of ['PSICOLOGIA', 'TRABAJO_SOCIAL', 'PODOLOGIA', 'FARMACIA_CLINICA', 'KINESIOLOGIA']) {
+      expect(getServicio(codigo).precioARS).toBe(0);
+      expect(getServicio(codigo).nota).toMatch(/PENDIENTE/);
+    }
+    expect(getServicio('NEFROLOGIA').especialidad).toEqual({ snomed: '394589003', snomedDisplay: 'Nephrology', nombre: 'Nefrología' });
+    expect(getServicio('CIRUGIA_VASCULAR').especialidad).toEqual({ nombre: 'Cirugía Vascular' });
+    expect(recursosParaCategoria('KINESIOLOGIA').map((r) => r.tipo)).toEqual(['SALA']);
   });
 
   it('el control GLP-1 sigue con precio PENDIENTE (decisión abierta) y 45 min provisionales', () => {

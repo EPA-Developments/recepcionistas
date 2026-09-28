@@ -82,22 +82,31 @@ describe('Integridad del catálogo', () => {
     }
   });
 
-  it('Son las consultas por especialidad, la consulta del Plan Bienestar y el control GLP-1', () => {
+  it('Son las consultas por especialidad, las derivaciones del catálogo firmado del plan, la consulta del Plan Bienestar y el control GLP-1', () => {
     expect(SERVICIOS.map((s) => s.codigo).sort()).toEqual([
       'CARDIOLOGIA',
+      'CIRUGIA_VASCULAR',
       'CONSULTA_PB100D',
       'CONTROL_GLP1',
       'DIABETOLOGIA_ENDOCRINOLOGIA',
       'ELECTROFISIOLOGIA',
+      'FARMACIA_CLINICA',
       'GINECOLOGIA',
       'HEMODINAMIA',
+      'HEPATOLOGIA',
       'INSUFICIENCIA_CARDIACA',
+      'KINESIOLOGIA',
       'MEDICINA_NUCLEAR',
+      'NEFROLOGIA',
       'NEUROLOGIA',
       'NUTRICION',
+      'OFTALMOLOGIA',
+      'PODOLOGIA',
       'PREVENCION_CV',
+      'PSICOLOGIA',
       'REHABILITACION_CV',
       'TISIONEUMONOLOGIA',
+      'TRABAJO_SOCIAL',
     ]);
   });
 });
