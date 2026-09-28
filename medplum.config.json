@@ -161,6 +161,24 @@
       "id": "",
       "source": "src/bots/whatsapp-responder.ts",
       "dist": "dist/bots/whatsapp-responder.js"
+    },
+    {
+      "name": "som-teleconsulta-entrar",
+      "id": "",
+      "source": "src/bots/teleconsulta-entrar.ts",
+      "dist": "dist/bots/teleconsulta-entrar.js"
+    },
+    {
+      "name": "som-teleconsulta-cancelar",
+      "id": "",
+      "source": "src/bots/teleconsulta-cancelar.ts",
+      "dist": "dist/bots/teleconsulta-cancelar.js"
+    },
+    {
+      "name": "som-teleconsulta-pago",
+      "id": "",
+      "source": "src/bots/teleconsulta-pago.ts",
+      "dist": "dist/bots/teleconsulta-pago.js"
     }
   ]
 }

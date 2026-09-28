@@ -35,7 +35,8 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   en `src/lib/solicitudes.ts`), que avisa a Recepción por WhatsApp (secret
   `RECEPCION_WHATSAPP_TO`). La app de recepción tiene la vista **"Solicitudes"**
   para confirmarlas con los bots de reserva. El paciente solo **lee** sus `Task` y
-  solo puede **ejecutar** ese bot y `som-solicitar`: no escribe agenda.
+  solo puede **ejecutar** ese bot, `som-reservar-portal`, `som-solicitar` y los de su
+  teleconsulta (`som-teleconsulta-*`): no escribe agenda.
 - **Mensajes.** El paciente abre una conversación desde "Mensajes" del portal
   (`Communication` topic con el motivo en `topic` — `SYSTEM.motivoMensaje` — y sus
   mensajes hijos con `partOf`, el modelo del ThreadInbox de Medplum). Recepción la
@@ -69,6 +70,13 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   (`modalidad` en `som-solicitar-turno`). La teleconsulta exige el consentimiento de
   teleconsulta (un `Consent` que registra el portal) y el turno trae el link de Jitsi.
   Contrato y tareas del portal: [`handoff-app-pb100d.md`](handoff-app-pb100d.md).
+  Lo que la paciente hace con su teleconsulta pasa por **bots de SOM** (nunca por bots de
+  otro proyecto), todos con `{ appointmentId }` y respuesta `{ ok, mensaje? … }`:
+  **`som-teleconsulta-entrar`** (link de la videollamada y presencia; `abre` si todavía no
+  abrió la sala, `pagar` si falta la seña), **`som-teleconsulta-cancelar`** (R-14: primero
+  sin `confirmar` para mostrar qué pasa, después con `confirmar: true`) y
+  **`som-teleconsulta-pago`** (link de la seña de una reserva tentativa). Cada bot verifica
+  que el turno sea de quien lo ejecuta (`requester`) y que sea una teleconsulta.
 - **Seguimiento GLP-1.** El programa del paciente (`CarePlan` + `Goal`), el estado
   de cada control (`Task` `agendar-control-glp1`, con su turno en `output`) y los
   estudios de cada semana (`ServiceRequest` con `basedOn` el `CarePlan`). Es lo

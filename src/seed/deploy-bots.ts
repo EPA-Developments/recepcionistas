@@ -68,6 +68,14 @@ const BOTS: DefBot[] = [
   // WhatsApp (Twilio): canal de las conversaciones de Mensajes (docs/whatsapp.md).
   { name: BOT_WHATSAPP_ENTRANTE, source: 'src/bots/whatsapp-entrante.ts', dist: 'dist/bots/whatsapp-entrante.js', description: 'WhatsApp (webhook de Twilio): el mensaje entra en la conversación abierta del paciente (o abre una), un número nuevo es un lead con su aviso a Recepción (pestaña WhatsApp y campanita), respuestas automáticas (acuse / fuera de horario) y los estados de entrega (✓✓).' },
   { name: BOT_WHATSAPP_RESPONDER, source: 'src/bots/whatsapp-responder.ts', dist: 'dist/bots/whatsapp-responder.js', description: 'Mensajes (Recepción): manda por WhatsApp la respuesta si el paciente escribió por WhatsApp y la ventana de 24 h sigue abierta (texto y adjuntos).' },
+  // Agenda y reserva desde el portal (R-22, R-23): estaban en medplum.config.json pero no se deployaban.
+  { name: 'som-generar-agenda', source: 'src/bots/generar-agenda.ts', dist: 'dist/bots/generar-agenda.js', description: 'Cron (R-22): genera las franjas libres (Slot) de la agenda de cada profesional desde su disponibilidad semanal, dentro del horario del centro.' },
+  { name: 'som-reservar-portal', source: 'src/bots/reservar-portal.ts', dist: 'dist/bots/reservar-portal.js', description: 'Portal (R-23): la paciente elige una franja libre y el bot reserva con las reglas de Recepción (confirmada si es del plan; tentativa con el link de la seña si no).' },
+  { name: 'som-vencer-reservas', source: 'src/bots/vencer-reservas.ts', dist: 'dist/bots/vencer-reservas.js', description: 'Cron (R-23): cancela las reservas tentativas del portal vencidas sin seña, libera sus franjas y avisa a la paciente.' },
+  // Teleconsulta desde el portal (R-21, R-14, R-23): bots de SOM, cada uno verifica que el turno sea de quien lo ejecuta.
+  { name: 'som-teleconsulta-entrar', source: 'src/bots/teleconsulta-entrar.ts', dist: 'dist/bots/teleconsulta-entrar.js', description: 'Portal: la paciente entra a la videollamada de su teleconsulta confirmada (link de Jitsi) y marca su presencia (arrived + Encounter VR).' },
+  { name: 'som-teleconsulta-cancelar', source: 'src/bots/teleconsulta-cancelar.ts', dist: 'dist/bots/teleconsulta-cancelar.js', description: 'Portal: la paciente cancela su teleconsulta (R-14: primero ve qué pasa con la seña), libera las franjas y avisa a Recepción si había seña.' },
+  { name: 'som-teleconsulta-pago', source: 'src/bots/teleconsulta-pago.ts', dist: 'dist/bots/teleconsulta-pago.js', description: 'Portal: vuelve a abrir el link de MercadoPago de la seña de una teleconsulta tentativa (R-23).' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */

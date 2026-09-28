@@ -126,6 +126,20 @@ describe('Seed — AccessPolicy de recepción (privacidad por diseño)', () => {
   });
 });
 
+// `npm run deploy:bots` deploya su propia lista (`src/seed/deploy-bots.ts`): un bot que está en
+// medplum.config.json pero no en esa lista nunca llega al servidor (le pasó a som-reservar-portal:
+// el portal decía "La reserva online todavía no está disponible").
+describe('Deploy de bots', () => {
+  it('Deploya todos los bots de medplum.config.json', () => {
+    const config = JSON.parse(readFileSync(new URL('../medplum.config.json', import.meta.url), 'utf8')) as {
+      bots: Array<{ name: string; source: string }>;
+    };
+    const deploy = readFileSync(new URL('../src/seed/deploy-bots.ts', import.meta.url), 'utf8');
+    const faltan = config.bots.filter((b) => !deploy.includes(`source: '${b.source}'`)).map((b) => b.name);
+    expect(faltan).toEqual([]);
+  });
+});
+
 describe('Seed — AccessPolicy del portal del paciente', () => {
   const portal = seed.accessPolicies.find((p) => p.name === 'Paciente SOM — Portal')!;
   const entradas = (portal.resource ?? []).map((r) => `${r.resourceType}${r.readonly ? ' (lectura)' : ''} ${r.criteria ?? ''}`.trim());
@@ -181,11 +195,28 @@ describe('Seed — AccessPolicy del portal del paciente', () => {
     expect(entradas.filter((e) => e.startsWith('Coverage Coverage?') && !e.includes('|HIP'))).toEqual([]);
   });
 
-  it('Solo ejecuta sus tres bots: reservar (R-23), solicitar turno y solicitar SOM', () => {
+  it('Solo ejecuta sus bots: reservar (R-23), solicitar turno, solicitar SOM y los de su teleconsulta', () => {
     expect(entradas.filter((e) => e.startsWith('Bot'))).toEqual([
       'Bot (lectura) Bot?name=som-reservar-portal',
       'Bot (lectura) Bot?name=som-solicitar-turno',
       'Bot (lectura) Bot?name=som-solicitar',
+      'Bot (lectura) Bot?name=som-teleconsulta-entrar',
+      'Bot (lectura) Bot?name=som-teleconsulta-cancelar',
+      'Bot (lectura) Bot?name=som-teleconsulta-pago',
     ]);
+  });
+
+  // Los criterios `Bot?name=` son por PREFIJO: ninguno de los bots del portal puede ser el
+  // comienzo del nombre de otro bot del proyecto (p. ej. `som-solicitar` y `som-solicitar-turno`,
+  // que el portal ejecuta los dos).
+  it('Ningún bot del portal es prefijo de un bot que el portal no ejecuta', () => {
+    const config = JSON.parse(readFileSync(new URL('../medplum.config.json', import.meta.url), 'utf8')) as {
+      bots: Array<{ name: string }>;
+    };
+    const delPortal = entradas.filter((e) => e.startsWith('Bot')).map((e) => e.split('Bot?name=')[1]!);
+    const otros = config.bots.map((b) => b.name).filter((n) => !delPortal.includes(n));
+    for (const h of delPortal) {
+      expect(otros.filter((o) => o.startsWith(h))).toEqual([]);
+    }
   });
 });

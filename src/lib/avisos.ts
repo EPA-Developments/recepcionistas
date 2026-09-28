@@ -98,6 +98,18 @@ export function alertaRecepcionPagoTurnoCancelado(d: { paciente?: string; descri
   );
 }
 
+/**
+ * Alerta a Recepción: la paciente canceló desde el portal una teleconsulta con la seña paga.
+ * R-14: con 24 h o más la seña no se pierde; con menos, la sesión se consume (salvo fuerza
+ * mayor médica, que autoriza un médico).
+ */
+export function alertaRecepcionCancelacionPortal(d: { paciente?: string; descripcion: string; inicio: Date; consumeSesion: boolean }): string {
+  const r14 = d.consumeSesion
+    ? 'Canceló con menos de 24 h: sesión consumida, la seña no se devuelve (salvo fuerza mayor médica autorizada por un médico).'
+    : 'Canceló con 24 h o más: la seña no se pierde, contactala para reintegrarla o usarla en otro turno.';
+  return `${FIRMA} · Portal: ${d.paciente?.trim() || 'Una paciente'} canceló "${d.descripcion}" del ${fmtFechaHora.format(d.inicio)}. ${r14}`;
+}
+
 /** Alerta a Recepción: llegó un pago de MercadoPago que no cubre la seña (no se confirmó el turno). */
 export function alertaRecepcionPagoNoCubre(d: { paciente?: string; descripcion: string; problema: string }): string {
   return (

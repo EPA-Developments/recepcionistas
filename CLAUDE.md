@@ -34,7 +34,8 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 - `src/lib` — **lógica pura** (sin red): `money`, `pricing`, `reglas-turno`,
   `glp1-plan` (armado FHIR del seguimiento GLP-1), `plan-bienestar` (Plan
   Bienestar 100 Días®), `teleconsulta` (modalidad, consentimiento, Jitsi),
-  `programas` (ventanas y sincronización comunes), `whatsapp` (WhatsApp como canal de
+  `teleconsulta-portal` (lo que la paciente hace con su teleconsulta desde el portal:
+  entrar, cancelar con R-14, pagar la seña), `programas` (ventanas y sincronización comunes), `whatsapp` (WhatsApp como canal de
   Mensajes: E.164, webhook de Twilio, a dónde responder), `contactos-whatsapp` (el aviso
   `Task` de un número nuevo: pestaña WhatsApp y campanita), `seguimiento-whatsapp` (el paso a
   paso de la prueba de WhatsApp, cruzado con Twilio) y `auto-respuesta`

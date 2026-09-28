@@ -25,6 +25,13 @@ export const RETENCION_RESERVA_PORTAL_MIN = 30;
  */
 export const ANTICIPACION_MINIMA_PORTAL_MIN = RETENCION_RESERVA_PORTAL_MIN;
 
+/**
+ * Teleconsulta desde el portal (R-21): la paciente puede entrar a la videollamada desde
+ * estos minutos antes del inicio (bot `som-teleconsulta-entrar`). PROVISIONAL: a validar
+ * por el equipo médico; ver docs/decisiones-pendientes.md.
+ */
+export const ENTRADA_TELECONSULTA_MIN = 15;
+
 /** Cancelación / reagenda (R-14). */
 export const CANCELACION = {
   /** Cancelar/reagendar con menos de estas horas => sesión consumida. */
