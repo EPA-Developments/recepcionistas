@@ -25,6 +25,7 @@
     "email:test": "tsx src/seed/diagnostico-email.ts",
     "whatsapp:test": "tsx src/seed/diagnostico-whatsapp.ts",
     "whatsapp:plantillas": "tsx src/seed/plantillas-whatsapp.ts",
+    "whatsapp:seguimiento": "tsx src/seed/seguimiento-whatsapp.ts",
     "webhooks": "tsx src/seed/webhooks.ts",
     "mercadopago:test": "tsx src/seed/diagnostico-mercadopago.ts",
     "mercadopago:e2e": "tsx src/seed/prueba-mercadopago.ts",

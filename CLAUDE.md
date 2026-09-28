@@ -36,7 +36,8 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
   Bienestar 100 Días®), `teleconsulta` (modalidad, consentimiento, Jitsi),
   `programas` (ventanas y sincronización comunes), `whatsapp` (WhatsApp como canal de
   Mensajes: E.164, webhook de Twilio, a dónde responder), `contactos-whatsapp` (el aviso
-  `Task` de un número nuevo: pestaña WhatsApp y campanita) y `auto-respuesta`
+  `Task` de un número nuevo: pestaña WhatsApp y campanita), `seguimiento-whatsapp` (el paso a
+  paso de la prueba de WhatsApp, cruzado con Twilio) y `auto-respuesta`
   (ventana de 24 h, horario, respuestas automáticas). Es lo que se testea
   exhaustivamente. `src/lib/glp1/` es el calendario GLP-1 **compartido con la
   plataforma CKM**: se mantiene igual al original (solo imports), sin lógica de SOM.
@@ -92,6 +93,7 @@ npm run seed               # carga el catálogo en Medplum (credenciales en .env
 npm run deploy:bots        # deploy de bots (medplum CLI)
 npm run webhooks           # webhooks de Twilio y MercadoPago: ClientApplications, secrets y prueba
 npm run whatsapp:plantillas  # plantillas de Meta (estado; con -- --aplicar crea y manda a aprobación)
+npm run whatsapp:seguimiento -- +549…  # prueba de WhatsApp de un celular: paso a paso, Medplum cruzado con Twilio
 npm run mercadopago:e2e    # MercadoPago de punta a punta: turno de prueba, link y espera del pago (pago REAL)
 npm run mercadopago:ordenes  # pagos de MercadoPago cruzados con Medplum; --pago <id>: detalle y calidad
 ```
