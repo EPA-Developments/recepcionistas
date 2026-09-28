@@ -42,6 +42,11 @@ export interface DatosSeguimiento {
   /** Los mensajes de su conversación más reciente (en cualquier orden). */
   mensajes: Communication[];
   ahora: Date;
+  /**
+   * El celular es `RECEPCION_WHATSAPP_TO` (el que recibe los avisos internos): el bot ignora
+   * a propósito sus mensajes, no es un paciente.
+   */
+  esRecepcion?: boolean;
 }
 
 const MARCA: Readonly<Record<EstadoPaso, string>> = { ok: '✓', pendiente: '·', falla: '✗', 'no-aplica': '–' };
@@ -131,7 +136,16 @@ export function pasosSeguimiento(d: DatosSeguimiento): PasoSeguimiento[] {
   );
 
   // 2) Quién es en SOM.
-  if (!d.paciente) {
+  if (d.esRecepcion) {
+    pasos.push({
+      titulo: 'Quién es en SOM',
+      estado: 'falla',
+      detalle:
+        'Es el número de Recepción (Project Secret RECEPCION_WHATSAPP_TO, el que recibe los avisos internos): ' +
+        'som-whatsapp-entrante ignora a propósito sus mensajes, no es un paciente. Para probar, usá otro celular ' +
+        '(o poné otro número en RECEPCION_WHATSAPP_TO).',
+    });
+  } else if (!d.paciente) {
     pasos.push({
       titulo: 'Quién es en SOM',
       estado: 'pendiente',
@@ -328,7 +342,8 @@ export function lineaMensajeTwilio(
   ahora: Date,
 ): string {
   const entrante = esEntranteTwilio(m);
-  const error = m.error_code ? explicarErrorTwilio(m.error_code) : undefined;
+  // En un entrante, el código es del webhook (p. ej. 12300); en un saliente, de la entrega.
+  const error = m.error_code ? (entrante ? explicarAlertaTwilio(m.error_code) : explicarErrorTwilio(m.error_code)) : undefined;
   const donde = ubicaciones.get(m.sid);
   const enSom =
     donde === undefined

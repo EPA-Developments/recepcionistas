@@ -742,6 +742,26 @@ export function horaMensaje(iso: string | undefined): string {
   return iso ? fmtHora.format(new Date(iso)) : '';
 }
 
+const fmtFechaHora = new Intl.DateTimeFormat('es-AR', {
+  timeZone: TZ,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
+/**
+ * "28/09/2026, 20:27:08" en Argentina, siempre en 24 h (`toLocaleString('es-AR')` da 12 h
+ * sin "p. m." y las 20:27 se leen como 08:27). Vacío si no hay fecha o no es válida.
+ */
+export function fechaHoraAR(fecha: string | Date | undefined): string {
+  const d = fecha === undefined ? undefined : new Date(fecha);
+  return d && !Number.isNaN(d.getTime()) ? fmtFechaHora.format(d) : '';
+}
+
 
 /** Separador de día del chat: "Hoy", "Ayer" o "lunes 21/09". */
 export function etiquetaDia(iso: string, ahora: Date = new Date()): string {

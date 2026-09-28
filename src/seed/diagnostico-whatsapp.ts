@@ -25,6 +25,7 @@ import type { Communication, ProjectSetting } from '@medplum/fhirtypes';
 import { PLANTILLA_AVISO } from '../config/plantillas-whatsapp.js';
 import { BOT_WHATSAPP_ENTRANTE } from '../fhir/identifiers.js';
 import { modoUrlWebhook, problemasUrlWebhookTwilio, SECRETS_TWILIO, WEBHOOK_TWILIO } from '../lib/webhooks.js';
+import { fechaHoraAR } from '../lib/whatsapp.js';
 import { conectarMedplum } from './conexion.js';
 import { leerSecretos, valorSecreto } from './secretos.js';
 
@@ -46,7 +47,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const body = `Segunda Opinión Médica · prueba de WhatsApp (${new Date().toLocaleString('es-AR')}). Si lo recibiste, Twilio funciona. 💙`;
+  const body = `Segunda Opinión Médica · prueba de WhatsApp (${fechaHoraAR(new Date())}). Si lo recibiste, Twilio funciona. 💙`;
   const comm = (await medplum.executeBot(bot.id, { to, template: 'diagnostico', body })) as Communication;
   const status = comm?.status;
   console.log(`\nCommunication creada: ${comm?.id ?? '(sin id)'} · status = ${status ?? '(desconocido)'}`);

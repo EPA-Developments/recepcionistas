@@ -30,6 +30,7 @@ import {
   type CuentaMP,
   type PagoMPDetalle,
 } from '../lib/mercadopago.js';
+import { fechaHoraAR } from '../lib/whatsapp.js';
 import { conectarMedplum } from './conexion.js';
 import { leerSecretos, valorSecreto } from './secretos.js';
 
@@ -54,7 +55,7 @@ function pesos(n: number | undefined, moneda?: string): string {
 }
 
 function fecha(iso: string | undefined): string {
-  return iso ? new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '¿fecha?';
+  return fechaHoraAR(iso) || '¿fecha?';
 }
 
 /** ¿El webhook aplicó el pago en Medplum? (Invoice `mp-<id>` y estado del turno.) */
