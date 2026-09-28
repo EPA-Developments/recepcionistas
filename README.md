@@ -85,10 +85,14 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 ```
 src/
   domain/      Tipos de dominio (agnósticos de FHIR)
-  config/      Catálogo (consultas de cardiología + subespecialidades), médicos,
-               recursos (consultorios/salas), horario, TC, constantes de reglas
-  lib/         Lógica pura: money, pricing, reglas-turno, glp1-plan (testeable sin
-               servidor); glp1/ = calendario GLP-1 compartido con la plataforma CKM
+  config/      Catálogo (consultas de cardiología + subespecialidades + derivaciones
+               del plan), médicos, recursos (consultorios/salas), horario, TC,
+               constantes de reglas; catalogo-pb100d.ts = alertas y derivaciones del
+               catálogo firmado del Plan Bienestar (GENERADO desde el monorepo)
+  lib/         Lógica pura: money, pricing, reglas-turno, glp1-plan, ckm (estadío),
+               ckm-guia (plan), ckm-catalogo (alertas del catálogo firmado), prevent
+               (testeable sin servidor); glp1/ = calendario GLP-1 compartido con la
+               plataforma CKM
   fhir/        Identificadores, extensiones (StructureDefinition), AccessPolicies
   bots/        Medplum Bots: calcular-cobro, validar-turno, enviar-whatsapp
   seed/        Builders FHIR + runner del seed

@@ -144,7 +144,7 @@ Namespace `https://segundaopinionmedica.org/fhir` (`src/fhir/identifiers.ts`).
 | Recurso | Qué es | Claves |
 |---|---|---|
 | `PlanDefinition` | Plantilla del plan (la carga el seed) | `url` `…/PlanDefinition/plan-bienestar-100`, 3 `action` (`inicial`, `mitad`, `final`; desfasajes 42–56 y 92–106 días después de la inicial), `copyright` con la marca registrada |
-| `ActivityDefinition` | Catálogo: 12 consultas por especialidad, la consulta del plan (`CONSULTA_PB100D`) y el control GLP-1 | `topic` (SNOMED + `CodeSystem/grupo-especialidad`), `useContext` `workflow` (v3-ActCode `AMB`/`VR`) y `program` (la del plan). Buscable: `ActivityDefinition?context=http://terminology.hl7.org/CodeSystem/v3-ActCode\|VR` |
+| `ActivityDefinition` | Catálogo: 12 consultas por especialidad de la lista oficial, 9 derivaciones del catálogo firmado del plan (Nefrología, Hepatología, Oftalmología, Cirugía Vascular, Psicología, Trabajo Social, Podología, Farmacia Clínica y Kinesiología; `soloDesdeTarea`, R-20), la consulta del plan (`CONSULTA_PB100D`) y el control GLP-1 | `topic` (SNOMED + `CodeSystem/grupo-especialidad`), `useContext` `workflow` (v3-ActCode `AMB`/`VR`) y `program` (la del plan). Buscable: `ActivityDefinition?context=http://terminology.hl7.org/CodeSystem/v3-ActCode\|VR` |
 | `CarePlan` | El plan del paciente | category `care-plans\|plan-bienestar-100` y `period` de 100 días (contrato del portal, sin cambios); `instantiatesCanonical` a la plantilla; una `activity` por consulta (`detail.code` `CodeSystem/consulta-plan-bienestar`, ventana en `scheduledPeriod`, estado `not-started` → `scheduled` → `completed`) y las consultas extra como `activity.reference` → `Appointment` |
 | `Task` | Tarea de Recepción: agendar una consulta del plan | `code` `task-tipo\|agendar-consulta-pb100d`, identifier `…/Identifier/programa-bienestar\|{carePlanId}:{consulta}`, `basedOn` el CarePlan, `restriction.period` (ventana), `input` `consulta`/`dia`/`servicio`, `output` → `Appointment` |
 | `PractitionerRole` / `Schedule` / `Slot` | El profesional y su agenda (R-22) | `PractitionerRole.code` incluye `rol-profesional\|seguimiento-pb100d` y `servicio\|CONSULTA_PB100D`; `Schedule` identifier `CodeSystem/medico\|SCH_{codigo}`; `Slot` libres de 30 min (`status=free`), identifier `{codigo}@{inicio}`, con la extensión `modalidad` (AMB / VR) una vez por modalidad en que se puede reservar. Horarios disponibles: `Slot?schedule=Schedule/{id}&status=free&start=ge{ahora}` (filtrar por la modalidad elegida) |
@@ -158,7 +158,16 @@ Namespace `https://segundaopinionmedica.org/fhir` (`src/fhir/identifiers.ts`).
 Contrato y tareas para `EPA-Developments/app`: [`handoff-app-pb100d.md`](handoff-app-pb100d.md).
 Lo que ya lee el portal no cambia: la tarjeta de progreso sigue detectando el plan por
 category y período. La policy del paciente ahora lee `ActivityDefinition` (el
-catálogo), para armar "Pedir un turno" sin listas escritas a mano.
+catálogo), para armar "Pedir un turno" sin listas escritas a mano, y escribe el
+`CarePlan` que instancia la PlanDefinition única por estadío CKM 0–4 del monorepo
+(`https://epa-bienestar.ar/fhir/PlanDefinition/pb100d-ckm`) además de la de menopausia.
+El espejo de la policy en `EPA-Developments/app` (`docs/medplum/access-policy-paciente-portal.json`)
+debe recibir la misma entrada cuando el portal pase a instanciar `pb100d-ckm` (fase 4).
+
+Las derivaciones del catálogo firmado (`src/config/catalogo-pb100d.ts`, ver
+[`som.md`](som.md#alertas-y-derivaciones-del-catálogo-firmado-del-plan-bienestar-100-días-ckm-catalogots))
+tienen su consulta en el catálogo (`DERIVACIONES_PB100D`): el portal las muestra en su
+grupo pero no las ofrece sin la tarea de derivación del plan (`soloDesdeTarea`, R-20).
 
 ## Pendientes
 

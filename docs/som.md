@@ -155,6 +155,43 @@ Presidential Advisory de 2023. Umbrales en `src/config/ckm.ts`; lógica pura en
   También van al prompt de Claude y al informe de respaldo (`pending-studies` lista
   las evaluaciones que sugiere la guía).
 
+### Alertas y derivaciones del catálogo firmado del Plan Bienestar 100 Días® (`ckm-catalogo.ts`)
+
+Los catálogos por estadío CKM 0 a 4 firmados el 27/09/2026 por los Dres. Barbagelata y
+D'Alessandro (monorepo `plan-bienestar-100-dias`, `docs/catalogo-pb100d/`) traen, además
+de lo que hace la persona, **alertas al médico** (umbral + COR/LOE) y **derivaciones**
+por especialidad. Recepción los evalúa con su propia estadificación:
+
+- `src/config/catalogo-pb100d.ts` es un archivo **GENERADO** desde el monorepo
+  (`npm run exportar:recepcion -- <ruta>` en `packages/careplan-menopausia`): 239 ítems
+  de audiencia profesional (188 alertas y 51 derivaciones), con sus estadíos,
+  condiciones (`condiciones` todas, `algunaDe` alguna, `excluye` ninguna), momentos,
+  responsable, texto, fuente y COR/LOE. No se edita a mano: se cambia en el monorepo y
+  se vuelve a exportar (la firma queda en `FIRMA_CATALOGO_PB100D`).
+- `src/lib/ckm-catalogo.ts` (puro) traduce el estadío (`ckm.ts`), la entrada clínica y
+  el riesgo PREVENT al vocabulario de condiciones del catálogo con las mismas reglas que
+  `condicionesDesdeCkm` del monorepo (bandas de IMC, PA elevada y 180/110, TG ≥ 500,
+  UACR 30/100/200, eGFR < 45 / < 30, falla renal, calcio coronario 0 / ≥ 100 / ≥ 1000,
+  pre-IC, hipertensión pulmonar, ECV por tipo y fenotipo de IC por FEVI, bandas PREVENT
+  de la Tabla 8, edad, "≥ 2 factores"), y elige los ítems que aplican
+  (`alertasCatalogo(perfil, { momentos, tipos })`).
+- `src/lib/ckm-fhir.ts` → `condicionesExtrasDesdeFhir` lee de la historia lo que no
+  sale de la estadificación: medicación por clase (GLP-1, SGLT2i, RASi/MRA, estatina,
+  antitrombótico, fármacos para obesidad, insulina y sulfonilureas), polifarmacia
+  (≥ 5), tabaquismo, menopausia, embarazo, DMG previa, alcohol, PHQ/GAD, potasio > 5,5,
+  déficit de hierro, FIB-4 > 2,67 y potenciadores. Lo que no está codificado ni nombrado
+  de forma reconocible (STOP-BANG, AHC-HRSN, eventos, "se inicia RASi", ancestría,
+  fragilidad, LDL fuera de meta) lo registra el equipo: no se infiere.
+- El informe SOM evalúa los momentos **día 0** y **evento** (`MOMENTOS_INFORME_SOM`); los
+  hitos 30/60/100 son del seguimiento del plan (fase 4, app de la paciente). El resumen
+  va como nota del mismo `RiskAssessment`, al prompt de Claude (la instrucción le pide
+  retomarlas con su código y evidencia en `conclusions` y `pending-studies`, sin
+  agregar otras ni cambiar el umbral) y a `conclusions` del informe de respaldo.
+- Cada derivación con consulta propia apunta a un servicio del catálogo
+  (`SERVICIO_POR_RESPONSABLE_PB100D` / `servicioDeDerivacion`), que se agenda solo
+  desde la tarea de derivación del plan (R-20). Soporte a la decisión: el sistema no
+  prescribe ni deriva por su cuenta.
+
 ## Laboratorio en PDF (`som-procesar-laboratorio`)
 
 1. Lee el PDF del `DocumentReference`: por `url` (`medplum.download`) o embebido en

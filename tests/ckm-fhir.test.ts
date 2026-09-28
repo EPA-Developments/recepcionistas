@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Condition, MedicationRequest, Observation } from '@medplum/fhirtypes';
-import { entradaCkmDesdeFhir, potenciadoresCkm, ultimoValor } from '../src/lib/ckm-fhir.js';
+import { condicionesExtrasDesdeFhir, entradaCkmDesdeFhir, fib4, potenciadoresCkm, ultimoValor } from '../src/lib/ckm-fhir.js';
 import { estadificarCkm } from '../src/lib/ckm.js';
 
 const obs = (code: string, value: number, unit: string, fecha = '2026-09-01'): Observation => ({
@@ -178,5 +178,96 @@ describe('CKM desde FHIR — Guía 2026: pre-IC, aterosclerosis subclínica, AIT
       'antecedente familiar de diabetes',
       'PCR us 3.1 mg/L (≥ 2)',
     ]);
+  });
+});
+
+describe('Condiciones del catálogo PB100D leídas de la historia', () => {
+  const med = (text: string, status: MedicationRequest['status'] = 'active'): MedicationRequest => ({
+    resourceType: 'MedicationRequest',
+    status,
+    intent: 'order',
+    subject: { reference: 'Patient/p1' },
+    medicationCodeableConcept: { text },
+  });
+  const vacio = { condiciones: [], observaciones: [], medicacion: [] };
+
+  it('medicación por clase (solo prescripciones activas) y polifarmacia con ≥ 5 fármacos', () => {
+    const c = condicionesExtrasDesdeFhir({
+      ...vacio,
+      medicacion: [
+        med('Semaglutida 1 mg semanal'),
+        med('Empagliflozina 10 mg'),
+        med('Enalapril 10 mg'),
+        med('Atorvastatina 40 mg'),
+        med('Aspirina 100 mg'),
+        med('Insulina glargina'),
+        med('Orlistat 120 mg', 'stopped'),
+      ],
+    });
+    expect(c).toEqual([
+      'toma-glp1',
+      'toma-sglt2i',
+      'toma-rasi-mra',
+      'toma-estatina',
+      'toma-antitrombotico',
+      'riesgo-hipoglucemia',
+      'polifarmacia',
+    ]);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, medicacion: [med('Losartán 50 mg'), med('Wegovy 2,4 mg')] })).toEqual([
+      'toma-glp1',
+      'toma-rasi-mra',
+      'farmaco-obesidad',
+    ]);
+  });
+
+  it('tabaquismo por problema o por estado de tabaquismo (LOINC 72166-2); ex fumador no cuenta', () => {
+    expect(condicionesExtrasDesdeFhir({ ...vacio, condiciones: [cond({ system: ICD10, code: 'F17.2' })] })).toEqual(['fuma']);
+    const fumadorActual: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: { coding: [{ system: 'http://loinc.org', code: '72166-2' }] },
+      valueCodeableConcept: { coding: [{ system: 'http://snomed.info/sct', code: '449868002', display: 'Current every day smoker' }] },
+    };
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [fumadorActual] })).toEqual(['fuma']);
+    const exFumador: Condition = { resourceType: 'Condition', subject: { reference: 'Patient/p1' }, code: { text: 'Ex fumador' } };
+    expect(condicionesExtrasDesdeFhir({ ...vacio, condiciones: [exFumador] })).toEqual([]);
+  });
+
+  it('menopausia (hallazgos SNOMED del plan), embarazo, DMG previa aunque esté resuelta, alcohol', () => {
+    const c = condicionesExtrasDesdeFhir({
+      ...vacio,
+      condiciones: [
+        cond({ system: 'http://snomed.info/sct', code: '76498008' }),
+        cond({ system: ICD10, code: 'Z34.0' }),
+        cond({ system: ICD10, code: 'O24.4' }, 'resolved'),
+        cond({ system: ICD10, code: 'F10.2' }),
+      ],
+    });
+    expect(c).toEqual(['menopausia', 'embarazo', 'alcohol', 'dmg-previa']);
+  });
+
+  it('cuestionarios PHQ-2/GAD-2 ≥ 3 o PHQ-9/GAD-7 ≥ 10', () => {
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('55758-7', 3, '{score}')] })).toEqual(['phq-gad-positivo']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('70274-6', 12, '{score}')] })).toEqual(['phq-gad-positivo']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('44261-6', 6, '{score}')] })).toEqual([]);
+  });
+
+  it('laboratorio: potasio > 5,5; déficit de hierro (ferritina < 100, o < 300 con saturación < 20 %); FIB-4 > 2,67', () => {
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('2823-3', 5.8, 'mmol/L')] })).toEqual(['hiperpotasemia']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('2823-3', 5.0, 'mmol/L')] })).toEqual([]);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('2276-4', 80, 'ng/mL')] })).toEqual(['deficit-hierro']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('2276-4', 200, 'ng/mL'), obs('2502-3', 15, '%')] })).toEqual(['deficit-hierro']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('2276-4', 200, 'ng/mL'), obs('2502-3', 25, '%')] })).toEqual([]);
+    // FIB-4 = (60 × 80) / (120 × √40) ≈ 6,3.
+    const hepatograma = [obs('1920-8', 80, 'U/L'), obs('1742-6', 40, 'U/L'), obs('777-3', 120, '10*3/uL')];
+    expect(fib4(60, 80, 40, 120)).toBeCloseTo(6.32, 1);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: hepatograma, edad: 60 })).toEqual(['fib4-alto']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: hepatograma })).toEqual([]); // sin edad no hay FIB-4
+    expect(condicionesExtrasDesdeFhir({ ...vacio, observaciones: [obs('1920-8', 20, 'U/L'), obs('1742-6', 20, 'U/L'), obs('777-3', 250, '10*3/uL')], edad: 45 })).toEqual([]);
+  });
+
+  it('con potenciadores detectados agrega la condición "potenciadores"', () => {
+    expect(condicionesExtrasDesdeFhir({ ...vacio, potenciadores: ['apnea obstructiva del sueño'] })).toEqual(['potenciadores']);
+    expect(condicionesExtrasDesdeFhir({ ...vacio, potenciadores: [] })).toEqual([]);
   });
 });
