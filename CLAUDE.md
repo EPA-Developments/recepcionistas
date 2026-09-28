@@ -76,10 +76,15 @@ Bloque 0). Backend **Medplum (FHIR R4)**, todo en **TypeScript**.
 
 ## Flujo de trabajo
 
-- Ramas: `main` y `staging` con deploy automático (CI: `.github/workflows/ci.yml`).
-- Gate de CI (y antes de pushear): `npm run verify` (typecheck + tests),
-  `npm run seed -- --dry-run`, `npm run bots:bundle`, `npm run build:app` y el
-  grep de naming SOM.
+- Ramas: la rama por defecto es **`som-base`**; el trabajo va en ramas `claude/…` (o de
+  feature) y entra por PR contra `som-base`. No hay `main` ni `staging`. Borrar la rama
+  después de mergear (GitHub no lo hace solo en este repo).
+- CI (`.github/workflows/ci.yml`) solo verifica, en cada push y PR: `npm run verify`
+  (typecheck + tests), `npm run seed -- --dry-run`, `npm run bots:bundle`,
+  `npm run build:app` y el grep de naming SOM. Correr lo mismo antes de pushear.
+- **El deploy es manual**, después del merge y con las credenciales del proyecto SOM en
+  el `.env` local: `npm run deploy:bots` (bots + Subscriptions) y `npm run seed`
+  (policies, catálogo, extensiones). Nada llega al servidor por mergear.
 - Construcción por **slices verticales**: cada pieza se entrega "verde" (sus casos
   AC pasan) antes de seguir.
 
