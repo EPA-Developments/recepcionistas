@@ -366,9 +366,13 @@ async function main(): Promise<void> {
   //    sus mensajes van ahí y no al webhook ──
   const from = valorSecreto(secretos, 'TWILIO_WHATSAPP_FROM');
   try {
-    const capturan = conversacionesQueCapturan(await conversacionesDelCelular(auth, e164), from);
+    const todas = await conversacionesDelCelular(auth, e164);
+    const capturan = conversacionesQueCapturan(todas, from);
     if (capturan.length === 0) {
-      console.log('\nTwilio Conversations: el celular no está en ninguna conversación abierta con el número de SOM ✓');
+      console.log(
+        `\nTwilio Conversations: el celular no está en ninguna conversación abierta con el número de SOM ✓` +
+          `${todas.length > 0 ? ` (participa de ${todas.length} cerrada(s) o con otro número)` : ''}`,
+      );
     } else {
       console.error(
         `\nTwilio Conversations: el celular está en ${capturan.length} conversación(es) abierta(s) con el número de SOM.\n` +

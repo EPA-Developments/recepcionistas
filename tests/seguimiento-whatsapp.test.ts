@@ -307,6 +307,17 @@ describe('revisarRuteoEntrante: paso 1, a dónde manda Twilio los mensajes que l
     expect(mal[1]!.estado).toBe('falla');
   });
 
+  it('con el servicio mandando, avisa si el número tiene su propio webhook a otro sistema', () => {
+    const h = revisar(
+      [sender({ callback_url: 'https://otro-sistema.example.com/whatsapp', callback_method: 'POST' })],
+      [servicio({ inbound_request_url: URL_SOM, inbound_method: 'POST' })],
+    );
+    expect(h.map((x) => x.estado)).toEqual(['ok', 'ok', 'pendiente']);
+    expect(h[2]!.texto).toContain('otro-sistema.example.com');
+    // Si el propio del número también es el de SOM, no hay nada que avisar.
+    expect(revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: URL_SOM })])).toHaveLength(2);
+  });
+
   it('un Messaging Service que no reenvía (sin webhook ni "Defer"): falla', () => {
     const h = revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: null })]);
     expect(h[1]!.estado).toBe('falla');

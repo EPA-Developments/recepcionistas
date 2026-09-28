@@ -558,6 +558,18 @@ export function revisarRuteoEntrante(p: {
     hallazgos.push({ estado: 'ok', texto: `Twilio manda los mensajes entrantes a ${p.urlEsperada} (POST), desde ${donde}.` });
   }
 
+  // Si manda el servicio, el webhook propio del número no se usaría; pero si apunta a otro
+  // sistema y ese sistema responde, es por ahí que se están yendo los mensajes.
+  const propio = sender.webhook?.callback_url?.trim();
+  if (servicio && !servicio.use_inbound_webhook_on_number && propio && propio !== p.urlEsperada.trim()) {
+    hallazgos.push({
+      estado: 'pendiente',
+      texto:
+        `El número tiene además su propio webhook: ${ocultarClaveUrl(propio)}. En teoría manda el servicio, pero si ` +
+        'los mensajes no llegan a SOM y otro sistema responde, van ahí: ponele también la URL de SOM (o vaciala).',
+    });
+  }
+
   const estados = sender.webhook?.status_callback_url?.trim();
   if (estados && estados !== p.urlEsperada.trim()) {
     hallazgos.push({
