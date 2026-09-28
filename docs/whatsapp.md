@@ -304,18 +304,31 @@ npm run whatsapp:plantillas -- --aplicar # crea en Twilio, manda a Meta y, aprob
 
 ### 7. Probar
 
+Después de **cada** paso, `npm run whatsapp:seguimiento -- +549…` (el celular de la prueba)
+muestra qué ya pasó, qué falta y qué falló: el paciente o lead, el aviso a Recepción, la
+conversación con la respuesta automática, la de Recepción y sus ✓✓, la ventana de 24 h y,
+del lado de Twilio, sus mensajes (con el error explicado) y las alertas del webhook. Cruza
+los dos lados: un mensaje que Twilio recibió y SOM no registró es **un webhook que no
+llegó**. Solo lee (no manda ni cambia nada).
+
 1. `npm run webhooks` → los dos ✓ de WhatsApp (nginx → bot, y rechaza sin firma).
-2. **Primero escribir** (sin la plantilla aprobada) al WhatsApp de SOM desde un celular que no esté en SOM (abre la
-   ventana de 24 h): llega el acuse (o el aviso de fuera de horario), suena la campanita,
-   el contacto aparece en la pestaña **WhatsApp** y la conversación en **Mensajes**.
-3. `npm run whatsapp:test -- +549…` → envío de prueba a ese celular (dice si falta un
+2. Antes de escribir, `npm run whatsapp:seguimiento -- +549…`: para probar un **contacto
+   nuevo** (lead, pestaña WhatsApp, campanita) el número **no** tiene que estar en SOM
+   (paso 2 «pendiente»). Si dice «Ya estaba en SOM», usar otro celular.
+3. **Primero escribir** (sin la plantilla aprobada) al WhatsApp de SOM desde ese celular
+   (abre la ventana de 24 h): llega el acuse (o el aviso de fuera de horario), suena la
+   campanita, el contacto aparece en la pestaña **WhatsApp** y la conversación en
+   **Mensajes**. Seguimiento: pasos 1 a 4 en ✓.
+4. Responder desde la tarjeta (o desde Mensajes) y ver llegar los ✓✓ (en el celular, en la
+   burbuja y en el paso 5 del seguimiento: ✓ enviado → ✓✓ entregado → ✓✓ leído).
+5. «Completar ficha» desde la tarjeta: el aviso se resuelve solo (paso 6 en ✓ y la
+   campanita se apaga).
+6. `npm run whatsapp:test -- +549…` → envío de prueba a ese celular (dice si falta un
    secret o qué rechazó Twilio) y revisión del webhook: qué Project Secrets de Twilio están
    (nunca sus valores) y si `TWILIO_WEBHOOK_URL` es la URL pública. Sin la plantilla
    aprobada y fuera de la ventana de 24 h, Twilio lo acepta pero no llega (63016); con
    `TWILIO_CONTENT_SID_AVISO`, llega aunque el celular no haya escrito.
-4. Responder desde la tarjeta y ver llegar los ✓✓; completar la ficha y ver que el aviso
-   se resuelve.
-5. Para ver las pantallas con datos sin Twilio: `npm run datos-demo` (un número nuevo con
+7. Para ver las pantallas con datos sin Twilio: `npm run datos-demo` (un número nuevo con
    su acuse y su aviso en la pestaña WhatsApp, una conversación por WhatsApp con
    respuesta y una del portal).
 
