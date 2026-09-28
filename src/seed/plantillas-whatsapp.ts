@@ -47,9 +47,21 @@ async function twilio<T>(auth: string, url: string, init?: { method: 'POST'; jso
   });
   const cuerpo = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
   if (!resp.ok) {
-    throw new Error(`Twilio respondió ${resp.status}${cuerpo.message ? `: ${String(cuerpo.message)}` : ''}`);
+    throw new Error(
+      `Twilio respondió ${resp.status}${cuerpo.message ? `: ${String(cuerpo.message)}` : ''}` +
+        `${cuerpo.code ? ` (error ${String(cuerpo.code)}${cuerpo.more_info ? `: ${String(cuerpo.more_info)}` : ''})` : ''}`,
+    );
   }
   return cuerpo as T;
+}
+
+/** El error de Twilio con el paso en que pasó (crearla o mandarla a aprobación). */
+async function conContexto<T>(paso: string, llamada: () => Promise<T>): Promise<T> {
+  try {
+    return await llamada();
+  } catch (err) {
+    throw new Error(`${paso}: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /** Todas las plantillas de la cuenta (paginado). */
@@ -116,7 +128,11 @@ async function procesar(
       console.log('  · No existe en Twilio. Con --aplicar se crea y se manda a aprobación de Meta.');
       return;
     }
-    sid = (await twilio<ContenidoTwilio>(auth, `${CONTENT}/Content`, { method: 'POST', json: contenidoTwilio(p) })).sid;
+    sid = (
+      await conContexto('al crearla en Twilio', () =>
+        twilio<ContenidoTwilio>(auth, `${CONTENT}/Content`, { method: 'POST', json: contenidoTwilio(p) }),
+      )
+    ).sid;
     console.log(`  + Creada en Twilio: ${sid}`);
   } else {
     console.log(`  = En Twilio: ${sid}`);
@@ -128,10 +144,13 @@ async function procesar(
       console.log('  · Sin mandar a aprobación. Con --aplicar se manda a Meta.');
       return;
     }
-    await twilio(auth, `${CONTENT}/Content/${sid}/ApprovalRequests/whatsapp`, {
-      method: 'POST',
-      json: { name: p.nombre, category: p.categoria },
-    });
+    const enTwilio = sid;
+    await conContexto(`al mandarla a aprobación de Meta (sigue en Twilio: ${enTwilio}; no hace falta borrarla)`, () =>
+      twilio(auth, `${CONTENT}/Content/${enTwilio}/ApprovalRequests/whatsapp`, {
+        method: 'POST',
+        json: { name: p.nombre, category: p.categoria },
+      }),
+    );
     console.log('  + Mandada a aprobación de Meta.');
     estado = await aprobacion(auth, sid);
   }
@@ -177,15 +196,23 @@ async function main(): Promise<void> {
   const auth = Buffer.from(`${cuenta}:${token}`).toString('base64');
   const existentes = await listar(auth);
 
+  // Una plantilla que falla no frena las demás: se informa y se sigue con la próxima.
   for (const p of PLANTILLAS_WHATSAPP) {
-    await procesar(
-      auth,
-      existentes,
-      p,
-      secretos,
-      (sid) => guardarSecretos(medplum, projectId, [{ name: p.secret, valueString: sid }]),
-      aplicar,
-    );
+    try {
+      await procesar(
+        auth,
+        existentes,
+        p,
+        secretos,
+        (sid) => guardarSecretos(medplum, projectId, [{ name: p.secret, valueString: sid }]),
+        aplicar,
+      );
+    } catch (err) {
+      mal(`${p.nombre} falló ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  if (fallas > 0) {
+    console.error(`\n${fallas} problema(s): pegá los ✗ de arriba. Volver a correr es seguro (retoma cada plantilla donde quedó).`);
   }
   if (fallas > 0) {
     process.exitCode = 1;
