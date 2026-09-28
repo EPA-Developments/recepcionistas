@@ -102,8 +102,14 @@ export const EXT = {
    * `whatsapp-nuevo-contacto`.
    */
   inicioContacto: `${BASE}/StructureDefinition/inicio-contacto`,
-  /** Respuesta que mandó solo el sistema en Mensajes: `acuse` | `fuera-de-horario`. */
+  /** Mensaje que mandó solo el sistema en Mensajes: `acuse` | `fuera-de-horario` | `mensaje-nuevo`. */
   autoRespuesta: `${BASE}/StructureDefinition/auto-respuesta`,
+  /**
+   * true en una respuesta de Recepción que no pudo salir por WhatsApp porque la ventana de
+   * 24 h estaba cerrada: al paciente se le avisó con la plantilla `mensaje-nuevo` y la
+   * respuesta se reenvía sola cuando vuelve a escribir (`som-whatsapp-entrante`).
+   */
+  pendienteWhatsapp: `${BASE}/StructureDefinition/pendiente-whatsapp`,
 } as const;
 
 /** Sistemas de codificación / identificadores de negocio. */

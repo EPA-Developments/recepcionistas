@@ -142,7 +142,12 @@ export function describirHorario(horario: readonly HorarioDia[] = HORARIO_SEMANA
 
 // ───────────────────────────── qué responde solo el sistema ─────────────────────────────
 
-export type TipoRespuestaAutomatica = 'acuse' | 'fuera-de-horario';
+/**
+ * Lo que manda solo el sistema en una conversación: el acuse y el aviso de fuera de horario
+ * (respuestas a un WhatsApp que acaba de llegar) y `mensaje-nuevo`, el aviso con plantilla
+ * de que Recepción respondió con la ventana de 24 h cerrada (`som-whatsapp-responder`).
+ */
+export type TipoRespuestaAutomatica = 'acuse' | 'fuera-de-horario' | 'mensaje-nuevo';
 
 export interface RespuestaAutomatica {
   tipo: TipoRespuestaAutomatica;

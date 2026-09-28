@@ -249,7 +249,13 @@ export function Mensajes({
       if (r.mensaje) {
         setMensajes((prev) => prev?.map((m) => (m.id === r.mensaje!.id ? r.mensaje! : m)));
       }
-      if (!r.ok) {
+      if (r.avisado) {
+        notifications.show({
+          color: 'blue',
+          title: 'Le avisamos por WhatsApp que tiene una respuesta nueva',
+          message: r.motivo ?? 'Se la reenviamos por WhatsApp cuando conteste; mientras, la ve en el portal.',
+        });
+      } else if (!r.ok) {
         notifications.show({
           color: 'orange',
           title: 'Quedó en la conversación, pero NO salió por WhatsApp',

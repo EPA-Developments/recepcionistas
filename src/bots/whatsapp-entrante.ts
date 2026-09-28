@@ -32,12 +32,15 @@ import { SYSTEM } from '../fhir/identifiers.js';
 import { respuestaAutomatica, type TipoRespuestaAutomatica } from '../lib/auto-respuesta.js';
 import { controlarFirmaTwilio } from '../lib/firma-twilio.js';
 import { busquedaAvisoContacto, construirAvisoContacto } from '../lib/contactos-whatsapp.js';
+import { elegirPlantilla, paramsPlantilla } from '../lib/plantillas-whatsapp.js';
 import {
+  adjuntosDe,
   aE164AR,
   claveConversacionWhatsApp,
   combinarEstadoEntrega,
   conEnvioWhatsApp,
   conEstadoEntrega,
+  conPendienteWhatsApp,
   construirConversacionWhatsApp,
   construirLeadWhatsApp,
   construirMensajeEntrante,
@@ -50,7 +53,9 @@ import {
   leerWebhookTwilio,
   MAX_ADJUNTO_BYTES,
   nombreAdjunto,
+  pendientesDeReenvio,
   telefonoDe,
+  textoDe,
   tipoAutomatica,
   variantesTelefonoAR,
   vistaPrevia,
@@ -78,6 +83,8 @@ export interface ResultadoWebhookWhatsApp {
   conversacionNueva?: boolean;
   /** Qué respondió solo el sistema, si respondió. */
   respuestaAutomatica?: TipoRespuestaAutomatica;
+  /** Respuestas de Recepción que esperaban la ventana de 24 h y salieron con este mensaje. */
+  reenviados?: number;
   estadoEntrega?: EstadoEntrega;
 }
 
@@ -213,6 +220,15 @@ async function registrarEntrante(
       })
     : undefined;
 
+  // 7b) El mensaje abrió la ventana de 24 h: las respuestas de Recepción que la esperaban
+  //     (el paciente recibió el aviso de mensaje nuevo) salen ahora, en orden.
+  const reenviados = conversacionNueva
+    ? 0
+    : await reenviarPendientes(medplum, secrets, conversacionRef, w.desde).catch((err: unknown) => {
+        console.error('som-whatsapp-entrante: no se pudieron reenviar las respuestas pendientes:', err instanceof Error ? err.message : err);
+        return 0;
+      });
+
   // 8) Lo que responde solo el sistema (acuse / fuera de horario).
   const automatica = await responderSolo(medplum, secrets, {
     conversacionRef,
@@ -238,7 +254,44 @@ async function registrarEntrante(
     ...(avisoId ? { avisoId } : {}),
     conversacionNueva,
     ...(automatica ? { respuestaAutomatica: automatica } : {}),
+    ...(reenviados ? { reenviados } : {}),
   };
+}
+
+/**
+ * Las respuestas de Recepción que quedaron esperando la ventana de 24 h (`pendiente-whatsapp`)
+ * salen ahora al número desde el que escribió el paciente, texto y adjuntos, en orden. Si
+ * Twilio rechaza una, queda con el error en la burbuja (ya no pendiente). Devuelve cuántas
+ * salieron.
+ */
+async function reenviarPendientes(medplum: MedplumClient, secrets: Secrets, conversacionRef: string, telefono: string): Promise<number> {
+  const hilo = await medplum.searchResources('Communication', { 'part-of': conversacionRef, _sort: 'sent', _count: '500' });
+  let enviados = 0;
+  for (const m of pendientesDeReenvio(hilo)) {
+    const mediaUrls = adjuntosDe(m)
+      .map((a) => a.url)
+      .filter((u): u is string => Boolean(u?.startsWith('https://')));
+    const envio = await mandarWhatsApp(secrets, { to: telefono, body: textoDe(m), mediaUrls });
+    if (envio.status === 'preparation') {
+      // Faltan los secrets de Twilio o el número: no hay forma de mandar ninguna; siguen pendientes.
+      break;
+    }
+    await medplum.updateResource<Communication>(
+      conPendienteWhatsApp(
+        conEnvioWhatsApp(m, {
+          telefono: envio.destino,
+          entrega: envio.entrega,
+          messageSids: envio.messageSids,
+          ...(envio.motivo ? { motivo: envio.motivo } : {}),
+        }),
+        false,
+      ),
+    );
+    if (envio.status === 'completed') {
+      enviados++;
+    }
+  }
+  return enviados;
 }
 
 /**
@@ -317,7 +370,14 @@ async function responderSolo(
   if (!r) {
     return undefined;
   }
-  const envio = await mandarWhatsApp(secrets, { to: p.telefono, body: r.texto });
+  // Sale dentro de la ventana que abrió el paciente: como texto libre está bien; con su
+  // plantilla aprobada (acuse / fuera de horario), sale con ella (mismo texto).
+  const plantilla = elegirPlantilla(r.tipo, r.texto, (s) => secrets[s]?.valueString, { generica: false });
+  const envio = await mandarWhatsApp(secrets, {
+    to: p.telefono,
+    body: r.texto,
+    ...(plantilla ? { plantilla: paramsPlantilla(plantilla.contentSid, plantilla.variables) } : {}),
+  });
   const base = construirRespuestaAutomatica({
     conversacionRef: p.conversacionRef,
     pacienteRef: p.pacienteRef,

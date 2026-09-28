@@ -95,7 +95,8 @@ async function procesar(
   guardar: (sid: string) => Promise<void>,
   aplicar: boolean,
 ): Promise<void> {
-  console.log(`\n${p.nombre} (${p.categoria}, ${p.idioma})\n  «${p.cuerpo}»`);
+  const uso = p.avisos ? `sale con: ${p.avisos.join(', ')}` : 'genérica: respaldo de todos los avisos';
+  console.log(`\n${p.nombre} (${p.categoria}, ${p.idioma}) · ${uso}\n  «${p.cuerpo.replace(/\n/g, '⏎ ')}»`);
   const problemas = problemasPlantilla(p);
   if (problemas.length > 0) {
     for (const x of problemas) {

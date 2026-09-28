@@ -2,7 +2,7 @@ import { Paper, Text, Tooltip } from '@mantine/core';
 import { IconAlertCircle, IconCheck, IconChecks, IconClock } from '@tabler/icons-react';
 import type { Attachment, Communication } from '@medplum/fhirtypes';
 import { esAutomatica, esDelPaciente, textoMensaje } from '@som/lib/mensajes';
-import { adjuntosDe, estadoEntregaDe, esWhatsApp, tipoAdjunto, type EstadoEntrega } from '@som/lib/whatsapp';
+import { adjuntosDe, esPendienteWhatsApp, estadoEntregaDe, esWhatsApp, tipoAdjunto, type EstadoEntrega } from '@som/lib/whatsapp';
 
 /**
  * Un mensaje de una conversación, como en WhatsApp: los del paciente a la izquierda y
@@ -111,6 +111,7 @@ export function Burbuja({ m, compacta = false }: { m: Communication; compacta?: 
         {automatico ? '🤖 Automática · ' : ''}
         {quien}
         {viaWhatsApp ? '📱 WhatsApp · ' : ''}
+        {!delPaciente && esPendienteWhatsApp(m) ? '⏳ Sale por WhatsApp cuando conteste · ' : ''}
         {fecha(m.sent)} {!delPaciente && viaWhatsApp && <Tilde estado={entrega} motivo={m.statusReason?.text} />}
       </Text>
       {!delPaciente && entrega === 'fallido' && m.statusReason?.text && (
