@@ -296,28 +296,48 @@ export interface AlertaTwilio {
   resource_sid?: string | null;
 }
 
-/** Los MessageSid que SOM registró en esos mensajes (entrantes y salientes). */
-export function sidsRegistrados(mensajes: Communication[]): Set<string> {
-  return new Set(
-    mensajes.flatMap((m) =>
-      (m.identifier ?? []).filter((i) => i.system === SYSTEM.twilioMessageSid && i.value).map((i) => i.value!),
-    ),
-  );
+/**
+ * Dónde registró SOM cada MessageSid (entrantes y salientes): sid → paciente del mensaje
+ * (`Patient/…`, vacío si no tiene). Se arma con los mensajes que SOM encontró por esos
+ * MessageSid en todo el proyecto, no solo en una conversación.
+ */
+export function ubicacionesPorSid(mensajes: Communication[]): Map<string, string> {
+  const ubicaciones = new Map<string, string>();
+  for (const m of mensajes) {
+    for (const i of m.identifier ?? []) {
+      if (i.system === SYSTEM.twilioMessageSid && i.value) {
+        ubicaciones.set(i.value, m.subject?.reference ?? '');
+      }
+    }
+  }
+  return ubicaciones;
 }
 
 function esEntranteTwilio(m: MensajeTwilio): boolean {
   return m.direction === 'inbound';
 }
 
-/** Una línea por mensaje de Twilio: dirección, estado (con el error explicado) y si SOM lo tiene. */
-export function lineaMensajeTwilio(m: MensajeTwilio, registrados: Set<string>, ahora: Date): string {
+/**
+ * Una línea por mensaje de Twilio: dirección, estado (con el error explicado) y si SOM lo
+ * tiene; si quedó en otro paciente con el mismo número que el que se mira, cuál.
+ */
+export function lineaMensajeTwilio(
+  m: MensajeTwilio,
+  ubicaciones: ReadonlyMap<string, string>,
+  pacienteRef: string | undefined,
+  ahora: Date,
+): string {
   const entrante = esEntranteTwilio(m);
   const error = m.error_code ? explicarErrorTwilio(m.error_code) : undefined;
-  const enSom = registrados.has(m.sid)
-    ? 'en SOM ✓'
-    : entrante
-      ? 'NO llegó a SOM ✗'
-      : 'fuera de la conversación (aviso o prueba)';
+  const donde = ubicaciones.get(m.sid);
+  const enSom =
+    donde === undefined
+      ? entrante
+        ? 'NO llegó a SOM ✗'
+        : 'sin registro en SOM'
+      : donde && pacienteRef && donde !== pacienteRef
+        ? `en SOM ✓ (en ${donde}, otro paciente con este número)`
+        : 'en SOM ✓';
   // Twilio manda las fechas en RFC 2822 ("Mon, 28 Sep 2026 13:00:00 +0000").
   const creado = m.date_created ? Date.parse(m.date_created) : Number.NaN;
   return (
@@ -326,9 +346,25 @@ export function lineaMensajeTwilio(m: MensajeTwilio, registrados: Set<string>, a
   );
 }
 
-/** Los entrantes que Twilio recibió y SOM no registró: el webhook no llegó o el bot los rechazó. */
-export function entrantesSinRegistrar(twilio: MensajeTwilio[], registrados: Set<string>): MensajeTwilio[] {
-  return twilio.filter((m) => esEntranteTwilio(m) && !registrados.has(m.sid));
+/** Los entrantes que Twilio recibió y SOM no registró en ningún lado: el webhook no llegó o el bot los rechazó. */
+export function entrantesSinRegistrar(twilio: MensajeTwilio[], ubicaciones: ReadonlyMap<string, string>): MensajeTwilio[] {
+  return twilio.filter((m) => esEntranteTwilio(m) && !ubicaciones.has(m.sid));
+}
+
+/** Los entrantes que SOM registró en OTRO paciente con el mismo número, agrupados por paciente. */
+export function entrantesEnOtroPaciente(
+  twilio: MensajeTwilio[],
+  ubicaciones: ReadonlyMap<string, string>,
+  pacienteRef: string | undefined,
+): Map<string, number> {
+  const otros = new Map<string, number>();
+  for (const m of twilio) {
+    const donde = ubicaciones.get(m.sid);
+    if (esEntranteTwilio(m) && donde && pacienteRef && donde !== pacienteRef) {
+      otros.set(donde, (otros.get(donde) ?? 0) + 1);
+    }
+  }
+  return otros;
 }
 
 /** Qué significan las alertas de Twilio que tocan al webhook de SOM. */

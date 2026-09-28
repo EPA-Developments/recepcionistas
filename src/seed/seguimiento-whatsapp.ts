@@ -23,9 +23,11 @@ import 'dotenv/config';
 import type { MedplumClient } from '@medplum/core';
 import type { Communication, Patient, Task } from '@medplum/fhirtypes';
 import { RUTA_WEBHOOK_TWILIO } from '../config/urls.js';
-import { busquedaAvisoContacto } from '../lib/contactos-whatsapp.js';
+import { BOT_WHATSAPP_ENTRANTE, SYSTEM } from '../fhir/identifiers.js';
+import { busquedaAvisoContacto, esDemo } from '../lib/contactos-whatsapp.js';
 import {
   alertasRelevantes,
+  entrantesEnOtroPaciente,
   entrantesSinRegistrar,
   explicarAlertaTwilio,
   lineaMensajeTwilio,
@@ -33,9 +35,9 @@ import {
   pasosSeguimiento,
   revisarRuteoEntrante,
   rutaDeUrl,
-  sidsRegistrados,
   textoEntrega,
   textoVentana,
+  ubicacionesPorSid,
   type AlertaTwilio,
   type MensajeTwilio,
   type SenderTwilio,
@@ -49,6 +51,7 @@ import {
   esWhatsApp,
   formatoTelefono,
   horaMensaje,
+  nombreDePaciente,
   tipoAutomatica,
   variantesTelefonoAR,
   vistaPrevia,
@@ -152,6 +155,43 @@ async function revisarTwilioASom(auth: string, from: string | undefined, url: st
   return !hallazgos.some((h) => h.estado === 'falla');
 }
 
+/** Los mensajes de SOM con esos MessageSid (en cualquier paciente o conversación). */
+async function porMessageSid(medplum: MedplumClient, sids: string[]): Promise<Communication[]> {
+  const encontrados: Communication[] = [];
+  for (let i = 0; i < sids.length; i += 20) {
+    const tanda = sids.slice(i, i + 20).map((sid) => `${SYSTEM.twilioMessageSid}|${sid}`);
+    encontrados.push(...(await medplum.searchResources('Communication', { identifier: tanda.join(','), _count: '100' })));
+  }
+  return encontrados;
+}
+
+/**
+ * Las últimas ejecuciones de som-whatsapp-entrante (AuditEvent de Medplum): si Twilio lo
+ * llama, cada mensaje deja una; el log dice por qué ignoró uno (firma, cuenta…).
+ */
+async function ejecucionesDelBot(medplum: MedplumClient): Promise<void> {
+  try {
+    const bot = await medplum.searchOne('Bot', { 'name:exact': BOT_WHATSAPP_ENTRANTE });
+    if (!bot?.id) {
+      console.error(`    ✗ No existe el bot ${BOT_WHATSAPP_ENTRANTE}: npm run deploy:bots`);
+      return;
+    }
+    const eventos = await medplum.searchResources('AuditEvent', { entity: `Bot/${bot.id}`, _sort: '-date', _count: '10' });
+    if (eventos.length === 0) {
+      console.error(`    · ${BOT_WHATSAPP_ENTRANTE} no tiene ejecuciones registradas: Twilio no lo está llamando.`);
+      return;
+    }
+    console.error(`    Últimas ejecuciones de ${BOT_WHATSAPP_ENTRANTE} (Medplum → AuditEvent):`);
+    for (const e of eventos) {
+      const log = (e.outcomeDesc ?? '').replace(/\s+/g, ' ').trim();
+      const fecha = e.recorded ? new Date(e.recorded).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '?';
+      console.error(`      ${e.outcome === '0' ? '✓' : '✗'} ${fecha}${log ? ` · ${log.length > 160 ? `${log.slice(0, 159)}…` : log}` : ''}`);
+    }
+  } catch (err) {
+    console.error(`    ? No pude leer las ejecuciones del bot (${err instanceof Error ? err.message : String(err)}).`);
+  }
+}
+
 /** Los mensajes de la conversación más reciente del paciente (la del último mensaje). */
 async function conversacionReciente(medplum: MedplumClient, pacienteRef: string): Promise<Communication[]> {
   const recientes = await medplum.searchResources('Communication', { subject: pacienteRef, _sort: '-sent', _count: '50' });
@@ -217,7 +257,13 @@ async function main(): Promise<void> {
     : undefined;
   const mensajes = pacienteRef ? await conversacionReciente(medplum, pacienteRef) : [];
   if (candidatos.length > 1) {
-    console.log(`\n  (hay ${candidatos.length} pacientes con ese número; se usa Patient/${paciente?.id ?? '?'})`);
+    console.log(`\nHay ${candidatos.length} pacientes con ese número (el WhatsApp entra en el elegido):`);
+    for (const c of candidatos) {
+      console.log(
+        `  ${c.id === paciente?.id ? '→' : ' '} «${nombreDePaciente(c)}» · Patient/${c.id ?? '?'}` +
+          `${esDemo(c) ? ' · PRUEBA (demo: se borra solo a las 48 h)' : ''}${c.id === paciente?.id ? ' · elegido' : ''}`,
+      );
+    }
   }
 
   console.log('\nPaso a paso:');
@@ -239,24 +285,31 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── Twilio: los mensajes de este celular ──
-  const registrados = sidsRegistrados(mensajes);
-
+  // ── Twilio: los mensajes de este celular, buscados por MessageSid en todo SOM ──
   const enTwilio = await mensajesTwilio(auth, cuenta, e164);
+  const ubicaciones = ubicacionesPorSid([...mensajes, ...(await porMessageSid(medplum, enTwilio.map((m) => m.sid)))]);
   console.log(`\nTwilio (${enTwilio.length} mensaje(s) con este número, los más nuevos primero):`);
   for (const m of enTwilio) {
-    console.log(`  ${lineaMensajeTwilio(m, registrados, ahora)}`);
+    console.log(`  ${lineaMensajeTwilio(m, ubicaciones, pacienteRef, ahora)}`);
   }
-  const perdidos = entrantesSinRegistrar(enTwilio, registrados);
+  for (const [otro, cantidad] of entrantesEnOtroPaciente(enTwilio, ubicaciones, pacienteRef)) {
+    const quienEs = candidatos.find((c) => `Patient/${c.id}` === otro);
+    console.log(
+      `\n  ⚠️  ${cantidad} mensaje(s) del celular quedaron en ${quienEs ? `«${nombreDePaciente(quienEs)}» (${otro})` : otro}: ` +
+        'otro paciente con el mismo número.',
+    );
+  }
+  const perdidos = entrantesSinRegistrar(enTwilio, ubicaciones);
   if (perdidos.length > 0) {
     console.error(
       `\n  ✗ Twilio recibió ${perdidos.length} mensaje(s) de este celular que no están en SOM: el webhook no llegó o el\n` +
         `    bot lo rechazó. Revisá en Twilio el "Webhook URL for incoming messages" del número de SOM\n` +
         `    (https://api.medplum.com.ar${RUTA_WEBHOOK_TWILIO}, POST), las alertas de abajo y npm run webhooks.`,
     );
+    await ejecucionesDelBot(medplum);
     process.exitCode = 1;
   } else if (enTwilio.some((m) => m.direction === 'inbound')) {
-    console.log('\n  ✓ Todo lo que el celular mandó a Twilio llegó a SOM.');
+    console.log('\n  ✓ Todo lo que el celular mandó a Twilio está en SOM.');
   }
 
   const sidsCelular = new Set(enTwilio.map((m) => m.sid));

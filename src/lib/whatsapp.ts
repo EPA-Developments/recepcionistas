@@ -653,13 +653,16 @@ export function construirLeadWhatsApp(telefono: string, nombrePerfil?: string): 
 }
 
 /**
- * Si varios pacientes tienen el número que escribe: primero los activos, después los que
- * ya son pacientes (no un lead del CRM) y, entre ellos, el actualizado más recientemente.
+ * Si varios pacientes tienen el número que escribe: primero los reales (un paciente de
+ * prueba, tag `demo`, nunca se queda con el WhatsApp de una persona), después los activos,
+ * los que ya son pacientes (no un lead del CRM) y, entre ellos, el actualizado más
+ * recientemente.
  */
 export function elegirPacientePorTelefono(candidatos: Patient[]): Patient | undefined {
   const esLead = (p: Patient): boolean =>
     p.extension?.some((e) => e.url === EXT.cicloVidaCliente && e.valueCode === 'lead') === true;
-  const puntaje = (p: Patient): number => (p.active === false ? 0 : 2) + (esLead(p) ? 0 : 1);
+  const esDemo = (p: Patient): boolean => p.meta?.tag?.some((t) => t.system === SYSTEM.demo && t.code === 'demo') === true;
+  const puntaje = (p: Patient): number => (esDemo(p) ? 0 : 4) + (p.active === false ? 0 : 2) + (esLead(p) ? 0 : 1);
   return [...candidatos].sort(
     (a, b) => puntaje(b) - puntaje(a) || (b.meta?.lastUpdated ?? '').localeCompare(a.meta?.lastUpdated ?? ''),
   )[0];
