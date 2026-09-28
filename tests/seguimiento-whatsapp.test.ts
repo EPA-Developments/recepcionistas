@@ -5,7 +5,10 @@ import { RUTA_WEBHOOK_TWILIO } from '../src/config/urls.js';
 import { construirAvisoContacto, resolverAviso } from '../src/lib/contactos-whatsapp.js';
 import {
   alertasRelevantes,
+  autocreacionDe,
+  conversacionesQueCapturan,
   entrantesEnOtroPaciente,
+  entrantesSinEjecucion,
   entrantesSinRegistrar,
   explicarAlertaTwilio,
   lineaMensajeTwilio,
@@ -335,5 +338,39 @@ describe('revisarRuteoEntrante: paso 1, a dónde manda Twilio los mensajes que l
     expect(mismoRemitente('whatsapp:+54 9 11 5555-6666', '+5491155556666')).toBe(true);
     expect(mismoRemitente('whatsapp:+5491155556666', 'whatsapp:+5491155556667')).toBe(false);
     expect(mismoRemitente(undefined, '')).toBe(false);
+  });
+});
+
+describe('Twilio Conversations: lo que se queda con los mensajes antes que el webhook', () => {
+  const SOM_FROM = 'whatsapp:+15554435352';
+  const conv = (state: string, proxy = SOM_FROM) => ({
+    conversation_sid: `CH${state}`,
+    conversation_state: state,
+    participant_messaging_binding: { address: 'whatsapp:+5491169315830', proxy_address: proxy },
+  });
+
+  it('una conversación abierta o inactiva del celular con el número de SOM captura sus mensajes; una cerrada no', () => {
+    const r = conversacionesQueCapturan([conv('active'), conv('inactive'), conv('closed'), conv('active', 'whatsapp:+14155238886')], SOM_FROM);
+    expect(r.map((c) => c.conversation_sid)).toEqual(['CHactive', 'CHinactive']);
+    expect(conversacionesQueCapturan([conv('active')], undefined)).toEqual([]);
+  });
+
+  it('la autocreación de Conversations en el número de SOM', () => {
+    const dirs = [
+      { address: 'whatsapp:+15554435352', auto_creation: { enabled: true, type: 'webhook' } },
+      { address: 'whatsapp:+14155238886', auto_creation: { enabled: true } },
+    ];
+    expect(autocreacionDe(dirs, SOM_FROM)?.auto_creation?.type).toBe('webhook');
+    expect(autocreacionDe([{ address: SOM_FROM, auto_creation: { enabled: false } }], SOM_FROM)).toBeUndefined();
+  });
+
+  it('entrantes sin ninguna ejecución del bot cerca de su hora: Twilio no llamó al webhook', () => {
+    const perdidos = [
+      { sid: 'SMa', direction: 'inbound', date_created: 'Mon, 28 Sep 2026 10:31:50 +0000' },
+      { sid: 'SMb', direction: 'inbound', date_created: 'Mon, 28 Sep 2026 16:34:00 +0000' },
+      { sid: 'SMc', direction: 'inbound' },
+    ];
+    const ejecuciones = ['2026-09-28T10:31:53.000Z', 'no es fecha'];
+    expect(entrantesSinEjecucion(perdidos, ejecuciones).map((m) => m.sid)).toEqual(['SMb']);
   });
 });

@@ -261,6 +261,13 @@ disco: sin recargar, nginx sigue usando lo anterior) y volver a correr `npm run 
   cada envío pide sus ✓✓ a la misma URL.
 - **Sandbox** (para probar): Messaging → Try it out → Send a WhatsApp message →
   *Sandbox settings* → *When a message comes in*.
+- **Twilio Conversations** se queda con los mensajes **antes** que el webhook: si un
+  celular es participante de una conversación abierta con el número de SOM, o si el número
+  tiene autocreación de conversaciones (*Conversations → Manage → Address configuration*),
+  esos mensajes van a Conversations y SOM no los ve. El número de SOM no puede estar
+  atendido a la vez por Conversations (p. ej. otro sistema en la misma WABA) y por este
+  webhook. `npm run whatsapp:seguimiento` lo controla: la autocreación en el paso 1 y, con
+  un celular, sus conversaciones abiertas y si el bot se ejecutó a la hora de cada mensaje.
 - **Controlarlo:** `npm run whatsapp:seguimiento` (sin celular) lee por la API de Twilio el
   sender de `TWILIO_WHATSAPP_FROM` y, si está en un Messaging Service, el del servicio (su
   *Send a webhook* manda sobre el del número; *Defer to sender's webhook* le cede) y controla
