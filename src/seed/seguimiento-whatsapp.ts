@@ -52,6 +52,7 @@ import { modoUrlWebhook } from '../lib/webhooks.js';
 import {
   aE164AR,
   elegirPacientePorTelefono,
+  fechaHoraAR,
   estadoEntregaDe,
   esWhatsApp,
   formatoTelefono,
@@ -317,7 +318,9 @@ async function main(): Promise<void> {
   }
 
   console.log('\nPaso a paso:');
-  const pasos = pasosSeguimiento({ paciente, aviso, mensajes, ahora });
+  // El número de Recepción: el bot ignora sus mensajes a propósito (no es un paciente).
+  const esRecepcion = aE164AR(valorSecreto(secretos, 'RECEPCION_WHATSAPP_TO')) === e164;
+  const pasos = pasosSeguimiento({ paciente, aviso, mensajes, ahora, esRecepcion });
   pasos.forEach((p, i) => {
     console.log(`  ${i + 1}. ${marcaPaso(p.estado)} ${p.titulo}\n       ${p.detalle}`);
   });
@@ -356,6 +359,11 @@ async function main(): Promise<void> {
         `    bot lo rechazó. Revisá en Twilio el "Webhook URL for incoming messages" del número de SOM\n` +
         `    (https://api.medplum.com.ar${RUTA_WEBHOOK_TWILIO}, POST), las alertas de abajo y npm run webhooks.`,
     );
+    if (esRecepcion) {
+      console.error(
+        '    → Este celular es RECEPCION_WHATSAPP_TO: el bot recibe sus mensajes y los ignora a propósito (ver paso 2).',
+      );
+    }
     await ejecucionesDelBot(medplum, perdidos);
     process.exitCode = 1;
   } else if (enTwilio.some((m) => m.direction === 'inbound')) {
@@ -366,9 +374,13 @@ async function main(): Promise<void> {
   //    sus mensajes van ahí y no al webhook ──
   const from = valorSecreto(secretos, 'TWILIO_WHATSAPP_FROM');
   try {
-    const capturan = conversacionesQueCapturan(await conversacionesDelCelular(auth, e164), from);
+    const todas = await conversacionesDelCelular(auth, e164);
+    const capturan = conversacionesQueCapturan(todas, from);
     if (capturan.length === 0) {
-      console.log('\nTwilio Conversations: el celular no está en ninguna conversación abierta con el número de SOM ✓');
+      console.log(
+        `\nTwilio Conversations: el celular no está en ninguna conversación abierta con el número de SOM ✓` +
+          `${todas.length > 0 ? ` (participa de ${todas.length} cerrada(s) o con otro número)` : ''}`,
+      );
     } else {
       console.error(
         `\nTwilio Conversations: el celular está en ${capturan.length} conversación(es) abierta(s) con el número de SOM.\n` +
@@ -379,7 +391,7 @@ async function main(): Promise<void> {
         console.error(
           `    ${c.conversation_sid} · ${c.conversation_state ?? '?'}${nombre ? ` · «${nombre}»` : ''}` +
             `${c.chat_service_sid ? ` · servicio ${c.chat_service_sid}` : ''}` +
-            `${c.conversation_date_updated ? ` · última actividad ${new Date(c.conversation_date_updated).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}` : ''}`,
+            `${c.conversation_date_updated ? ` · última actividad ${fechaHoraAR(c.conversation_date_updated)}` : ''}`,
         );
       }
       console.error(
@@ -405,7 +417,7 @@ async function main(): Promise<void> {
     for (const a of alertas.slice(0, 15)) {
       const ruta = rutaDeUrl(a.request_url);
       console.log(
-        `  ${a.error_code ?? '?'} · ${a.log_level ?? '?'} · ${a.date_created ? new Date(a.date_created).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '?'}` +
+        `  ${a.error_code ?? '?'} · ${a.log_level ?? '?'} · ${fechaHoraAR(a.date_created) || '?'}` +
           `${ruta ? ` · ${ruta}` : ''}${a.resource_sid ? ` · ${a.resource_sid}` : ''}\n    ${explicarAlertaTwilio(a.error_code)}`,
       );
     }

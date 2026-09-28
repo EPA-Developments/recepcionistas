@@ -178,6 +178,16 @@ describe('pasosSeguimiento: el paso a paso de la prueba de WhatsApp', () => {
   });
 });
 
+describe('pasosSeguimiento: el número de Recepción', () => {
+  it('si el celular es RECEPCION_WHATSAPP_TO, el paso 2 falla y explica que el bot lo ignora a propósito', () => {
+    const existente: Patient = { resourceType: 'Patient', id: 'ana', name: [{ given: ['Ana'], family: 'Pérez' }] };
+    const pasos = pasosSeguimiento({ paciente: existente, mensajes: [], ahora: AHORA, esRecepcion: true });
+    expect(pasos[1]!.estado).toBe('falla');
+    expect(pasos[1]!.detalle).toContain('RECEPCION_WHATSAPP_TO');
+    expect(pasos[1]!.detalle).toContain('otro celular');
+  });
+});
+
 describe('textoVentana', () => {
   it('abierta con lo que queda; cerrada sin mensajes o pasadas 24 h', () => {
     expect(textoVentana([entrante()], AHORA)).toContain('quedan 23 h 50 min');
@@ -217,6 +227,12 @@ describe('cruce con Twilio', () => {
     expect(lineaMensajeTwilio(twilio[0]!, enOtro, PAC, AHORA)).toContain('en Patient/prueba-mp, otro paciente');
     expect(lineaMensajeTwilio(twilio[1]!, enOtro, PAC, AHORA)).toMatch(/en SOM ✓$/);
     expect([...entrantesEnOtroPaciente(twilio, enOtro, PAC)]).toEqual([['Patient/prueba-mp', 1]]);
+  });
+
+  it('en un entrante, el 12300 es la respuesta del webhook (inofensiva), no una entrega fallida', () => {
+    const linea = lineaMensajeTwilio({ sid: 'SMnuevo', direction: 'inbound', status: 'received', error_code: 12300 }, ubicaciones, PAC, AHORA);
+    expect(linea).toContain('inofensiva');
+    expect(linea).not.toContain('no entregó');
   });
 
   it('fechas de Twilio en RFC 2822 (y sin fecha no revienta)', () => {
@@ -305,6 +321,17 @@ describe('revisarRuteoEntrante: paso 1, a dónde manda Twilio los mensajes que l
     expect(bien[1]!.texto).toContain('Messaging Service «SOM»');
     const mal = revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: 'https://otra.example.com/in' })]);
     expect(mal[1]!.estado).toBe('falla');
+  });
+
+  it('con el servicio mandando, avisa si el número tiene su propio webhook a otro sistema', () => {
+    const h = revisar(
+      [sender({ callback_url: 'https://otro-sistema.example.com/whatsapp', callback_method: 'POST' })],
+      [servicio({ inbound_request_url: URL_SOM, inbound_method: 'POST' })],
+    );
+    expect(h.map((x) => x.estado)).toEqual(['ok', 'ok', 'pendiente']);
+    expect(h[2]!.texto).toContain('otro-sistema.example.com');
+    // Si el propio del número también es el de SOM, no hay nada que avisar.
+    expect(revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: URL_SOM })])).toHaveLength(2);
   });
 
   it('un Messaging Service que no reenvía (sin webhook ni "Defer"): falla', () => {

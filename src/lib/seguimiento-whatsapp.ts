@@ -42,6 +42,11 @@ export interface DatosSeguimiento {
   /** Los mensajes de su conversación más reciente (en cualquier orden). */
   mensajes: Communication[];
   ahora: Date;
+  /**
+   * El celular es `RECEPCION_WHATSAPP_TO` (el que recibe los avisos internos): el bot ignora
+   * a propósito sus mensajes, no es un paciente.
+   */
+  esRecepcion?: boolean;
 }
 
 const MARCA: Readonly<Record<EstadoPaso, string>> = { ok: '✓', pendiente: '·', falla: '✗', 'no-aplica': '–' };
@@ -131,7 +136,16 @@ export function pasosSeguimiento(d: DatosSeguimiento): PasoSeguimiento[] {
   );
 
   // 2) Quién es en SOM.
-  if (!d.paciente) {
+  if (d.esRecepcion) {
+    pasos.push({
+      titulo: 'Quién es en SOM',
+      estado: 'falla',
+      detalle:
+        'Es el número de Recepción (Project Secret RECEPCION_WHATSAPP_TO, el que recibe los avisos internos): ' +
+        'som-whatsapp-entrante ignora a propósito sus mensajes, no es un paciente. Para probar, usá otro celular ' +
+        '(o poné otro número en RECEPCION_WHATSAPP_TO).',
+    });
+  } else if (!d.paciente) {
     pasos.push({
       titulo: 'Quién es en SOM',
       estado: 'pendiente',
@@ -328,7 +342,8 @@ export function lineaMensajeTwilio(
   ahora: Date,
 ): string {
   const entrante = esEntranteTwilio(m);
-  const error = m.error_code ? explicarErrorTwilio(m.error_code) : undefined;
+  // En un entrante, el código es del webhook (p. ej. 12300); en un saliente, de la entrega.
+  const error = m.error_code ? (entrante ? explicarAlertaTwilio(m.error_code) : explicarErrorTwilio(m.error_code)) : undefined;
   const donde = ubicaciones.get(m.sid);
   const enSom =
     donde === undefined
@@ -556,6 +571,18 @@ export function revisarRuteoEntrante(p: {
     hallazgos.push({ estado: 'falla', texto: `${donde} usa ${metodo.toUpperCase()}: tiene que ser POST.` });
   } else {
     hallazgos.push({ estado: 'ok', texto: `Twilio manda los mensajes entrantes a ${p.urlEsperada} (POST), desde ${donde}.` });
+  }
+
+  // Si manda el servicio, el webhook propio del número no se usaría; pero si apunta a otro
+  // sistema y ese sistema responde, es por ahí que se están yendo los mensajes.
+  const propio = sender.webhook?.callback_url?.trim();
+  if (servicio && !servicio.use_inbound_webhook_on_number && propio && propio !== p.urlEsperada.trim()) {
+    hallazgos.push({
+      estado: 'pendiente',
+      texto:
+        `El número tiene además su propio webhook: ${ocultarClaveUrl(propio)}. En teoría manda el servicio, pero si ` +
+        'los mensajes no llegan a SOM y otro sistema responde, van ahí: ponele también la URL de SOM (o vaciala).',
+    });
   }
 
   const estados = sender.webhook?.status_callback_url?.trim();
