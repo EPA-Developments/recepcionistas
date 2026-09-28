@@ -283,6 +283,8 @@ const ERRORES_TWILIO: Readonly<Record<string, string>> = {
   '63003': 'el número no tiene WhatsApp',
   '63024': 'el destinatario no es válido para WhatsApp',
   '63018': 'se superó el límite de envíos de WhatsApp; probá de nuevo en unos minutos',
+  '63049':
+    'Meta no entregó un mensaje de plantilla MARKETING (limita cuántos recibe cada persona); con la plantilla UTILITY propia del aviso aprobada no pasa',
   '21211': 'el número de teléfono no es válido',
   '30003': 'el teléfono del paciente no está disponible (apagado o sin señal)',
   '30005': 'el número no existe o ya no está activo',

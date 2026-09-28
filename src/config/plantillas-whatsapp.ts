@@ -54,6 +54,12 @@ export interface PlantillaWhatsApp {
    * respuestas automáticas que usan esta plantilla. Sin `avisos`, es la genérica.
    */
   avisos?: readonly string[];
+  /**
+   * Cómo se ajusta un texto para que entre en esta plantilla cuando ninguna del aviso lo
+   * reconoce tal cual (p. ej. la invitación sin el nombre en el saludo). Lo que recibe el
+   * paciente, y lo que queda registrado, es el texto ajustado.
+   */
+  adaptar?: (texto: string) => string;
 }
 
 const SOM = 'Segunda Opinión Médica';
@@ -203,20 +209,22 @@ const EJEMPLO_PORTAL = 'https://app.segundaopinionmedica.org';
 /**
  * La invitación al portal es el aviso que más necesita plantilla: un paciente nuevo nunca
  * escribió al WhatsApp de SOM, así que sin plantilla la invitación no llega nunca.
+ *
+ * Sale sin el nombre en el saludo: la versión con el nombre (`som_invitacion_portal`,
+ * «¡Hola {{1}}!…») la rechazó Meta el 28/09/2026 sin decir por qué, así que esta la
+ * reemplaza para todos (`adaptar` saca el nombre del saludo). El mail y el QR siguen con
+ * el nombre.
  */
 const PLANTILLAS_INVITACION: readonly PlantillaWhatsApp[] = [
-  plantilla(
-    'invitacion_portal',
-    '¡Hola {{1}}!' + INVITACION.replace('{{LINK}}', '{{2}}').replace('{{PORTAL}}', '{{3}}'),
-    { '1': 'Ana', '2': EJEMPLO_LINK, '3': EJEMPLO_PORTAL },
-    ['invitacion-portal'],
-  ),
-  plantilla(
-    'invitacion_portal_sin_nombre',
-    '¡Hola!' + INVITACION.replace('{{LINK}}', '{{1}}').replace('{{PORTAL}}', '{{2}}'),
-    { '1': EJEMPLO_LINK, '2': EJEMPLO_PORTAL },
-    ['invitacion-portal'],
-  ),
+  {
+    ...plantilla(
+      'invitacion_portal_sin_nombre',
+      '¡Hola!' + INVITACION.replace('{{LINK}}', '{{1}}').replace('{{PORTAL}}', '{{2}}'),
+      { '1': EJEMPLO_LINK, '2': EJEMPLO_PORTAL },
+      ['invitacion-portal'],
+    ),
+    adaptar: (texto) => texto.replace(/^(\s*)¡Hola [^!\n]+!/u, '$1¡Hola!'),
+  },
 ];
 
 /** Respuestas automáticas y el aviso de mensaje nuevo (`config/auto-respuesta.ts`). */
