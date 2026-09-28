@@ -128,11 +128,18 @@ export function elegirPlantilla(
   contentSidDe: (secret: string) => string | undefined,
   opciones: { generica?: boolean } = {},
 ): PlantillaElegida | undefined {
-  for (const plantilla of plantillasDeAviso(clave)) {
-    const contentSid = contentSidDe(plantilla.secret)?.trim();
-    const variables = contentSid ? variablesSegunPlantilla(plantilla, texto) : undefined;
-    if (contentSid && variables) {
-      return { plantilla, contentSid, variables, texto: textoPlantilla(plantilla.cuerpo, variables) };
+  // Primero una que reconozca el texto tal cual; si no, una que lo reconozca ajustado.
+  const propias = plantillasDeAviso(clave);
+  for (const ajustar of [false, true]) {
+    for (const plantilla of propias) {
+      if (ajustar && !plantilla.adaptar) {
+        continue;
+      }
+      const contentSid = contentSidDe(plantilla.secret)?.trim();
+      const variables = contentSid ? variablesSegunPlantilla(plantilla, ajustar ? plantilla.adaptar!(texto) : texto) : undefined;
+      if (contentSid && variables) {
+        return { plantilla, contentSid, variables, texto: textoPlantilla(plantilla.cuerpo, variables) };
+      }
     }
   }
   if (opciones.generica === false) {

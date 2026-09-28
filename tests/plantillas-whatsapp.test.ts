@@ -140,11 +140,14 @@ describe('Plantillas de WhatsApp · catálogo', () => {
 describe('Plantillas de WhatsApp · cada aviso tiene su plantilla y el paciente recibe el mismo texto', () => {
   it.each(AVISOS)('%s: «%s»', (clave, texto) => {
     const propias = plantillasDeAviso(clave);
-    const propia = propias.find((p) => variablesSegunPlantilla(p, texto));
+    // Tal cual o, si la plantilla lo ajusta (la invitación sin el nombre), ajustado.
+    const ajustado = (p: PlantillaWhatsApp): string => (variablesSegunPlantilla(p, texto) || !p.adaptar ? texto : p.adaptar(texto));
+    const propia = propias.find((p) => variablesSegunPlantilla(p, ajustado(p)));
     expect(propia, `ninguna plantilla de "${clave}" reconoce el texto`).toBeDefined();
-    const variables = variablesSegunPlantilla(propia!, texto)!;
+    const recibe = ajustado(propia!).trim();
+    const variables = variablesSegunPlantilla(propia!, recibe)!;
     // Ida y vuelta exacta: el cuerpo con las variables es el texto que ya mandan los bots.
-    expect(textoPlantilla(propia!.cuerpo, variables)).toBe(texto.trim());
+    expect(textoPlantilla(propia!.cuerpo, variables)).toBe(recibe);
     for (const v of Object.values(variables)) {
       expect(v.trim()).toBe(v.length ? v : 'x');
       expect(v).not.toMatch(/[\n\t]/);
@@ -153,21 +156,25 @@ describe('Plantillas de WhatsApp · cada aviso tiene su plantilla y el paciente 
     const elegida = elegirPlantilla(clave, texto, todasAprobadas);
     expect(elegida?.plantilla.nombre).toBe(propia!.nombre);
     expect(elegida?.contentSid).toBe(`HX_${propia!.secret}`);
-    expect(elegida?.texto).toBe(texto.trim());
+    expect(elegida?.texto).toBe(recibe);
   });
 
-  it('La invitación distingue con nombre y sin nombre (el saludo no puede ser una variable al inicio)', () => {
-    expect(elegirPlantilla('invitacion-portal', mensajeInvitacion('Ana', LINK_ACCESO, PORTAL).texto, todasAprobadas)?.plantilla.nombre).toBe(
-      'som_invitacion_portal',
-    );
-    expect(elegirPlantilla('invitacion-portal', mensajeInvitacion('', LINK_ACCESO, PORTAL).texto, todasAprobadas)?.plantilla.nombre).toBe(
-      'som_invitacion_portal_sin_nombre',
-    );
-    expect(elegirPlantilla('invitacion-portal', mensajeInvitacion('Ana', LINK_ACCESO, PORTAL).texto, todasAprobadas)?.variables).toEqual({
-      '1': 'Ana',
-      '2': LINK_ACCESO,
-      '3': PORTAL,
-    });
+  it('La invitación sale con la plantilla sin nombre: a quien tiene nombre se le saca del saludo', () => {
+    const conNombre = elegirPlantilla('invitacion-portal', mensajeInvitacion('María Adela', LINK_ACCESO, PORTAL).texto, todasAprobadas)!;
+    expect(conNombre.plantilla.nombre).toBe('som_invitacion_portal_sin_nombre');
+    expect(conNombre.variables).toEqual({ '1': LINK_ACCESO, '2': PORTAL });
+    // Lo que recibe (y queda registrado) es el texto sin el nombre.
+    expect(conNombre.texto).toBe(mensajeInvitacion('', LINK_ACCESO, PORTAL).texto.trim());
+    const sinNombre = elegirPlantilla('invitacion-portal', mensajeInvitacion('', LINK_ACCESO, PORTAL).texto, todasAprobadas)!;
+    expect(sinNombre.plantilla.nombre).toBe('som_invitacion_portal_sin_nombre');
+    expect(sinNombre.texto).toBe(conNombre.texto);
+    // La versión con el nombre la rechazó Meta: ya no está en el catálogo.
+    expect(PLANTILLAS_WHATSAPP.map((p) => p.nombre)).not.toContain('som_invitacion_portal');
+  });
+
+  it('Sin la plantilla de la invitación aprobada, no cae en la genérica (tiene saltos de línea): texto libre', () => {
+    const soloGenerica = (secret: string): string | undefined => (secret === PLANTILLA_AVISO.secret ? 'HX_AVISO' : undefined);
+    expect(elegirPlantilla('invitacion-portal', mensajeInvitacion('Ana', LINK_ACCESO, PORTAL).texto, soloGenerica)).toBeUndefined();
   });
 
   it('Un aviso con nota al final usa la plantilla "con nota" (Meta no admite una variable vacía)', () => {

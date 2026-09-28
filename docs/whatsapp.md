@@ -312,9 +312,17 @@ texto libre.
 | `som_reserva_portal_sena` (+ `_nota`) | `reserva-portal-sena` (R-23: horario retenido + link de la seña) | consulta · fecha · hora límite · monto · link (+ nota) |
 | `som_reserva_vencida` | `reserva-vencida` | consulta · fecha |
 | `som_plan_consulta_apertura` / `som_plan_consulta_pendiente` | `plan-bienestar-apertura` / `plan-bienestar-mitad` | consulta · ventana |
-| `som_invitacion_portal` (+ `_sin_nombre`) | `invitacion-portal` (link mágico al portal) | nombre · link · URL del portal |
+| `som_invitacion_portal_sin_nombre` | `invitacion-portal` (link mágico al portal), **siempre sin el nombre** en el saludo: la versión con el nombre (`som_invitacion_portal`) la rechazó Meta el 28/09/2026 sin motivo; `adaptar` saca el nombre y el paciente recibe (y queda registrado) «¡Hola! Te damos…». El mail y el QR siguen con el nombre | link · URL del portal |
 | `som_acuse` / `som_fuera_de_horario` | respuestas automáticas | — / horario |
 | `som_mensaje_nuevo` | Recepción respondió con la ventana cerrada | — |
+
+**Categoría:** todas se mandan como UTILITY, pero Meta puede **recategorizarlas como
+MARKETING** (el 28/09/2026 lo hizo con la genérica `som_aviso`, las dos del Plan Bienestar y
+la invitación). Una MARKETING se cobra más, el paciente puede silenciarla y Meta limita
+cuántas recibe cada persona (Twilio **63049**: no la entrega). Por eso la plantilla propia
+de cada aviso (UTILITY) va antes que la genérica; `npm run whatsapp:plantillas` avisa cada
+recategorización. Para volver a UTILITY: ajustar el texto (sacar lo que suene a promoción)
+con otro nombre, o pedir la revisión de la categoría en el WhatsApp Manager de Meta.
 
 Los avisos con una **nota opcional** al final (videollamada, laboratorio) tienen dos
 plantillas, sin y con nota, porque Meta no admite una variable vacía. La **invitación** es
