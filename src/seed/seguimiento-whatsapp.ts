@@ -27,7 +27,10 @@ import { BOT_WHATSAPP_ENTRANTE, SYSTEM } from '../fhir/identifiers.js';
 import { busquedaAvisoContacto, esDemo } from '../lib/contactos-whatsapp.js';
 import {
   alertasRelevantes,
+  autocreacionDe,
+  conversacionesQueCapturan,
   entrantesEnOtroPaciente,
+  entrantesSinEjecucion,
   entrantesSinRegistrar,
   explicarAlertaTwilio,
   lineaMensajeTwilio,
@@ -39,6 +42,8 @@ import {
   textoVentana,
   ubicacionesPorSid,
   type AlertaTwilio,
+  type ConversacionTwilio,
+  type DireccionConversations,
   type MensajeTwilio,
   type SenderTwilio,
   type ServicioTwilio,
@@ -62,6 +67,7 @@ import { leerSecretos, valorSecreto } from './secretos.js';
 const API_TWILIO = 'https://api.twilio.com/2010-04-01';
 const MONITOR_TWILIO = 'https://monitor.twilio.com/v1';
 const MESSAGING_TWILIO = 'https://messaging.twilio.com';
+const CONVERSATIONS_TWILIO = 'https://conversations.twilio.com/v1';
 
 async function twilio<T>(auth: string, url: string): Promise<T> {
   const resp = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
@@ -152,7 +158,39 @@ async function revisarTwilioASom(auth: string, from: string | undefined, url: st
   for (const h of hallazgos) {
     console.log(`  ${marcaPaso(h.estado)} ${h.texto}`);
   }
-  return !hallazgos.some((h) => h.estado === 'falla');
+  // Twilio Conversations puede quedarse con los mensajes antes que el webhook.
+  let autocreacion: DireccionConversations | undefined;
+  try {
+    const r = await twilio<{ address_configurations?: DireccionConversations[] }>(
+      auth,
+      `${CONVERSATIONS_TWILIO}/Configuration/Addresses?PageSize=100`,
+    );
+    autocreacion = autocreacionDe(r.address_configurations ?? [], from);
+  } catch (err) {
+    console.log(`  ? No pude leer la configuración de Conversations (${err instanceof Error ? err.message : String(err)}).`);
+  }
+  if (autocreacion) {
+    console.error(
+      `  ✗ Twilio Conversations crea una conversación con cada WhatsApp nuevo que llega a ${from} (autocreación` +
+        `${autocreacion.auto_creation?.type ? ` "${autocreacion.auto_creation.type}"` : ''}` +
+        `${autocreacion.friendly_name ? `, «${autocreacion.friendly_name}»` : ''}): esos mensajes van a Conversations y no al webhook de SOM.\n` +
+        '    Se desactiva en Twilio → Conversations → Manage → Address configuration (si otro sistema no la usa).',
+    );
+  }
+  return !hallazgos.some((h) => h.estado === 'falla') && !autocreacion;
+}
+
+/** Las conversaciones de Twilio Conversations en las que participa el celular (con y sin el 9). */
+async function conversacionesDelCelular(auth: string, e164: string): Promise<ConversacionTwilio[]> {
+  const todas = new Map<string, ConversacionTwilio>();
+  for (const forma of formasTwilio(e164)) {
+    const params = new URLSearchParams({ Address: `whatsapp:${forma}`, PageSize: '50' });
+    const r = await twilio<{ conversations?: ConversacionTwilio[] }>(auth, `${CONVERSATIONS_TWILIO}/ParticipantConversations?${params}`);
+    for (const c of r.conversations ?? []) {
+      todas.set(c.conversation_sid, c);
+    }
+  }
+  return [...todas.values()];
 }
 
 /** Los mensajes de SOM con esos MessageSid (en cualquier paciente o conversación). */
@@ -166,26 +204,38 @@ async function porMessageSid(medplum: MedplumClient, sids: string[]): Promise<Co
 }
 
 /**
- * Las últimas ejecuciones de som-whatsapp-entrante (AuditEvent de Medplum): si Twilio lo
- * llama, cada mensaje deja una; el log dice por qué ignoró uno (firma, cuenta…).
+ * ¿Twilio llamó al bot cuando llegaron los entrantes que no están en SOM? Cruza la hora de
+ * cada uno con las ejecuciones de som-whatsapp-entrante (AuditEvent de Medplum).
  */
-async function ejecucionesDelBot(medplum: MedplumClient): Promise<void> {
+async function ejecucionesDelBot(medplum: MedplumClient, perdidos: MensajeTwilio[]): Promise<void> {
   try {
     const bot = await medplum.searchOne('Bot', { 'name:exact': BOT_WHATSAPP_ENTRANTE });
     if (!bot?.id) {
       console.error(`    ✗ No existe el bot ${BOT_WHATSAPP_ENTRANTE}: npm run deploy:bots`);
       return;
     }
-    const eventos = await medplum.searchResources('AuditEvent', { entity: `Bot/${bot.id}`, _sort: '-date', _count: '10' });
-    if (eventos.length === 0) {
-      console.error(`    · ${BOT_WHATSAPP_ENTRANTE} no tiene ejecuciones registradas: Twilio no lo está llamando.`);
-      return;
+    const horas = perdidos.map((m) => Date.parse(m.date_created ?? '')).filter((t) => !Number.isNaN(t));
+    const desde = new Date(Math.min(...horas, Date.now()) - 60_000).toISOString();
+    const eventos = await medplum.searchResources('AuditEvent', {
+      entity: `Bot/${bot.id}`,
+      _lastUpdated: `ge${desde}`,
+      _sort: '-_lastUpdated',
+      _count: '500',
+    });
+    const ejecuciones = eventos.map((e) => e.recorded ?? e.meta?.lastUpdated ?? '');
+    const sinEjecucion = entrantesSinEjecucion(perdidos, ejecuciones);
+    const conEjecucion = perdidos.length - sinEjecucion.length;
+    console.error(`    Ejecuciones de ${BOT_WHATSAPP_ENTRANTE} desde el primero de esos mensajes: ${eventos.length}.`);
+    if (sinEjecucion.length > 0) {
+      console.error(
+        `    ✗ ${sinEjecucion.length} de ${perdidos.length} no tienen ninguna ejecución del bot a esa hora: Twilio NO llamó al webhook ` +
+          'para esos mensajes (ver "Twilio Conversations" abajo).',
+      );
     }
-    console.error(`    Últimas ejecuciones de ${BOT_WHATSAPP_ENTRANTE} (Medplum → AuditEvent):`);
-    for (const e of eventos) {
-      const log = (e.outcomeDesc ?? '').replace(/\s+/g, ' ').trim();
-      const fecha = e.recorded ? new Date(e.recorded).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '?';
-      console.error(`      ${e.outcome === '0' ? '✓' : '✗'} ${fecha}${log ? ` · ${log.length > 160 ? `${log.slice(0, 159)}…` : log}` : ''}`);
+    if (conEjecucion > 0) {
+      console.error(
+        `    · ${conEjecucion} tienen una ejecución del bot a esa hora: el bot los recibió y no los guardó (logs del bot en Medplum).`,
+      );
     }
   } catch (err) {
     console.error(`    ? No pude leer las ejecuciones del bot (${err instanceof Error ? err.message : String(err)}).`);
@@ -306,10 +356,41 @@ async function main(): Promise<void> {
         `    bot lo rechazó. Revisá en Twilio el "Webhook URL for incoming messages" del número de SOM\n` +
         `    (https://api.medplum.com.ar${RUTA_WEBHOOK_TWILIO}, POST), las alertas de abajo y npm run webhooks.`,
     );
-    await ejecucionesDelBot(medplum);
+    await ejecucionesDelBot(medplum, perdidos);
     process.exitCode = 1;
   } else if (enTwilio.some((m) => m.direction === 'inbound')) {
     console.log('\n  ✓ Todo lo que el celular mandó a Twilio está en SOM.');
+  }
+
+  // ── Twilio Conversations: si el celular está en una conversación con el número de SOM,
+  //    sus mensajes van ahí y no al webhook ──
+  const from = valorSecreto(secretos, 'TWILIO_WHATSAPP_FROM');
+  try {
+    const capturan = conversacionesQueCapturan(await conversacionesDelCelular(auth, e164), from);
+    if (capturan.length === 0) {
+      console.log('\nTwilio Conversations: el celular no está en ninguna conversación abierta con el número de SOM ✓');
+    } else {
+      console.error(
+        `\nTwilio Conversations: el celular está en ${capturan.length} conversación(es) abierta(s) con el número de SOM.\n` +
+          '  ✗ Mientras exista una, Twilio mete ahí los mensajes de este celular y NO llama al webhook de SOM:',
+      );
+      for (const c of capturan) {
+        const nombre = c.conversation_friendly_name ?? c.conversation_unique_name;
+        console.error(
+          `    ${c.conversation_sid} · ${c.conversation_state ?? '?'}${nombre ? ` · «${nombre}»` : ''}` +
+            `${c.chat_service_sid ? ` · servicio ${c.chat_service_sid}` : ''}` +
+            `${c.conversation_date_updated ? ` · última actividad ${new Date(c.conversation_date_updated).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}` : ''}`,
+        );
+      }
+      console.error(
+        '  Si ningún otro sistema las usa, cerrarlas (Twilio → Conversations → la conversación → State: closed)\n' +
+          '  devuelve los mensajes de este celular a SOM. Si otro sistema (p. ej. otro servicio de EPA en la misma\n' +
+          '  WABA) atiende por Conversations, SOM y ese sistema no pueden compartir el número: hay que decidir cuál.',
+      );
+      process.exitCode = 1;
+    }
+  } catch (err) {
+    console.log(`\nTwilio Conversations: no pude leerlas (${err instanceof Error ? err.message : String(err)}).`);
   }
 
   const sidsCelular = new Set(enTwilio.map((m) => m.sid));
