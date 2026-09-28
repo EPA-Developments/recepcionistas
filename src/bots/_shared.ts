@@ -9,10 +9,9 @@ import { SLOT_GRANULARIDAD_MIN } from '../config/horario.js';
 import { isoArgentina } from '../lib/slots.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { resolverTC } from '../config/tipo-cambio.js';
-import { PLANTILLA_AVISO } from '../config/plantillas-whatsapp.js';
 import { alertaRecepcionPagoNoCubre, alertaRecepcionPagoTurnoCancelado, avisoConfirmacion } from '../lib/avisos.js';
 import { problemaPagoSena, type PagoMP } from '../lib/mercadopago.js';
-import { paramsPlantilla, textoPlantilla, variablesAviso } from '../lib/plantillas-whatsapp.js';
+import { elegirPlantilla, paramsPlantilla } from '../lib/plantillas-whatsapp.js';
 import { calcularSenaARS, type ItemCobro } from '../lib/pricing.js';
 import type { ReservaRecurso } from '../lib/reglas-turno.js';
 import { esConsentimientoTeleconsulta, modalidadDe, teleconsultaUrlDe } from '../lib/teleconsulta.js';
@@ -257,12 +256,12 @@ export async function enviarWhatsApp(
       to = (telefonos.find((t) => t.use === 'mobile') ?? telefonos[0])?.value;
     }
   }
-  // Un aviso es el negocio escribiendo primero: con la plantilla genérica aprobada llega
-  // aunque la ventana de 24 h esté cerrada; sin ella, sale como texto libre.
-  const contentSid = secrets[PLANTILLA_AVISO.secret]?.valueString?.trim();
-  const variables = contentSid ? variablesAviso(params.body) : undefined;
-  const plantilla = contentSid && variables ? paramsPlantilla(contentSid, variables) : undefined;
-  const texto = plantilla && variables ? textoPlantilla(PLANTILLA_AVISO.cuerpo, variables) : params.body;
+  // Un aviso es el negocio escribiendo primero: con una plantilla aprobada por Meta (la
+  // propia del aviso si el texto es el suyo, si no la genérica) llega aunque la ventana de
+  // 24 h esté cerrada; sin ninguna, sale como texto libre.
+  const elegida = elegirPlantilla(params.template, params.body, (s) => secrets[s]?.valueString);
+  const plantilla = elegida ? paramsPlantilla(elegida.contentSid, elegida.variables) : undefined;
+  const texto = elegida?.texto ?? params.body;
   const envio = await mandarWhatsApp(secrets, { to, body: params.body, ...(plantilla ? { plantilla } : {}) });
 
   const identificadores = [

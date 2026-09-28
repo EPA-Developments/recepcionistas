@@ -1,16 +1,18 @@
 /**
  * Plantillas de WhatsApp (Meta) — lógica pura: validar una plantilla antes de mandarla a
- * aprobación, convertir un aviso en las variables de la genérica y armar lo que se le manda
- * a Twilio. Sin red. Ver `config/plantillas-whatsapp.ts`.
+ * aprobación, reconocer con qué plantilla sale un texto (y sus variables) y armar lo que se
+ * le manda a Twilio. Sin red. Ver `config/plantillas-whatsapp.ts`.
  */
-import { PLANTILLA_AVISO, type PlantillaWhatsApp } from '../config/plantillas-whatsapp.js';
+import { PLANTILLA_AVISO, PLANTILLAS_WHATSAPP, type PlantillaWhatsApp } from '../config/plantillas-whatsapp.js';
 
 /** Largo máximo del cuerpo de una plantilla de WhatsApp (Meta). */
 export const MAX_CUERPO_PLANTILLA = 1024;
 
+const VARIABLE = /\{\{\s*(\d+)\s*\}\}/g;
+
 /** Las variables de un texto ({{1}}, {{2}}…), en el orden en que aparecen. */
 export function variablesDe(cuerpo: string): string[] {
-  return [...cuerpo.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => m[1]!);
+  return [...cuerpo.matchAll(VARIABLE)].map((m) => m[1]!);
 }
 
 /** Qué rechazaría Meta de la plantilla (vacío = se puede mandar a aprobación). */
@@ -44,10 +46,13 @@ export function problemasPlantilla(p: PlantillaWhatsApp): string[] {
 
 /** El texto que recibe el paciente: el cuerpo con las variables reemplazadas. */
 export function textoPlantilla(cuerpo: string, variables: Record<string, string>): string {
-  return cuerpo.replace(/\{\{\s*(\d+)\s*\}\}/g, (todo, n: string) => variables[n] ?? todo);
+  return cuerpo.replace(VARIABLE, (todo, n: string) => variables[n] ?? todo);
 }
 
-/** La firma con la que empiezan los avisos: la pone la plantilla. */
+/** Lo que Meta no admite dentro de una variable: saltos de línea, tabulaciones, 4 espacios seguidos. */
+const VARIABLE_INVALIDA = /[\n\t]| {4,}/;
+
+/** La firma con la que empiezan los avisos: la pone la plantilla genérica. */
 const FIRMA = /^Segunda Opinión Médica\s*[:·]\s*/u;
 
 /**
@@ -58,10 +63,86 @@ const FIRMA = /^Segunda Opinión Médica\s*[:·]\s*/u;
 export function variablesAviso(aviso: string): Record<string, string> | undefined {
   const texto = aviso.trim().replace(FIRMA, '').replace(/\s*💙\s*$/u, '').trim();
   const fijo = PLANTILLA_AVISO.cuerpo.length - '{{1}}'.length;
-  if (!texto || /[\n\t]| {4,}/.test(texto) || fijo + texto.length > MAX_CUERPO_PLANTILLA) {
+  if (!texto || VARIABLE_INVALIDA.test(texto) || fijo + texto.length > MAX_CUERPO_PLANTILLA) {
     return undefined;
   }
   return { '1': texto };
+}
+
+function escaparRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** El cuerpo de la plantilla como patrón: el texto fijo literal y un grupo por variable. */
+function patronDe(cuerpo: string): RegExp {
+  const fijas = cuerpo.split(VARIABLE).filter((_, i) => i % 2 === 0);
+  return new RegExp(`^${fijas.map(escaparRegex).join('([\\s\\S]+?)')}$`, 'u');
+}
+
+/**
+ * ¿`texto` es exactamente esta plantilla con sus variables llenas? Devuelve las variables
+ * (que vuelven a dar el mismo texto con `textoPlantilla`) o undefined si el texto no es el
+ * de la plantilla, alguna variable quedaría vacía o inválida para Meta, o el total no entra.
+ */
+export function variablesSegunPlantilla(p: PlantillaWhatsApp, texto: string): Record<string, string> | undefined {
+  const limpio = texto.trim();
+  const m = patronDe(p.cuerpo).exec(limpio);
+  if (!m) {
+    return undefined;
+  }
+  const variables: Record<string, string> = {};
+  for (const [i, n] of variablesDe(p.cuerpo).entries()) {
+    const v = m[i + 1] ?? '';
+    if (!v.trim() || VARIABLE_INVALIDA.test(v)) {
+      return undefined;
+    }
+    variables[n] = v;
+  }
+  return limpio.length > MAX_CUERPO_PLANTILLA ? undefined : variables;
+}
+
+/** Las plantillas propias de un aviso o respuesta automática (por su clave `template`), en orden. */
+export function plantillasDeAviso(clave: string): PlantillaWhatsApp[] {
+  return PLANTILLAS_WHATSAPP.filter((p) => p.avisos?.includes(clave));
+}
+
+export interface PlantillaElegida {
+  plantilla: PlantillaWhatsApp;
+  /** El ContentSid (HX…) aprobado, del Project Secret de la plantilla. */
+  contentSid: string;
+  variables: Record<string, string>;
+  /** Lo que recibe el paciente (el cuerpo con las variables). */
+  texto: string;
+}
+
+/**
+ * Con qué plantilla sale un mensaje: la propia del aviso si está aprobada (su ContentSid
+ * en el secret) y el texto es el suyo; si no, la genérica (`generica: false` la excluye:
+ * las respuestas automáticas salen dentro de la ventana y como texto libre están bien);
+ * si ninguna, undefined = texto libre. `contentSidDe` lee el secret (en los bots,
+ * `event.secrets`).
+ */
+export function elegirPlantilla(
+  clave: string,
+  texto: string,
+  contentSidDe: (secret: string) => string | undefined,
+  opciones: { generica?: boolean } = {},
+): PlantillaElegida | undefined {
+  for (const plantilla of plantillasDeAviso(clave)) {
+    const contentSid = contentSidDe(plantilla.secret)?.trim();
+    const variables = contentSid ? variablesSegunPlantilla(plantilla, texto) : undefined;
+    if (contentSid && variables) {
+      return { plantilla, contentSid, variables, texto: textoPlantilla(plantilla.cuerpo, variables) };
+    }
+  }
+  if (opciones.generica === false) {
+    return undefined;
+  }
+  const contentSid = contentSidDe(PLANTILLA_AVISO.secret)?.trim();
+  const variables = contentSid ? variablesAviso(texto) : undefined;
+  return contentSid && variables
+    ? { plantilla: PLANTILLA_AVISO, contentSid, variables, texto: textoPlantilla(PLANTILLA_AVISO.cuerpo, variables) }
+    : undefined;
 }
 
 /** Lo que se le manda a Twilio en vez de `Body`: la plantilla y sus variables. */

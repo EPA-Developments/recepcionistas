@@ -360,7 +360,46 @@ export function esInicioContacto(c: Communication): boolean {
 /** Respuesta que mandó solo el sistema (acuse o fuera de horario): se ve «🤖 Automática». */
 export function tipoAutomatica(c: Communication): TipoRespuestaAutomatica | undefined {
   const v = c.extension?.find((e) => e.url === EXT.autoRespuesta)?.valueCode;
-  return v === 'acuse' || v === 'fuera-de-horario' ? v : undefined;
+  return v === 'acuse' || v === 'fuera-de-horario' || v === 'mensaje-nuevo' ? v : undefined;
+}
+
+/** Respuesta de Recepción que espera la ventana de 24 h para salir por WhatsApp. */
+export function esPendienteWhatsApp(c: Communication): boolean {
+  return c.extension?.some((e) => e.url === EXT.pendienteWhatsapp && e.valueBoolean === true) === true;
+}
+
+/** El mensaje marcado (o desmarcado) como pendiente de salir por WhatsApp. */
+export function conPendienteWhatsApp(c: Communication, pendiente: boolean): Communication {
+  const { extension: vieja, ...sinExtension } = c;
+  const resto = (vieja ?? []).filter((e) => e.url !== EXT.pendienteWhatsapp);
+  const extension = pendiente ? [...resto, { url: EXT.pendienteWhatsapp, valueBoolean: true }] : resto;
+  return extension.length ? { ...sinExtension, extension } : sinExtension;
+}
+
+/**
+ * Las respuestas de Recepción que quedaron esperando la ventana de 24 h, en orden: se
+ * reenvían cuando el paciente vuelve a escribir por WhatsApp.
+ */
+export function pendientesDeReenvio(hilo: Communication[]): Communication[] {
+  return hilo
+    .filter((m) => !delPaciente(m) && !tipoAutomatica(m) && esPendienteWhatsApp(m))
+    .sort((a, b) => (a.sent ?? '').localeCompare(b.sent ?? ''));
+}
+
+/**
+ * ¿Ya se le avisó al paciente (plantilla `mensaje-nuevo`) desde su último mensaje? Con la
+ * ventana cerrada se le avisa una vez; las respuestas siguientes esperan sin repetirlo.
+ */
+export function yaAvisadoMensajeNuevo(hilo: Communication[]): boolean {
+  const desde = ultimoDelPaciente(hilo)?.sent ?? '';
+  return hilo.some(
+    (m) =>
+      tipoAutomatica(m) === 'mensaje-nuevo' &&
+      (m.sent ?? '') > desde &&
+      // Solo cuenta si Twilio lo aceptó: uno que no salió se vuelve a intentar.
+      estadoEntregaDe(m) !== 'fallido' &&
+      (m.identifier ?? []).some((i) => i.system === SYSTEM.twilioMessageSid),
+  );
 }
 
 export function textoDe(c: Communication): string {
@@ -603,12 +642,21 @@ export function ultimoDelPaciente(hilo: Communication[]): Communication | undefi
 export type DecisionEnvio =
   | { enviar: true; telefono: string }
   | { enviar: false; canal: 'portal' }
-  | { enviar: false; canal: 'whatsapp'; motivo: string };
+  | {
+      enviar: false;
+      canal: 'whatsapp';
+      motivo: string;
+      /** La ventana de 24 h está cerrada: solo se le puede avisar con la plantilla `mensaje-nuevo`, a `telefono`. */
+      ventanaCerrada?: true;
+      telefono?: string;
+    };
 
 /**
  * ¿La respuesta de Recepción sale también por WhatsApp? Sí, si el último mensaje del
  * paciente en la conversación llegó por WhatsApp y la ventana de 24 h sigue abierta.
- * Si escribió por el portal, la respuesta queda solo en el portal.
+ * Si escribió por el portal, la respuesta queda solo en el portal. Con la ventana cerrada
+ * no sale (WhatsApp solo acepta plantillas): el bot le avisa con la plantilla `mensaje-nuevo`
+ * y la reenvía cuando el paciente contesta.
  */
 export function decidirEnvioWhatsApp(hilo: Communication[], ahora: Date = new Date()): DecisionEnvio {
   const ultimo = ultimoDelPaciente(hilo);
@@ -616,11 +664,14 @@ export function decidirEnvioWhatsApp(hilo: Communication[], ahora: Date = new Da
     return { enviar: false, canal: 'portal' };
   }
   if (!ventana24h(ultimo.sent, ahora).abierta) {
+    const telefono = telefonoDe(ultimo);
     return {
       enviar: false,
       canal: 'whatsapp',
+      ventanaCerrada: true,
+      ...(telefono ? { telefono } : {}),
       motivo:
-        'pasaron más de 24 h desde el último WhatsApp del paciente: WhatsApp solo acepta plantillas aprobadas (pendientes). El mensaje quedó en la conversación y lo ve en el portal.',
+        'pasaron más de 24 h desde el último WhatsApp del paciente: WhatsApp solo acepta plantillas aprobadas por Meta. El mensaje quedó en la conversación y lo ve en el portal.',
     };
   }
   const telefono = telefonoDe(ultimo);

@@ -187,6 +187,12 @@ export function WhatsApp({
           title: 'Respuesta enviada',
           message: `Salió por WhatsApp a ${formatoTelefono(c.telefono) || c.nombre}.`,
         });
+      } else if ('avisado' in r && r.avisado) {
+        notifications.show({
+          color: 'blue',
+          title: 'Le avisamos por WhatsApp que tiene una respuesta nueva',
+          message: r.motivo ?? 'Se la reenviamos por WhatsApp cuando conteste; mientras, la ve en el portal.',
+        });
       } else if (r.ok) {
         notifications.show({ color: 'gray', title: 'Quedó en la conversación', message: 'Escribió por el portal: la ve ahí.' });
       } else {
@@ -432,7 +438,6 @@ export function WhatsApp({
                     maxRows={8}
                     placeholder="Escribí la respuesta que le llega por WhatsApp…"
                     aria-label={`Respuesta a ${c.nombre}`}
-                    disabled={!ventana.abierta}
                     value={borrador}
                     onChange={(e) => {
                       // El valor se lee ACÁ y no adentro del updater: React lo corre
@@ -446,7 +451,7 @@ export function WhatsApp({
                     <Text size="xs" c={ventana.abierta ? 'dimmed' : 'orange'}>
                       {ventana.abierta
                         ? '📱 Sale por WhatsApp y queda en su conversación de Mensajes.'
-                        : `⚠️ Pasaron más de 24 h desde su último WhatsApp: WhatsApp solo acepta plantillas aprobadas (pendientes). Llamalo${c.telefono ? ` al ${formatoTelefono(c.telefono)}` : ''} o esperá a que vuelva a escribir.`}
+                        : `⚠️ Pasaron más de 24 h desde su último WhatsApp: la respuesta queda en Mensajes y, con la plantilla de Meta aprobada, le avisamos por WhatsApp que tiene una respuesta y se la reenviamos cuando conteste. Si no, llamalo${c.telefono ? ` al ${formatoTelefono(c.telefono)}` : ''}.`}
                     </Text>
                     <Group gap="xs" wrap="nowrap">
                       <Button
@@ -454,7 +459,6 @@ export function WhatsApp({
                         variant="light"
                         leftSection={<IconSparkles size={15} />}
                         loading={sugiriendo === id}
-                        disabled={!ventana.abierta}
                         onClick={() => void sugerir(c)}
                         title="Escribe un borrador con el contexto. Lo revisás y lo enviás vos."
                       >
@@ -464,7 +468,7 @@ export function WhatsApp({
                         size="xs"
                         leftSection={<IconSend size={15} />}
                         loading={enviando === id}
-                        disabled={!ventana.abierta || !borrador.trim()}
+                        disabled={!borrador.trim()}
                         onClick={() => void enviar(c)}
                       >
                         Enviar

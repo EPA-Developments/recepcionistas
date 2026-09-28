@@ -77,8 +77,12 @@ Recepción responde (en Mensajes o en la tarjeta de WhatsApp) ─► queda en el
 4. **Responder:** la respuesta queda en el portal y la app le pide a
    `som-whatsapp-responder` que la mande. El bot decide: si el último mensaje del paciente
    llegó por WhatsApp y la **ventana de 24 h** sigue abierta, la manda (texto y adjuntos,
-   al número desde el que escribió) y marca la burbuja con 📱 y ✓; si no, avisa
-   "Quedó en la conversación, pero NO salió por WhatsApp" con el motivo.
+   al número desde el que escribió) y marca la burbuja con 📱 y ✓. Si escribió por el
+   portal, queda ahí. Si la ventana está **cerrada**, la respuesta queda **pendiente** (⏳ en
+   la burbuja) y el paciente recibe, una vez por período, la plantilla «tenés una respuesta
+   nueva» (`som_mensaje_nuevo`); cuando contesta, `som-whatsapp-entrante` reenvía las
+   pendientes en orden. Sin esa plantilla aprobada, avisa "Quedó en la conversación, pero
+   NO salió por WhatsApp" con el motivo.
 5. **Los ✓✓:** cada envío pide sus estados a Twilio y el mismo webhook los guarda:
    🕓 en camino · ✓ enviado · ✓✓ entregado · ✓✓ azul leído · ⚠ no entregado (con el
    motivo, p. ej. "el número no tiene WhatsApp"). Nunca retroceden.
@@ -96,8 +100,8 @@ Cada tarjeta es un aviso pendiente, del más nuevo al más viejo:
   mismas burbujas que Mensajes (📱, 🤖, ✓✓); los anteriores, en «Ver conversación».
 - **Responder:** la respuesta queda en su conversación de Mensajes, sale por WhatsApp
   (`som-whatsapp-responder`) y marca leído lo que escribió. **Sugerir** pide un borrador,
-  como en Mensajes. Con la ventana cerrada no deja escribir y dice por qué (llamarlo o
-  esperar a que vuelva a escribir: las plantillas de Meta están pendientes).
+  como en Mensajes. Con la ventana cerrada avisa que la respuesta queda en Mensajes y que,
+  con la plantilla de Meta aprobada, se le avisa por WhatsApp y se le reenvía cuando conteste.
 - **Completar ficha:** el alta con el teléfono y el nombre del perfil precargados. El bot
   `som-alta-paciente` encuentra el contacto por el número, le pone el nombre real y
   **resuelve el aviso solo** (`ficha-completada`); después se abre el paciente para
@@ -112,21 +116,27 @@ al volver a la ventana. Completar la ficha desde **Mensajes** también resuelve 
 ### La ventana de 24 h
 
 WhatsApp solo deja mandar **texto libre** dentro de las 24 h del último mensaje del
-paciente; después, solo **plantillas aprobadas por Meta** (pendientes). El encabezado de
+paciente; después, solo **plantillas aprobadas por Meta** (paso 6). El encabezado de
 la conversación muestra cuánto queda ("Ventana WhatsApp · 3 h 20 min", naranja cuando
-faltan menos de 2 h) y, con la ventana cerrada, avisa antes de escribir.
+faltan menos de 2 h) y, con la ventana cerrada, avisa antes de escribir. Con la ventana
+cerrada la respuesta no se pierde: queda **pendiente** (`pendiente-whatsapp`, ⏳ en la
+burbuja), el paciente recibe la plantilla «tenés una respuesta nueva» y, cuando contesta,
+las pendientes salen solas, en orden, texto y adjuntos.
 
 ### Respuestas automáticas
 
-| Cuándo | Texto (aprobado) |
-|---|---|
-| Un WhatsApp abre una conversación nueva | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. En breve te responde alguien de Recepción.» |
-| Llega un WhatsApp con el centro cerrado (una vez por período cerrado) | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. Ahora estamos fuera del horario de atención (lunes a viernes de 8 a 22 y sábados de 8 a 20). Te respondemos apenas abramos.» |
+| Cuándo | Texto (aprobado) | Plantilla |
+|---|---|---|
+| Un WhatsApp abre una conversación nueva | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. En breve te responde alguien de Recepción.» | `som_acuse` |
+| Llega un WhatsApp con el centro cerrado (una vez por período cerrado) | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. Ahora estamos fuera del horario de atención (lunes a viernes de 8 a 22 y sábados de 8 a 20). Te respondemos apenas abramos.» | `som_fuera_de_horario` |
+| Recepción responde con la ventana de 24 h cerrada (una vez por período) | «Segunda Opinión Médica: Recepción te respondió en Mensajes. Podés leerlo en el portal o respondé este mensaje y te lo reenviamos por acá. 💙» | `som_mensaje_nuevo` (obligatoria: sin ella no se le puede avisar) |
 
-El horario es el de la agenda ([`config/horario.ts`](../src/config/horario.ts), hoy
-**provisorio**): al cargar el real, el texto y el momento del aviso se ajustan solos.
-Las automáticas no le quitan al paciente el aviso del portal cuando después responde una
-persona.
+Las dos primeras salen dentro de la ventana que abrió el paciente, así que no necesitan
+plantilla; con la suya aprobada salen igual con plantilla (mismo texto; una UTILITY
+dentro de la ventana no tiene costo). El horario es el de la agenda
+([`config/horario.ts`](../src/config/horario.ts), hoy **provisorio**): al cargar el real,
+el texto y el momento del aviso se ajustan solos. Las automáticas no le quitan al
+paciente el aviso del portal cuando después responde una persona.
 
 ### Privacidad por diseño
 
@@ -273,7 +283,7 @@ disco: sin recargar, nginx sigue usando lo anterior) y volver a correr `npm run 
 | `TWILIO_WHATSAPP_FROM` | el número de WhatsApp de SOM (`whatsapp:+54…`) |
 | `TWILIO_WEBHOOK_URL` | la URL pública (la guarda `npm run webhooks`): contra ella se valida la firma y a ella van los ✓✓. **Sin ella el webhook rechaza todo** |
 | `RECEPCION_WHATSAPP_TO` | opcional: el número que recibe los avisos internos (no se vuelve paciente si escribe) |
-| `TWILIO_CONTENT_SID_AVISO` | el `ContentSid` (HX…) de la plantilla genérica aprobada (lo guarda `npm run whatsapp:plantillas`): con él, los avisos llegan aunque pasen 24 h |
+| `TWILIO_CONTENT_SID_<PLANTILLA>` | uno por plantilla aprobada, con su `ContentSid` (HX…); los guarda `npm run whatsapp:plantillas` (p. ej. `TWILIO_CONTENT_SID_AVISO` la genérica, `…_MENSAJE_NUEVO`, `…_INVITACION_PORTAL`). Con ellos los avisos llegan aunque pasen 24 h |
 
 ### 6. Plantillas de Meta (error 63016)
 
@@ -283,32 +293,58 @@ pero no llega: **63016**. Eso afecta a los **avisos** (confirmación, recordator
 reservas, invitación, avisos a Recepción, `whatsapp:test`). Las respuestas en una
 conversación y las automáticas no: salen dentro de la ventana que abrió el paciente.
 
-**La genérica** (`som_aviso`, UTILITY, [`config/plantillas-whatsapp.ts`](../src/config/plantillas-whatsapp.ts)):
+El catálogo está en [`config/plantillas-whatsapp.ts`](../src/config/plantillas-whatsapp.ts)
+(todas UTILITY, `es_AR`). Cada plantilla propia es, **palabra por palabra**, el texto que ya
+arma [`lib/avisos.ts`](../src/lib/avisos.ts) / [`lib/onboarding.ts`](../src/lib/onboarding.ts),
+con las partes variables como `{{n}}`: el bot compara el texto del aviso con el cuerpo de la
+plantilla (`elegirPlantilla`) y, si es el suyo y está aprobada, lo manda con ella; el paciente
+recibe exactamente el mismo texto de hoy (`tests/plantillas-whatsapp.test.ts` lo verifica
+para cada variante). Si no coincide o no está aprobada, cae en la **genérica**; sin ninguna,
+texto libre.
 
-> Segunda Opinión Médica: {{1}} Si tenés dudas, respondé este mensaje. 💙
+| Plantilla | Sale con | Variables |
+|---|---|---|
+| `som_aviso` (genérica) | cualquier aviso sin plantilla propia o cuya propia no está aprobada; los avisos internos a Recepción | `{{1}}` = el aviso sin firma ni 💙: «Segunda Opinión Médica: {{1}} Si tenés dudas, respondé este mensaje. 💙» |
+| `som_turno_confirmado` | `turno-confirmado` (seña recibida) | descripción · monto · cierre («¡Te esperamos!» / videollamada) |
+| `som_recordatorio` / `som_recordatorio_hoy` | `recordatorio-48h` / `recordatorio-2h` | consulta · fecha u hora · cierre |
+| `som_reserva_tentativa` (+ `_nota`) | `reserva-tentativa` (reserva de Recepción, pendiente de seña) | consulta · fecha (+ nota de videollamada / laboratorio) |
+| `som_consulta_plan_confirmada` (+ `_nota`) | `consulta-plan-confirmada` (incluida en el plan) | consulta · fecha (+ nota) |
+| `som_reserva_portal_sena` (+ `_nota`) | `reserva-portal-sena` (R-23: horario retenido + link de la seña) | consulta · fecha · hora límite · monto · link (+ nota) |
+| `som_reserva_vencida` | `reserva-vencida` | consulta · fecha |
+| `som_plan_consulta_apertura` / `som_plan_consulta_pendiente` | `plan-bienestar-apertura` / `plan-bienestar-mitad` | consulta · ventana |
+| `som_invitacion_portal` (+ `_sin_nombre`) | `invitacion-portal` (link mágico al portal) | nombre · link · URL del portal |
+| `som_acuse` / `som_fuera_de_horario` | respuestas automáticas | — / horario |
+| `som_mensaje_nuevo` | Recepción respondió con la ventana cerrada | — |
 
-`{{1}}` es el aviso que ya arma [`lib/avisos.ts`](../src/lib/avisos.ts), sin la firma inicial
-ni el 💙 final (los pone la plantilla). No hay copy nuevo más que el cierre, y cualquier
-aviso nuevo sale con ella sin cambiar la plantilla.
+Los avisos con una **nota opcional** al final (videollamada, laboratorio) tienen dos
+plantillas, sin y con nota, porque Meta no admite una variable vacía. La **invitación** es
+la que más importa: un paciente nuevo nunca escribió al WhatsApp de SOM, así que sin
+plantilla la invitación no llega nunca. Los avisos internos a Recepción
+(`RECEPCION_WHATSAPP_TO`) y el del informe SOM (lleva el resumen clínico, con saltos de
+línea) siguen con la genérica o texto libre.
 
 ```bash
-npm run whatsapp:plantillas              # estado (no toca nada)
+npm run whatsapp:plantillas              # estado de cada una (no toca nada)
 npm run whatsapp:plantillas -- --aplicar # crea en Twilio, manda a Meta y, aprobada, guarda el secret
 ```
 
-- `--aplicar` **no es un diagnóstico**: crea la plantilla real en la cuenta de Twilio de
-  SOM y la manda a aprobación de Meta. Usa `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` de los
-  Project Secrets, en memoria.
-- Meta tarda de minutos a 48 h. Volver a correr el comando: cuando está **aprobada** guarda
-  `TWILIO_CONTENT_SID_AVISO` y desde ahí los avisos salen con la plantilla. Hasta entonces
-  salen como texto libre (llegan solo dentro de la ventana de 24 h).
-- Un aviso que no entra en la plantilla (saltos de línea, más de ~950 caracteres) sale como
+- **Antes de `--aplicar`, los textos los aprueban los médicos de SOM**
+  ([`decisiones-pendientes.md`](decisiones-pendientes.md)): son los que va a leer el
+  paciente y Meta los registra en la WABA. `--aplicar` **no es un diagnóstico**: crea las
+  plantillas reales en la cuenta de Twilio de SOM y las manda a aprobación. Usa
+  `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` de los Project Secrets, en memoria.
+- Meta tarda de minutos a 48 h. Volver a correr el comando: cada plantilla **aprobada**
+  guarda su `TWILIO_CONTENT_SID_<PLANTILLA>` y desde ahí sus avisos salen con ella. Hasta
+  entonces salen con la genérica (si está) o como texto libre (llegan solo dentro de la
+  ventana de 24 h). Se pueden aprobar de a una; la genérica sola ya cubre todos los avisos.
+- Un aviso que no entra en ninguna (saltos de línea, más de ~950 caracteres) sale como
   texto libre.
 - **Rechazada:** corregir el texto con **otro nombre** (una plantilla de Twilio no se edita)
-  y volver a correr. **Recategorizada** como MARKETING: se cobra distinto y el paciente la
-  puede silenciar; conviene revisar el texto.
-- Plantillas **específicas** por aviso (con sus variables: fecha, profesional, link) se
-  suman en el mismo catálogo cuando se aprueben sus textos.
+  y volver a correr. Meta suele observar los **links en variables** (la seña, el acceso al
+  portal): si rechaza esas, el aviso sigue saliendo con la genérica. **Recategorizada** como
+  MARKETING: se cobra distinto y el paciente la puede silenciar; conviene revisar el texto.
+- Un aviso nuevo se suma con su función en `lib/avisos.ts`, su plantilla en el catálogo (con
+  la clave `template` en `avisos`) y su caso en el test de ida y vuelta.
 
 ### 7. Probar
 
@@ -365,10 +401,10 @@ número** lo dice. Solo lee (no manda ni cambia nada).
 
 ## Límites y pendientes
 
-- **Plantillas de Meta** (`ContentSid`): los **avisos** usan la genérica `som_aviso` cuando
-  está aprobada (paso 6). Una **respuesta de Recepción** con la ventana de 24 h cerrada
-  todavía no sale por WhatsApp (queda en el portal y se avisa): hace falta una plantilla de
-  "tenés un mensaje nuevo" que invite a responder, para retomar la conversación.
+- **Plantillas de Meta** (`ContentSid`): el catálogo está (paso 6); falta que los médicos
+  aprueben los textos, `--aplicar` y que Meta las apruebe. Hasta entonces los avisos salen
+  como texto libre y una respuesta de Recepción con la ventana de 24 h cerrada queda en el
+  portal sin aviso al paciente.
 - **Firma de Twilio** (`X-Twilio-Signature`): la valida el bot con la URL pública; requiere
   Medplum ≥ 4.2 en el servidor. Con la URL directa (temporal) no se valida.
 - **Fichas duplicadas:** si un paciente registrado escribe desde un número que no está en

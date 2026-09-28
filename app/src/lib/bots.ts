@@ -259,9 +259,14 @@ export interface ResultadoResponderWhatsApp {
   canal: 'portal' | 'whatsapp';
   /** Salió por WhatsApp (Twilio lo aceptó). */
   enviado: boolean;
+  /**
+   * La ventana de 24 h estaba cerrada: la respuesta quedó pendiente (sale sola cuando el
+   * paciente conteste) y se le avisó por WhatsApp, con plantilla, que tiene una respuesta.
+   */
+  avisado?: boolean;
   /** El mensaje, con los datos del envío (canal, ✓) si salió. */
   mensaje?: Communication;
-  /** Por qué no salió por WhatsApp. */
+  /** Por qué no salió por WhatsApp (o qué se hizo en su lugar). */
   motivo?: string;
 }
 
