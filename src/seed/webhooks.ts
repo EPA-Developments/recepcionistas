@@ -129,13 +129,14 @@ async function main(): Promise<void> {
 
   const twilio = listos.find((l) => l.def === WEBHOOK_TWILIO);
   const mp = listos.find((l) => l.def === WEBHOOK_MERCADOPAGO);
-  console.log('\nFalta, en los paneles:');
+  console.log('\nEn los paneles (este comando no los lee; si ya están, no falta nada):');
   if (twilio) {
     console.log(
       '  • Twilio Console → Messaging → Senders → WhatsApp senders → el número de SOM →\n' +
         '    "Webhook URL for incoming messages" (POST): ' +
         (directa ? 'el valor del secret TWILIO_WEBHOOK_URL (copialo de Medplum → Project → Secrets)' : twilio.url) +
-        '\n    Si el número está en un Messaging Service: Integration → "Send a webhook", la misma URL.',
+        '\n    Si el número está en un Messaging Service: Integration → "Send a webhook", la misma URL.' +
+        '\n    Controlarlo sin entrar a la consola: npm run whatsapp:seguimiento',
     );
   }
   if (mp) {
@@ -144,7 +145,7 @@ async function main(): Promise<void> {
         `    Pagos: ${mp.url}  (Webhooks, no IPN: IPN viaja en la query string y el bot no la ve).`,
     );
   }
-  console.log('Después: npm run whatsapp:test -- +549…  ·  npm run mercadopago:test');
+  console.log('Después: npm run whatsapp:seguimiento (Twilio → SOM)  ·  npm run mercadopago:test');
   if (fallas > 0) {
     process.exitCode = 1;
   }
