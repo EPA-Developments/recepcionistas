@@ -142,8 +142,9 @@ export const NOMBRE_POLICY_PACIENTE = 'Paciente SOM — Portal';
  * `som-reservar-portal` (elige una franja libre de un profesional; el bot aplica las
  * reglas y deja el turno confirmado si está incluido en su plan o tentativo con el link
  * de la seña, R-23) o `som-solicitar-turno` (solicitud en texto, que confirma Recepción).
- * Por eso `Appointment` es de sólo lectura y el acceso a `Bot` está acotado a esos bots
- * (y `som-solicitar`).
+ * Por eso `Appointment` es de sólo lectura y el acceso a `Bot` está acotado a esos bots,
+ * `som-solicitar` y los de su teleconsulta (`som-teleconsulta-entrar`, `-cancelar` y
+ * `-pago`), que verifican que el turno sea suyo.
  *
  * IMPORTANTE — fuente de verdad: esta definición es la que aplica `npm run seed`
  * (upsert por `name`: pisa la del servidor). Debe quedar **idéntica** a su espejo en
@@ -242,6 +243,11 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar-turno' },
     // SOM: además puede ejecutar el bot que crea su solicitud de segunda opinión.
     { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-solicitar' },
+    // Su teleconsulta (R-21): entrar a la videollamada, cancelarla (R-14) y volver a abrir
+    // el pago de la seña (R-23). Cada bot verifica que el turno sea de quien lo ejecuta.
+    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-teleconsulta-entrar' },
+    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-teleconsulta-cancelar' },
+    { resourceType: 'Bot', readonly: true, criteria: 'Bot?name=som-teleconsulta-pago' },
   ],
 };
 

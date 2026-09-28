@@ -1,5 +1,5 @@
 {
-  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Fuente de verdad: src/fhir/access-policies.ts; el espejo del portal se sincroniza en el PR del portal (ActivityDefinition, PractitionerRole y Location de lectura; bot som-reservar-portal).",
+  "_origen": "EPA-Developments/app — docs/medplum/access-policy-paciente-portal.json (solo name + resource). Fuente de verdad: src/fhir/access-policies.ts; el espejo del portal se sincroniza en el PR del portal (ActivityDefinition, PractitionerRole y Location de lectura; bot som-reservar-portal; bots som-teleconsulta-*).",
   "name": "Paciente SOM — Portal",
   "resource": [
     {
@@ -179,6 +179,21 @@
       "resourceType": "Bot",
       "readonly": true,
       "criteria": "Bot?name=som-solicitar"
+    },
+    {
+      "resourceType": "Bot",
+      "readonly": true,
+      "criteria": "Bot?name=som-teleconsulta-entrar"
+    },
+    {
+      "resourceType": "Bot",
+      "readonly": true,
+      "criteria": "Bot?name=som-teleconsulta-cancelar"
+    },
+    {
+      "resourceType": "Bot",
+      "readonly": true,
+      "criteria": "Bot?name=som-teleconsulta-pago"
     }
   ]
 }
