@@ -162,7 +162,8 @@ catálogo), para armar "Pedir un turno" sin listas escritas a mano, y escribe el
 `CarePlan` que instancia la PlanDefinition única por estadío CKM 0–4 del monorepo
 (`https://epa-bienestar.ar/fhir/PlanDefinition/pb100d-ckm`) además de la de menopausia.
 El espejo de la policy en `EPA-Developments/app` (`docs/medplum/access-policy-paciente-portal.json`)
-debe recibir la misma entrada cuando el portal pase a instanciar `pb100d-ckm` (fase 4).
+ya tiene la misma entrada: desde la fase 4 el portal instancia `pb100d-ckm` (módulo 0.7.0,
+con el tablero LE8 y la respuesta a 100 días).
 
 Las derivaciones del catálogo firmado (`src/config/catalogo-pb100d.ts`, ver
 [`som.md`](som.md#alertas-y-derivaciones-del-catálogo-firmado-del-plan-bienestar-100-días-ckm-catalogots))
