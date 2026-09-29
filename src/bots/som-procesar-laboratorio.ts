@@ -25,7 +25,7 @@
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Communication, DiagnosticReport, DocumentReference, Observation, Task } from '@medplum/fhirtypes';
-import { COD, MODELO_CLAUDE_LABORATORIO, SYSTEM } from '../fhir/identifiers.js';
+import { COD, ESFUERZO_CLAUDE_LABORATORIO, MODELO_CLAUDE_LABORATORIO, SYSTEM } from '../fhir/identifiers.js';
 import {
   ESQUEMA_EXTRACCION,
   MENSAJE_NO_PROCESADO,
@@ -163,7 +163,7 @@ async function extraer(
           ],
         },
       ],
-      output_config: { format: { type: 'json_schema', schema: ESQUEMA_EXTRACCION } },
+      output_config: { effort: ESFUERZO_CLAUDE_LABORATORIO, format: { type: 'json_schema', schema: ESQUEMA_EXTRACCION } },
     });
     if (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') {
       console.error('som-procesar-laboratorio: extracción incompleta:', resp.stop_reason);

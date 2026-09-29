@@ -196,8 +196,8 @@ por especialidad. Recepción los evalúa con su propia estadificación:
 
 1. Lee el PDF del `DocumentReference`: por `url` (`medplum.download`) o embebido en
    `attachment.data` (base64, hasta que el servidor deje crear el `Binary`).
-2. **Claude `claude-opus-5`** transcribe (salida estructurada; `fallbacks: "default"`
-   ante una negativa) nombre, valor, unidad, rango del laboratorio y fecha de
+2. **Claude `claude-opus-5-5`** (esfuerzo `high`) transcribe (salida estructurada;
+   `fallbacks: "default"` ante una negativa) nombre, valor, unidad, rango del laboratorio y fecha de
    extracción. El **catálogo de códigos sale de las `ObservationDefinition` del
    servidor** (LOINC o `CodeSystem/biomarker`): Claude solo elige una clave de ese
    catálogo o `null`; un analito fuera del catálogo se guarda con su nombre
