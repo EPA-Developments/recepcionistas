@@ -166,3 +166,23 @@ export function contenidoTwilio(p: PlantillaWhatsApp): Record<string, unknown> {
     types: { 'twilio/text': { body: p.cuerpo } },
   };
 }
+
+/** Las respuestas automáticas que no caen en la genérica: salen dentro de la ventana que abrió el paciente. */
+const SOLO_EN_VENTANA: readonly string[] = ['acuse', 'fuera-de-horario'];
+
+/**
+ * Con qué sale lo de una plantilla mientras Meta no la aprueba: la genérica si está aprobada
+ * y el texto entra en ella (una línea), o texto libre (llega solo dentro de las 24 h, salvo
+ * las respuestas automáticas, que siempre van dentro de la ventana). Para el informe de
+ * `npm run whatsapp:plantillas`.
+ */
+export function mientrasNoSeAprueba(p: PlantillaWhatsApp, genericaAprobada: boolean): string {
+  if (p.avisos?.length && p.avisos.every((a) => SOLO_EN_VENTANA.includes(a))) {
+    return 'sale como texto libre: es una respuesta dentro de las 24 h que abrió el paciente, así que llega igual';
+  }
+  const ejemplo = textoPlantilla(p.cuerpo, p.ejemplo);
+  if (genericaAprobada && variablesAviso(ejemplo)) {
+    return `sale con la genérica ${PLANTILLA_AVISO.nombre} (llega aunque pasen 24 h)`;
+  }
+  return 'sale como texto libre: llega solo si el paciente escribió en las últimas 24 h';
+}

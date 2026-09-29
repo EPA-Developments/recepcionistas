@@ -14,6 +14,7 @@ import { mensajeInvitacion } from '../src/lib/onboarding.js';
 import {
   contenidoTwilio,
   elegirPlantilla,
+  mientrasNoSeAprueba,
   paramsPlantilla,
   plantillasDeAviso,
   problemasPlantilla,
@@ -263,5 +264,24 @@ describe('Plantillas de WhatsApp · la genérica envuelve los avisos que ya exis
 
   it('Lo que va a Twilio: ContentSid y las variables en JSON', () => {
     expect(paramsPlantilla('HX123', { '1': 'hola' })).toEqual({ ContentSid: 'HX123', ContentVariables: '{"1":"hola"}' });
+  });
+});
+
+describe('Plantillas de WhatsApp · con qué sale mientras Meta no la aprueba', () => {
+  const por = (clave: string) => PLANTILLAS_WHATSAPP.find((p) => p.clave === clave)!;
+
+  it('un aviso de una línea sale con la genérica aprobada; sin ella, texto libre', () => {
+    expect(mientrasNoSeAprueba(por('turno_confirmado'), true)).toContain('genérica som_aviso');
+    expect(mientrasNoSeAprueba(por('turno_confirmado'), false)).toContain('texto libre');
+    expect(mientrasNoSeAprueba(por('mensaje_nuevo'), true)).toContain('genérica som_aviso');
+  });
+
+  it('la invitación (saltos de línea) no entra en la genérica: texto libre', () => {
+    expect(mientrasNoSeAprueba(por('invitacion_portal_sin_nombre'), true)).toContain('últimas 24 h');
+  });
+
+  it('el acuse y el de fuera de horario salen como texto libre y llegan igual (dentro de la ventana)', () => {
+    expect(mientrasNoSeAprueba(por('acuse'), true)).toContain('llega igual');
+    expect(mientrasNoSeAprueba(por('fuera_de_horario'), false)).toContain('llega igual');
   });
 });
