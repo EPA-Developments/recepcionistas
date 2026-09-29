@@ -9,6 +9,7 @@
  */
 import type { AccessPolicy } from '@medplum/fhirtypes';
 import {
+  BOT_BIENESTAR_DIA0,
   BOT_BIENESTAR_INSCRIBIR,
   BOT_BORRADOR_RESPUESTA,
   BOT_GLP1_INSCRIBIR,
@@ -38,6 +39,7 @@ export const BOTS_RECEPCION = [
   'som-invitar-paciente',
   BOT_GLP1_INSCRIBIR,
   BOT_BIENESTAR_INSCRIBIR,
+  BOT_BIENESTAR_DIA0,
   BOT_BORRADOR_RESPUESTA,
   BOT_WHATSAPP_RESPONDER,
 ] as const;

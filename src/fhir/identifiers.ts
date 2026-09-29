@@ -281,6 +281,12 @@ export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5';
 /** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
 export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
 /**
+ * Recepción: el día 0 del Plan Bienestar (qué datos del catálogo firmado faltan y quién
+ * los carga), el estado del plan clínico y el material para el paciente, **sin valores
+ * clínicos**. Lo calcula el bot con su identidad: la policy de Recepción no lee lo clínico.
+ */
+export const BOT_BIENESTAR_DIA0 = 'som-bienestar-dia0';
+/**
  * Teleconsulta: el token firmado para entrar a la sala de Jitsi. El profesional sale
  * moderador; el paciente, no. Recepción NO lo ejecuta.
  */
