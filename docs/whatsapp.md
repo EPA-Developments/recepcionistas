@@ -377,7 +377,9 @@ número** lo dice. Solo lee (no manda ni cambia nada).
 2. `npm run webhooks` → los dos ✓ de WhatsApp (nginx → bot, y rechaza sin firma).
 3. Antes de escribir, `npm run whatsapp:seguimiento -- +549…`: para probar un **contacto
    nuevo** (lead, pestaña WhatsApp, campanita) el número **no** tiene que estar en SOM
-   (paso 2 «pendiente»). Si dice «Ya estaba en SOM», usar otro celular.
+   (paso 2 «pendiente»). Si dice «Ya estaba en SOM», usar otro celular. **Nunca** probar con
+   el número de `RECEPCION_WHATSAPP_TO`: el bot ignora a propósito sus mensajes (no es un
+   paciente) y parece que el webhook no anda (paso 2 ✗ «Es el número de Recepción»).
 4. **Primero escribir** (sin la plantilla aprobada) al WhatsApp de SOM desde ese celular
    (abre la ventana de 24 h): llega el acuse (o el aviso de fuera de horario), suena la
    campanita, el contacto aparece en la pestaña **WhatsApp** y la conversación en
