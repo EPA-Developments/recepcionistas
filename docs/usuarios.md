@@ -49,12 +49,35 @@ estudios clínicos están en recursos que la recepción no puede leer.
 |---|---|---|
 | Recepción — Operativo | Recepcionistas | Operativo, sin historia clínica |
 | Director Médico — Clínico completo | Dirección médica | Todo |
+| **Profesional SOM — Médico** | Médicos del plantel (Cardiología, Cardiología con especialidad, Tisioneumonología, Neurología, Ginecología, DBT/Endocrino) | La ficha completa en el dashboard clínico: escribe evolución, observaciones, diagnósticos, medicación, pedidos, planes y metas; **lee** agenda, informe de segunda opinión, cobertura, mensajes y documentos; ejecuta la teleconsulta (moderador y cierre), el GLP-1, PUCO y REFEPS. **Sin facturación** |
+| **Profesional SOM — Nutrición** | Licenciadas/os en Nutrición | Lo mismo **sin prescribir ni pedir** (Ley 17.132): medicación, pedidos y diagnósticos se leen; no cambia la identidad de la paciente; teleconsulta y PUCO, sin GLP-1 ni REFEPS |
 | **Paciente SOM — Portal** | Pacientes (portal) | **Solo lo suyo** (`%patient`): autogestión de su ficha, vitales, cuestionarios, documentos y mensajes; su Plan Bienestar (escritura acotada); lectura de turnos, pagos, solicitudes, informes y sus programas de seguimiento (`CarePlan`, `Goal`, `Task`) |
 
-Los roles clínicos del equipo médico de SOM están **por definir** (los del
-catálogo anterior se retiraron). Los médicos se invitan igual que la
-recepcionista, con la AccessPolicy que corresponda. Hoy el bot que arma el
-programa GLP-1 (`som-glp1-plan`) lo ejecuta "Director Médico — Clínico completo".
+## Crear un especialista (dashboard clínico)
+
+Los especialistas atienden desde el **dashboard clínico**
+(`dashboard.segundaopinionmedica.org`), no desde la app de recepción. Hay dos
+policies y no una porque el acceso sí difiere: Nutrición no prescribe.
+
+1. `npm run seed` (deja las dos policies en el servidor).
+2. **Project → Admin → Users → Invite new user**: nombre y email, **Role:
+   Practitioner**, **Access Policy:** `Profesional SOM — Médico` o
+   `Profesional SOM — Nutrición`, **Admin: NO**.
+3. **El usuario tiene que quedar atado a SU `Practitioner`**, el que carga el seed
+   (`src/config/medicos.ts`) y figura como `participant` en sus turnos. Si al
+   invitarlo Medplum crea otro `Practitioner`, el profesional no va a poder entrar
+   a sus teleconsultas como moderador: `som-teleconsulta-token` verifica que quien
+   pide sea `participant` del turno. Se corrige en la `ProjectMembership` (su
+   `profile`).
+
+Alcance: las dos ven **todas** las pacientes del proyecto, como el Director Médico.
+Acotar cada profesional a sus pacientes (por turno o por `CareTeam`) está pendiente
+([`decisiones-pendientes.md`](decisiones-pendientes.md), *Roles*).
+
+La agenda es de sólo lectura: entrar a la teleconsulta y cerrarla van por
+`som-estado-turno`, que además cierra la visita, libera las franjas y marca el Plan
+Bienestar. Lo que el dashboard lee y escribe está fijado en
+`tests/policy-especialistas.test.ts`.
 
 ## Pacientes y el portal
 

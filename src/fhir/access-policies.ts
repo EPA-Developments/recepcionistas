@@ -12,6 +12,8 @@ import {
   BOT_BIENESTAR_INSCRIBIR,
   BOT_BORRADOR_RESPUESTA,
   BOT_GLP1_INSCRIBIR,
+  BOT_GLP1_PLAN,
+  BOT_TELECONSULTA_TOKEN,
   BOT_WEBHOOK_MERCADOPAGO,
   BOT_WHATSAPP_ENTRANTE,
   BOT_WHATSAPP_RESPONDER,
@@ -110,6 +112,150 @@ export const POLICY_DIRECTOR_MEDICO: AccessPolicy = {
   resourceType: 'AccessPolicy',
   name: 'Director Médico — Clínico completo',
   resource: [{ resourceType: '*' }],
+};
+
+// ───────────────────── Especialistas (dashboard clínico) ─────────────────────
+//
+// Los profesionales del plantel que no son el Director Médico atienden desde el
+// dashboard clínico (`EPA-Developments/dashboard-cardiometabolismo`, marca
+// `segunda-opinion`): la ficha, la teleconsulta como moderador, las órdenes, las
+// recetas y el informe. Hasta acá sólo el Director Médico podía, con `*`.
+//
+// DOS POLICIES Y NO UNA, porque el acceso sí difiere: la Ley 17.132 reserva la
+// prescripción de medicamentos a médicos (y odontólogos), así que Nutrición lee la
+// medicación y los pedidos pero no los escribe. Es la misma separación que ya tiene
+// el dashboard en sus policies versionadas (`data/ckm/*-access-policy.json`). Todos
+// los grupos médicos (Cardiología, Cardiología con especialidad, Tisioneumonología,
+// Neurología, Ginecología, DBT/Endocrino) usan la misma: la especialidad la dice su
+// `PractitionerRole` y el turno, no la policy.
+//
+// QUÉ SE DEJA AFUERA A PROPÓSITO:
+//  - **La agenda se lee, no se escribe.** Es de Recepción. Entrar a la consulta
+//    («En curso») y cerrarla van por `som-estado-turno`, que además cierra la
+//    visita, libera las franjas y marca el Plan Bienestar; escribir el turno a mano
+//    lo dejaría cerrado con el plan sin marcar.
+//  - **Nada de facturación** (`Invoice`, `ChargeItem`, pagos, cuentas).
+//  - **El informe de segunda opinión** (`DiagnosticReport`) y el riesgo
+//    (`RiskAssessment`) los escribe `bot-som-report`: se leen.
+//  - **Bots sólo por nombre**, como la policy de Recepción: nunca un `Bot` sin
+//    criterio, que dejaría ejecutar cualquiera (los de pagos, los de WhatsApp).
+//
+// ALCANCE: todas las pacientes del proyecto, como el Director Médico. Acotar cada
+// profesional a sus pacientes (por turno o por `CareTeam`) es otra decisión.
+//
+// LO QUE LEE EL DASHBOARD está fijado en `tests/seed.test.ts`: si la policy pierde un
+// tipo que la app busca, esa pantalla responde 403 y se rompe sin avisar.
+
+/** Bots del dashboard clínico que se despliegan en el proyecto SOM (`deploy-bots-server -- --solo`). */
+export const BOT_PUCO_COBERTURA = 'puco-cobertura';
+export const BOT_REFEPS_VERIFY = 'refeps-verify';
+
+/**
+ * Bots que ejecuta un médico desde el dashboard: entrar a la teleconsulta como
+ * moderador, marcarla en curso y cerrarla, el programa GLP-1 (la indicación es
+ * médica), la cobertura en el PUCO y la matrícula en REFEPS al emitir una receta.
+ */
+export const BOTS_MEDICO = [
+  BOT_TELECONSULTA_TOKEN,
+  'som-estado-turno',
+  BOT_GLP1_PLAN,
+  BOT_PUCO_COBERTURA,
+  BOT_REFEPS_VERIFY,
+] as const;
+
+/** Los de Nutrición: los mismos menos lo que es prescribir (GLP-1 y REFEPS de la receta). */
+export const BOTS_NUTRICION = [BOT_TELECONSULTA_TOKEN, 'som-estado-turno', BOT_PUCO_COBERTURA] as const;
+
+const soloLectura = (...tipos: string[]) => tipos.map((resourceType) => ({ resourceType, readonly: true }));
+const bots = (nombres: readonly string[]) =>
+  nombres.map((nombre) => ({ resourceType: 'Bot', readonly: true, criteria: `Bot?name=${nombre}` }));
+
+/** Lo que las dos disciplinas sólo leen. */
+const LECTURA_COMUN = soloLectura(
+  // Agenda (de Recepción).
+  'Appointment',
+  'Schedule',
+  'Slot',
+  // Lo que escriben otros: el informe y el riesgo (bot-som-report), la cobertura, los
+  // mensajes con la paciente, sus documentos y archivos, y sus consentimientos.
+  'DiagnosticReport',
+  'RiskAssessment',
+  'Coverage',
+  'Communication',
+  'DocumentReference',
+  'Binary',
+  'Consent',
+  'Immunization',
+  'DicomStudy',
+  'ImagingStudy',
+  // Catálogos y terminología.
+  'Questionnaire',
+  'ObservationDefinition',
+  'ValueSet',
+  'CodeSystem',
+  'PlanDefinition',
+  'ActivityDefinition',
+  // Quién es quién.
+  'Practitioner',
+  'PractitionerRole',
+  'Organization',
+  'HealthcareService',
+);
+
+export const NOMBRE_POLICY_MEDICO = 'Profesional SOM — Médico';
+
+/** Médicos del plantel: la ficha completa, prescribir y pedir estudios. */
+export const POLICY_MEDICO: AccessPolicy = {
+  resourceType: 'AccessPolicy',
+  name: NOMBRE_POLICY_MEDICO,
+  resource: [
+    { resourceType: 'Patient' },
+    { resourceType: 'Encounter' },
+    { resourceType: 'ClinicalImpression' },
+    { resourceType: 'Condition' },
+    { resourceType: 'Observation' },
+    { resourceType: 'AllergyIntolerance' },
+    { resourceType: 'MedicationStatement' },
+    { resourceType: 'MedicationRequest' },
+    { resourceType: 'ServiceRequest' },
+    { resourceType: 'CarePlan' },
+    { resourceType: 'Goal' },
+    { resourceType: 'NutritionOrder' },
+    { resourceType: 'QuestionnaireResponse' },
+    { resourceType: 'Task' },
+    // El sello de la receta emitida.
+    { resourceType: 'Provenance' },
+    ...LECTURA_COMUN,
+    ...bots(BOTS_MEDICO),
+  ],
+};
+
+export const NOMBRE_POLICY_NUTRICION = 'Profesional SOM — Nutrición';
+
+/**
+ * Nutrición: la ficha, el módulo de nutrición y el plan, sin prescribir. La
+ * medicación, los pedidos y los diagnósticos se leen; la identidad de la paciente
+ * (documento, vínculos, médico de cabecera) también.
+ */
+export const POLICY_NUTRICION: AccessPolicy = {
+  resourceType: 'AccessPolicy',
+  name: NOMBRE_POLICY_NUTRICION,
+  resource: [
+    { resourceType: 'Patient', readonlyFields: ['identifier', 'link', 'generalPractitioner'] },
+    { resourceType: 'Encounter' },
+    { resourceType: 'ClinicalImpression' },
+    { resourceType: 'Observation' },
+    { resourceType: 'AllergyIntolerance' },
+    { resourceType: 'MedicationStatement' },
+    { resourceType: 'CarePlan' },
+    { resourceType: 'Goal' },
+    { resourceType: 'NutritionOrder' },
+    { resourceType: 'QuestionnaireResponse' },
+    { resourceType: 'Task' },
+    ...soloLectura('Condition', 'MedicationRequest', 'ServiceRequest', 'Provenance'),
+    ...LECTURA_COMUN,
+    ...bots(BOTS_NUTRICION),
+  ],
 };
 
 /** Nombre canónico de la policy del portal del paciente (lo usa el bot de invitación). */
@@ -252,12 +398,14 @@ export const POLICY_PACIENTE_PORTAL: AccessPolicy = {
 };
 
 /**
- * Roles del seed (más las policies de los webhooks). Los roles clínicos propios de
- * SOM (equipo médico) se definen aparte; los del catálogo anterior se retiraron.
+ * Roles del seed (más las policies de los webhooks): Recepción, Director Médico, los
+ * especialistas (Médico y Nutrición) y la paciente del portal.
  */
 export const ACCESS_POLICIES: AccessPolicy[] = [
   POLICY_RECEPCIONISTA,
   POLICY_DIRECTOR_MEDICO,
+  POLICY_MEDICO,
+  POLICY_NUTRICION,
   POLICY_PACIENTE_PORTAL,
   POLICY_WEBHOOK_TWILIO,
   POLICY_WEBHOOK_MERCADOPAGO,
