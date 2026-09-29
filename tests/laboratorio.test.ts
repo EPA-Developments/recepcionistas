@@ -149,7 +149,7 @@ describe('Bot som-procesar-laboratorio', () => {
         id: 'msg_1',
         type: 'message',
         role: 'assistant',
-        model: 'claude-opus-5',
+        model: 'claude-opus-5-5',
         content: [{ type: 'text', text: JSON.stringify(json) }],
         stop_reason: 'end_turn',
         stop_sequence: null,
@@ -181,7 +181,9 @@ describe('Bot som-procesar-laboratorio', () => {
     const [llamada] = llamadasClaude(fetchMock);
     const init = llamada![1] as RequestInit;
     const body = JSON.parse(String(init.body));
-    expect(body.model).toBe('claude-opus-5');
+    expect(body.model).toBe('claude-opus-5-5');
+    expect(body.output_config.effort).toBe('high');
+    expect(body.thinking).toBeUndefined(); // en Opus 5.5 no se puede apagar: no se envía
     expect(body.fallbacks).toBe('default');
     expect(new Headers(init.headers).get('anthropic-beta')).toContain('server-side-fallback-2026-07-01');
     expect(body.output_config.format.type).toBe('json_schema');

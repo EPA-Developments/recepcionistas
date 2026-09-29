@@ -261,10 +261,16 @@ export const MODELO_CLAUDE_SOM = 'claude-sonnet-4-6';
 
 /**
  * Modelo de Claude que transcribe los PDF de laboratorio (`som-procesar-laboratorio`).
- * El contrato no lo fija: se usa el modelo actual más capaz de la línea Opus, con
- * salida estructurada y respaldo del servidor ante una negativa.
+ * El contrato no lo fija: se usa el Opus actual, con salida estructurada y respaldo
+ * del servidor ante una negativa.
  */
-export const MODELO_CLAUDE_LABORATORIO = 'claude-opus-5';
+export const MODELO_CLAUDE_LABORATORIO = 'claude-opus-5-5';
+/**
+ * Esfuerzo de la transcripción. Opus 5.5 usa `medium` si no se indica; se fija `high`
+ * (el nivel con el que se validó el bot) porque son valores clínicos. Bajarlo solo
+ * después de comparar con PDFs reales.
+ */
+export const ESFUERZO_CLAUDE_LABORATORIO = 'high' as const;
 
 /** Nombres canónicos de los bots SOM (deben coincidir con el portal y el deploy). */
 export const BOT_SOM_SOLICITAR = 'som-solicitar';
