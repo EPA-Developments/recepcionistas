@@ -76,6 +76,7 @@ const BOTS: DefBot[] = [
   { name: 'som-teleconsulta-entrar', source: 'src/bots/teleconsulta-entrar.ts', dist: 'dist/bots/teleconsulta-entrar.js', description: 'Portal: la paciente entra a la videollamada de su teleconsulta confirmada (link de Jitsi) y marca su presencia (arrived + Encounter VR).' },
   { name: 'som-teleconsulta-cancelar', source: 'src/bots/teleconsulta-cancelar.ts', dist: 'dist/bots/teleconsulta-cancelar.js', description: 'Portal: la paciente cancela su teleconsulta (R-14: primero ve qué pasa con la seña), libera las franjas y avisa a Recepción si había seña.' },
   { name: 'som-teleconsulta-pago', source: 'src/bots/teleconsulta-pago.ts', dist: 'dist/bots/teleconsulta-pago.js', description: 'Portal: vuelve a abrir el link de MercadoPago de la seña de una teleconsulta tentativa (R-23).' },
+  { name: 'som-teleconsulta-token', source: 'src/bots/teleconsulta-token.ts', dist: 'dist/bots/teleconsulta-token.js', description: 'Dashboard: token firmado de moderador para que el profesional del turno entre a la sala de Jitsi (sin los secretos JITSI_APP_ID/JITSI_APP_SECRET no emite nada).' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */

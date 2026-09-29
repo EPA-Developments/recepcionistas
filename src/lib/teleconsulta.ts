@@ -14,6 +14,7 @@
 import type { Coding, Consent, Extension } from '@medplum/fhirtypes';
 import type { Modalidad, Servicio } from '../domain/types.js';
 import { COD, EXT, SYSTEM } from '../fhir/identifiers.js';
+import { TZ } from '../config/horario.js';
 import type { ResultadoValidacion } from './reglas-turno.js';
 
 export const V3_ACT_CODE = 'http://terminology.hl7.org/CodeSystem/v3-ActCode';
@@ -163,4 +164,160 @@ export function urlTeleconsulta(base: string | undefined, sala: string): string 
   } catch {
     return undefined;
   }
+}
+
+// ─────────────────────── Entrada a la sala (token) ───────────────────────
+//
+// El profesional entra a la sala como moderador: abre la sala, admite al paciente
+// y puede cerrarla. Para eso Jitsi necesita un token firmado (JWT) que dice quién
+// es moderador. Acá está lo que ese token dice y cuándo vale; la firma la hace el
+// bot `som-teleconsulta-token`, porque usa un secreto y `node:crypto`.
+//
+// El bot es la puerta, y por eso estas reglas son puras y están testeadas en sus
+// bordes: la ventana, el nombre de la sala y la forma del token no se deciden en
+// el bot, se deciden acá.
+
+/** Con qué rol se pide entrar. El profesional sale moderador; el paciente, no. */
+export type RolSala = 'profesional' | 'paciente';
+
+export function esRolSala(v: unknown): v is RolSala {
+  return v === 'profesional' || v === 'paciente';
+}
+
+/** Minutos antes del inicio en que se abre la sala. */
+export const MINUTOS_ANTES = 15;
+/** Minutos después del fin en que la sala sigue abierta (las consultas se estiran). */
+export const MINUTOS_DESPUES = 60;
+
+/**
+ * Estados del turno con la sala viva. `pending` no está: es el turno con la seña
+ * sin pagar, y un turno impago no entra a la consulta.
+ */
+export const ESTADOS_CON_SALA: ReadonlySet<string> = new Set(['booked', 'arrived', 'checked-in']);
+
+/** Un nombre de sala de SOM: `som-` y al menos 128 bits en hexadecimal (ver `nombreSalaJitsi`). */
+export function esNombreSala(v: unknown): v is string {
+  return typeof v === 'string' && new RegExp(`^som-[0-9a-f]{${MIN_ALEATORIO},}$`).test(v);
+}
+
+/**
+ * El host del Jitsi de SOM, desde el Project Secret `JITSI_BASE_URL`. Va al claim
+ * `sub` del token, que Jitsi compara con su propio dominio. Solo `https`: con otra
+ * cosa no se emite nada.
+ */
+export function dominioJitsi(base: string | undefined): string | undefined {
+  if (!base) {
+    return undefined;
+  }
+  try {
+    const url = new URL(base.trim());
+    return url.protocol === 'https:' && url.hostname ? url.host.toLowerCase() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * La sala de un turno, leída de su link (`teleconsulta-url`).
+ *
+ * El link tiene que apuntar al mismo Jitsi que firma el token. Si no, el paciente
+ * entra por el link a un servidor y el profesional entra con el token a otro: los
+ * dos esperan en salas vacías y nadie ve un error. Por eso, si no coincide, no hay
+ * sala.
+ */
+export function salaDelLink(link: string | undefined, dominio: string): string | undefined {
+  if (!link) {
+    return undefined;
+  }
+  try {
+    const url = new URL(link);
+    if (url.host.toLowerCase() !== dominio.toLowerCase()) {
+      return undefined;
+    }
+    const sala = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() ?? '');
+    return esNombreSala(sala) ? sala : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const fmtHoraSala = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ });
+
+/** Desde y hasta cuándo se puede entrar a la sala de un turno. */
+export function ventanaDeSala(inicio: Date, fin: Date): { desde: Date; hasta: Date } {
+  return {
+    desde: new Date(inicio.getTime() - MINUTOS_ANTES * 60_000),
+    hasta: new Date(fin.getTime() + MINUTOS_DESPUES * 60_000),
+  };
+}
+
+/**
+ * Por qué todavía no (o ya no) se puede entrar, en palabras para quien lo lee.
+ * `undefined` quiere decir que la sala está abierta. La hora sale en la hora de
+ * Argentina, no en la del servidor donde corre el bot.
+ */
+export function motivoSinAcceso(inicio: Date, fin: Date, ahora: Date): string | undefined {
+  const { desde, hasta } = ventanaDeSala(inicio, fin);
+  if (ahora < desde) {
+    return `La sala se abre a las ${fmtHoraSala.format(desde)}, ${MINUTOS_ANTES} minutos antes del turno.`;
+  }
+  if (ahora > hasta) {
+    return 'Esta videollamada ya terminó.';
+  }
+  return undefined;
+}
+
+/** Lo que va adentro del token de Jitsi. */
+export interface ClaimsSala {
+  aud: 'jitsi';
+  /** El `JITSI_APP_ID` del servidor. */
+  iss: string;
+  /** El host del Jitsi. */
+  sub: string;
+  /** El token sirve para esta sala y ninguna otra. */
+  room: string;
+  /** Desde cuándo vale (segundos): la apertura de la sala. */
+  nbf: number;
+  /** Hasta cuándo vale (segundos): el cierre de la sala. */
+  exp: number;
+  context: {
+    user: {
+      name: string;
+      /** Lo que Jitsi lee para dar el rol de moderador. */
+      moderator: boolean;
+      /** Lo mismo, en la forma que leen otras configuraciones de Jitsi. */
+      affiliation: 'owner' | 'member';
+    };
+  };
+}
+
+export interface DatosToken {
+  appId: string;
+  dominio: string;
+  sala: string;
+  /** El nombre visible en la sala. Nunca documento ni email. */
+  nombre: string;
+  rol: RolSala;
+  inicio: Date;
+  fin: Date;
+}
+
+/**
+ * Los claims del token. Vence cuando cierra la sala, no antes ni después: si se
+ * corta la llamada, se pide otro token y se vuelve a entrar.
+ */
+export function claimsToken(d: DatosToken): ClaimsSala {
+  const { desde, hasta } = ventanaDeSala(d.inicio, d.fin);
+  const moderador = d.rol === 'profesional';
+  return {
+    aud: 'jitsi',
+    iss: d.appId,
+    sub: d.dominio,
+    room: d.sala,
+    nbf: Math.floor(desde.getTime() / 1000),
+    exp: Math.floor(hasta.getTime() / 1000),
+    context: {
+      user: { name: d.nombre, moderator: moderador, affiliation: moderador ? 'owner' : 'member' },
+    },
+  };
 }
