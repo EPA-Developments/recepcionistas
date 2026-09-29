@@ -1,17 +1,18 @@
 /**
  * Firma de los tokens de Jitsi, compartida por los bots de teleconsulta.
  *
- * La usan `som-teleconsulta-token` (el profesional, moderador) y
- * `som-teleconsulta-entrar` (la paciente, no moderadora). Lo que el token dice y
- * cuándo vale está en `src/lib/teleconsulta.ts`, que es puro; acá queda lo que
- * necesita el servidor: los secretos, `node:crypto` y el nombre de la ficha.
+ * Hoy la usa sólo `som-teleconsulta-token`: el profesional es el único que entra con
+ * token, y por eso modera; la paciente entra como invitada (decisión del 29/09/2026).
+ * Lo que el token dice y cuándo vale está en `src/lib/teleconsulta.ts`, que es puro;
+ * acá queda lo que necesita el servidor: los secretos, `node:crypto` y el nombre de
+ * la ficha.
  *
  * No va en `src/lib/` porque `node:crypto` no entra en el navegador, y la app de
  * Recepción importa de ahí.
  *
  * Project Secrets: `JITSI_BASE_URL` (el mismo del link), `JITSI_APP_ID` y
- * `JITSI_APP_SECRET`. Sin los tres no hay token: el Jitsi sigue abierto y se
- * entra con el link, como antes.
+ * `JITSI_APP_SECRET`. Sin los tres no hay token: el profesional entra con el link,
+ * como la paciente, y no modera.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import { createHmac } from 'node:crypto';
@@ -48,16 +49,6 @@ export function tokenDeSala(
 ): { jwt: string; venceISO: string } {
   const claims = claimsToken({ appId: cfg.appId, dominio: cfg.dominio, ...datos });
   return { jwt: firmarJwt(claims, cfg.secreto), venceISO: new Date(claims.exp * 1000).toISOString() };
-}
-
-/**
- * El link de la sala con el token, como lo lee Jitsi (`?jwt=`). Sólo para devolverlo
- * a quien lo pidió: nunca en un mensaje, que se reenvía y serviría toda la ventana.
- */
-export function linkConToken(link: string, jwt: string): string {
-  const url = new URL(link);
-  url.searchParams.set('jwt', jwt);
-  return url.toString();
 }
 
 /** El nombre visible en la sala: el de la ficha. Nunca documento ni email. */

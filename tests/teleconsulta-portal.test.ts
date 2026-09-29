@@ -181,45 +181,19 @@ describe('som-teleconsulta-entrar', () => {
     expect(r.mensaje).toContain('Todavía no tenemos el link');
   });
 
-  // Cuando el Jitsi pida token, el link pelado deja a la paciente afuera.
-  describe('con los secretos del Jitsi', () => {
-    const JITSI_SECRETOS = {
+  // Decisión del 29/09/2026 (Jitsi 2b): la paciente entra como invitada y espera al
+  // profesional, que es el único con token. Aunque el proyecto tenga los secretos del
+  // Jitsi, a ella le llega el mismo link que en el WhatsApp.
+  it('con los secretos del Jitsi, la paciente recibe el link sin token', async () => {
+    vi.setSystemTime(new Date('2026-09-25T20:50:00Z'));
+    const e = entorno(turno({ inicio: VIERNES_18 }));
+    const secretos = {
       JITSI_BASE_URL: 'https://meet.segundaopinionmedica.org',
       JITSI_APP_ID: 'som',
       JITSI_APP_SECRET: 'secreto-de-prueba',
     };
-    const claimsDe = (url: string) => {
-      const jwt = new URL(url).searchParams.get('jwt')!;
-      return JSON.parse(Buffer.from(jwt.split('.')[1]!, 'base64url').toString());
-    };
-
-    it('el link vuelve con el token de la paciente, que no es moderadora', async () => {
-      vi.setSystemTime(new Date('2026-09-25T20:50:00Z'));
-      const e = entorno(turno({ inicio: VIERNES_18 }));
-      const r = await entrar(e.medplum, ev({ appointmentId: 'a1' }, 'Patient/p1', JITSI_SECRETOS));
-      expect(r.ok).toBe(true);
-      expect(r.url!.startsWith(`${JITSI}?jwt=`)).toBe(true);
-      const claims = claimsDe(r.url!);
-      expect(claims.context.user.moderator).toBe(false);
-      expect(claims.room).toBe('som-0123456789abcdef0123456789abcdef');
-      expect(e.actual().status).toBe('arrived');
-    });
-
-    it('al equipo le da el link como antes, sin token de la paciente', async () => {
-      vi.setSystemTime(new Date('2026-09-25T20:50:00Z'));
-      const e = entorno(turno({ inicio: VIERNES_18 }));
-      const r = await entrar(e.medplum, ev({ appointmentId: 'a1' }, 'Practitioner/pract-test', JITSI_SECRETOS));
-      expect(r).toEqual({ ok: true, url: JITSI });
-    });
-
-    it('un link de otro servidor va sin token (no le serviría)', async () => {
-      vi.setSystemTime(new Date('2026-09-25T20:50:00Z'));
-      const e = entorno(turno({ inicio: VIERNES_18 }));
-      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      const r = await entrar(e.medplum, ev({ appointmentId: 'a1' }, 'Patient/p1', { ...JITSI_SECRETOS, JITSI_BASE_URL: 'https://otro.example.org' }));
-      expect(r).toEqual({ ok: true, url: JITSI });
-      error.mockRestore();
-    });
+    const r = await entrar(e.medplum, ev({ appointmentId: 'a1' }, 'Patient/p1', secretos));
+    expect(r).toEqual({ ok: true, url: JITSI });
   });
 
   it('sin requester no hace nada (el bot lee cualquier turno)', async () => {

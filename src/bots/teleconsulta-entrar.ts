@@ -11,17 +11,14 @@
  * teleconsulta de otro proyecto: el portal de SOM solo ejecuta bots `som-*` de este
  * proyecto.
  *
- * CON TOKEN, CUANDO EL JITSI LO PIDE. Si el proyecto tiene los secretos del Jitsi
- * (`JITSI_APP_ID` / `JITSI_APP_SECRET`, ver `_jitsi.ts`), el link vuelve con el token
- * de la paciente (`?jwt=`, no moderadora): cuando el Jitsi empiece a exigir token, el
- * link pelado deja de alcanzar y ella quedaría afuera de su propia consulta. El token
- * es sólo para ella —con `requester` = la paciente del turno— y vence con la sala.
- * Sin los secretos, el link sale como siempre.
+ * LA PACIENTE ENTRA SIN TOKEN, siempre (decisión del 29/09/2026, ver
+ * `decisiones-pendientes.md`, Jitsi 2b): el Jitsi acepta invitados que esperan hasta
+ * que entra el profesional, que es el único con token (`som-teleconsulta-token`) y el
+ * que modera. Así el link del WhatsApp y el del portal son el mismo y funcionan igual,
+ * y ningún token de paciente viaja en un link.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import { salaDelLink } from '../lib/teleconsulta.js';
 import { evaluarEntrada, verificarTurnoDelPaciente } from '../lib/teleconsulta-portal.js';
-import { configJitsi, linkConToken, nombreVisible, tokenDeSala } from './_jitsi.js';
 import { handler as estadoTurno } from './estado-turno.js';
 
 export interface EntradaTeleconsulta {
@@ -60,24 +57,5 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaTel
   if (r.marcarPresencia) {
     await estadoTurno(medplum, { ...event, input: { appointmentId, estado: 'arrived' } });
   }
-
-  const cfg = configJitsi(event.secrets);
-  if (!cfg || event.requester?.reference !== v.pacienteRef) {
-    return { ok: true, url: r.url };
-  }
-  const sala = salaDelLink(r.url, cfg.dominio);
-  if (!sala || !appt.start || !appt.end) {
-    // El link apunta a otro servidor que el de JITSI_BASE_URL: un token de este
-    // Jitsi no sirve ahí. Va el link como está, y queda el aviso para quien configura.
-    console.error('som-teleconsulta-entrar: el link del turno no es del Jitsi de JITSI_BASE_URL; va sin token.');
-    return { ok: true, url: r.url };
-  }
-  const { jwt } = tokenDeSala(cfg, {
-    sala,
-    nombre: await nombreVisible(medplum, v.pacienteRef),
-    rol: 'paciente',
-    inicio: new Date(appt.start),
-    fin: new Date(appt.end),
-  });
-  return { ok: true, url: linkConToken(r.url, jwt) };
+  return { ok: true, url: r.url };
 }
