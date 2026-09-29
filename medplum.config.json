@@ -179,6 +179,12 @@
       "id": "",
       "source": "src/bots/teleconsulta-pago.ts",
       "dist": "dist/bots/teleconsulta-pago.js"
+    },
+    {
+      "name": "som-teleconsulta-token",
+      "id": "",
+      "source": "src/bots/teleconsulta-token.ts",
+      "dist": "dist/bots/teleconsulta-token.js"
     }
   ]
 }

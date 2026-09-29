@@ -181,6 +181,21 @@ describe('som-teleconsulta-entrar', () => {
     expect(r.mensaje).toContain('Todavía no tenemos el link');
   });
 
+  // Decisión del 29/09/2026 (Jitsi 2b): la paciente entra como invitada y espera al
+  // profesional, que es el único con token. Aunque el proyecto tenga los secretos del
+  // Jitsi, a ella le llega el mismo link que en el WhatsApp.
+  it('con los secretos del Jitsi, la paciente recibe el link sin token', async () => {
+    vi.setSystemTime(new Date('2026-09-25T20:50:00Z'));
+    const e = entorno(turno({ inicio: VIERNES_18 }));
+    const secretos = {
+      JITSI_BASE_URL: 'https://meet.segundaopinionmedica.org',
+      JITSI_APP_ID: 'som',
+      JITSI_APP_SECRET: 'secreto-de-prueba',
+    };
+    const r = await entrar(e.medplum, ev({ appointmentId: 'a1' }, 'Patient/p1', secretos));
+    expect(r).toEqual({ ok: true, url: JITSI });
+  });
+
   it('sin requester no hace nada (el bot lee cualquier turno)', async () => {
     vi.setSystemTime(new Date('2026-09-25T20:50:00Z'));
     const e = entorno(turno({ inicio: VIERNES_18 }));

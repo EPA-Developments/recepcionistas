@@ -280,6 +280,11 @@ export const BOT_BORRADOR_RESPUESTA = 'som-borrador-respuesta';
 export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5';
 /** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
 export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
+/**
+ * Teleconsulta: el token firmado para entrar a la sala de Jitsi. El profesional sale
+ * moderador; el paciente, no. Recepción NO lo ejecuta.
+ */
+export const BOT_TELECONSULTA_TOKEN = 'som-teleconsulta-token';
 
 /** URL canónica del `ActivityDefinition` de un servicio del catálogo. */
 export function urlServicio(codigo: string): string {

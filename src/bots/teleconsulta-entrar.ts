@@ -10,6 +10,12 @@
  * Reemplaza, con el modelo de SOM, a los bots de token y presencia del módulo de
  * teleconsulta de otro proyecto: el portal de SOM solo ejecuta bots `som-*` de este
  * proyecto.
+ *
+ * LA PACIENTE ENTRA SIN TOKEN, siempre (decisión del 29/09/2026, ver
+ * `decisiones-pendientes.md`, Jitsi 2b): el Jitsi acepta invitados que esperan hasta
+ * que entra el profesional, que es el único con token (`som-teleconsulta-token`) y el
+ * que modera. Así el link del WhatsApp y el del portal son el mismo y funcionan igual,
+ * y ningún token de paciente viaja en un link.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import { evaluarEntrada, verificarTurnoDelPaciente } from '../lib/teleconsulta-portal.js';
