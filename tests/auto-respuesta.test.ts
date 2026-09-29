@@ -22,6 +22,12 @@ describe('Ventana de 24 h de WhatsApp', () => {
     expect(textoRestante(v.restanteMin)).toBe('23 h');
   });
 
+  it('Nunca más de 24 h aunque el reloj de Recepción esté atrasado respecto del servidor', () => {
+    const v = ventana24h(AR('2026-09-28T12:01').toISOString(), ahora);
+    expect(v.restanteMin).toBe(24 * 60);
+    expect(textoRestante(v.restanteMin)).toBe('24 h');
+  });
+
   it('Naranja cuando quedan menos de 2 h; cerrada después', () => {
     expect(ventana24h(AR('2026-09-27T13:30').toISOString(), ahora)).toMatchObject({ abierta: true, restanteMin: 90, porCerrar: true });
     expect(ventana24h(AR('2026-09-27T12:00').toISOString(), ahora)).toMatchObject({ abierta: false, restanteMin: 0, porCerrar: false });
