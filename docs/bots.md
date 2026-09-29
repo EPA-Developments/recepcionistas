@@ -196,6 +196,12 @@ Recepción solo habilita los bots de `BOTS_RECEPCION`
 quedan fuera. Si la app empieza a llamar un bot nuevo, sumarlo ahí:
 `tests/seed.test.ts` falla si falta.
 
+Los especialistas, desde el dashboard clínico, ejecutan `BOTS_MEDICO` o
+`BOTS_NUTRICION`: `som-teleconsulta-token` y `som-estado-turno` (entrar a la
+teleconsulta y cerrarla), `puco-cobertura` y, sólo los médicos, `som-glp1-plan` y
+`refeps-verify`. `puco-cobertura` y `refeps-verify` son del dashboard y se despliegan
+desde ahí (`deploy-bots-server -- --solo`).
+
 ## Webhook de MercadoPago (confirmación automática)
 
 Cuando el paciente paga la seña por el link, MercadoPago avisa a un **webhook** y el

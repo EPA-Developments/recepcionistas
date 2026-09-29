@@ -11,9 +11,12 @@ describe('Seed — composición', () => {
   it('Construye los grupos de recursos esperados', () => {
     expect(seed.structureDefinitions.length).toBeGreaterThanOrEqual(10);
     // Roles de SOM: los del catálogo anterior (prescriptor, enfermería, terapeuta) se retiraron.
+    // Los especialistas atienden desde el dashboard clínico (tests/policy-especialistas.test.ts).
     expect(seed.accessPolicies.map((p) => p.name)).toEqual([
       'Recepción — Operativo',
       'Director Médico — Clínico completo',
+      'Profesional SOM — Médico',
+      'Profesional SOM — Nutrición',
       'Paciente SOM — Portal',
       'Webhook Twilio — WhatsApp entrante',
       'Webhook MercadoPago — pagos',
