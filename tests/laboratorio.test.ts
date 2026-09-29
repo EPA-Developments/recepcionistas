@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent } from '@medplum/core';
-import type { Communication, DiagnosticReport, DocumentReference, Observation, Resource, Task } from '@medplum/fhirtypes';
+import type { AuditEvent, Communication, DiagnosticReport, DocumentReference, Observation, Resource, Task } from '@medplum/fhirtypes';
 import {
   catalogoDesdeObservationDefinitions,
   construirDiagnosticReportLaboratorio,
@@ -143,7 +143,7 @@ describe('Bot som-procesar-laboratorio', () => {
   };
   const evento = (doc: DocumentReference) => ({ input: doc, secrets: secretos }) as unknown as BotEvent<DocumentReference>;
 
-  function respuestaClaude(json: unknown): Response {
+  function respuestaClaude(json: unknown, usage: Record<string, unknown> = { input_tokens: 1, output_tokens: 1 }): Response {
     return new Response(
       JSON.stringify({
         id: 'msg_1',
@@ -153,12 +153,14 @@ describe('Bot som-procesar-laboratorio', () => {
         content: [{ type: 'text', text: JSON.stringify(json) }],
         stop_reason: 'end_turn',
         stop_sequence: null,
-        usage: { input_tokens: 1, output_tokens: 1 },
+        usage,
       }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     );
   }
   const llamadasClaude = (f: ReturnType<typeof vi.fn>) => f.mock.calls.filter((c) => String(c[0]).includes('api.anthropic.com'));
+  const detalleUso = (e: AuditEvent | undefined) =>
+    Object.fromEntries((e?.entity?.[0]?.detail ?? []).map((d) => [d.type, d.valueString]));
 
   it('transcribe el PDF: Observations + DiagnosticReport y cierra el circuito en el documento', async () => {
     const fetchMock = vi.fn(async (..._a: unknown[]) =>
@@ -170,7 +172,7 @@ describe('Bot som-procesar-laboratorio', () => {
           { nombre: 'Colesterol LDL', codigo: LDL, valor: 131, valorTexto: null, unidad: 'mg/dL', referencia: null },
           { nombre: 'Triglicéridos', codigo: 'http://loinc.org|2571-8', valor: 90, valorTexto: null, unidad: 'mg/dL', referencia: null },
         ],
-      }),
+      }, { input_tokens: 9000, output_tokens: 5000, iterations: null }),
     );
     vi.stubGlobal('fetch', fetchMock);
     const { medplum, todos } = fakeMedplum([consentimiento, docLab, ...defs]);
@@ -196,6 +198,56 @@ describe('Bot som-procesar-laboratorio', () => {
     expect(dr?.result?.map((x) => x.reference)).toEqual(obs.map((o) => `Observation/${o.id}`));
     const doc = todos<DocumentReference>('DocumentReference').find((d) => d.id === 'lab1');
     expect(doc?.context?.related).toEqual([{ reference: `DiagnosticReport/${dr?.id}` }]);
+
+    // El uso de la llamada queda registrado, ligado al documento: 9000 × US$4 + 5000 × US$20 por millón.
+    const [uso] = todos<AuditEvent>('AuditEvent');
+    expect(uso).toMatchObject({
+      type: { system: SYSTEM.usoIa, code: 'llamada-modelo' },
+      subtype: [{ code: 'laboratorio-pdf' }],
+      outcome: '0',
+      entity: [{ what: { reference: 'DocumentReference/lab1' } }],
+    });
+    expect(detalleUso(uso)).toMatchObject({
+      modelo: 'claude-opus-5-5',
+      'tokens-entrada': '9000',
+      'tokens-salida': '5000',
+      'costo-usd': '0.136000',
+      esfuerzo: 'high',
+    });
+  });
+
+  it('registra el uso aunque la respuesta no sirva, y si el servidor no lo acepta el PDF igual se procesa', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (..._a: unknown[]) => respuestaClaude({ esInformeDeLaboratorio: false, fechaExtraccion: null, laboratorio: null, analitos: [] })),
+    );
+    const sinLeer = fakeMedplum([consentimiento, docLab, ...defs]);
+    await procesar(sinLeer.medplum, evento(docLab));
+    const [uso] = sinLeer.todos<AuditEvent>('AuditEvent');
+    expect(uso).toMatchObject({ outcome: '4', outcomeDesc: 'sin resultados legibles' });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (..._a: unknown[]) =>
+        respuestaClaude({
+          esInformeDeLaboratorio: true,
+          fechaExtraccion: '2026-09-18',
+          laboratorio: null,
+          analitos: [{ nombre: 'Colesterol LDL', codigo: LDL, valor: 131, valorTexto: null, unidad: 'mg/dL', referencia: null }],
+        }),
+      ),
+    );
+    const { medplum, todos } = fakeMedplum([consentimiento, docLab, ...defs]);
+    const crear = medplum.createResource.bind(medplum);
+    vi.spyOn(medplum, 'createResource').mockImplementation(async (recurso: Resource) => {
+      if (recurso.resourceType === 'AuditEvent') {
+        throw new Error('Forbidden');
+      }
+      return crear(recurso);
+    });
+    expect(await procesar(medplum, evento(docLab))).toMatchObject({ ok: true, observaciones: 1 });
+    expect(todos('AuditEvent')).toHaveLength(0);
   });
 
   it('es idempotente: si el documento ya tiene su informe, no vuelve a llamar a Claude', async () => {
@@ -215,6 +267,7 @@ describe('Bot som-procesar-laboratorio', () => {
     expect((await procesar(medplum, evento(docLab))).ok).toBe(false);
     expect(llamadasClaude(fetchMock)).toHaveLength(0);
     expect(todos('Observation')).toHaveLength(0);
+    expect(todos('AuditEvent')).toHaveLength(0);
   });
 
   it('si no se puede leer: mensaje al paciente y tarea al equipo, sin Observations', async () => {

@@ -159,6 +159,11 @@ export const SYSTEM = {
   /** Identifier del mensaje en Twilio (MessageSid): deduplica entrantes y liga los estados de entrega. */
   twilioMessageSid: `${BASE}/Identifier/twilio-message-sid`,
   /**
+   * Uso de IA (`AuditEvent.type` `llamada-modelo`; `subtype` = el proceso, p. ej.
+   * `laboratorio-pdf`): tokens y costo estimado de cada llamada (`src/lib/uso-ia.ts`).
+   */
+  usoIa: `${BASE}/CodeSystem/uso-ia`,
+  /**
    * Identifier de los avisos a Recepción (`Task`): hace idempotente su creación (p. ej.
    * un solo aviso por cada número nuevo que escribe por WhatsApp).
    */
