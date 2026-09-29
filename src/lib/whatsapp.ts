@@ -280,6 +280,8 @@ export function leerWebhookTwilio(input: unknown): WebhookTwilio {
  */
 const ERRORES_TWILIO: Readonly<Record<string, string>> = {
   '63016': 'pasaron más de 24 h desde el último mensaje del paciente: WhatsApp solo deja mandar plantillas aprobadas',
+  '63112':
+    'Meta deshabilitó la cuenta de WhatsApp Business (WABA) del número de SOM o la verificación del negocio está pendiente: revisar el WhatsApp Manager de Meta',
   '63003': 'el número no tiene WhatsApp',
   '63024': 'el destinatario no es válido para WhatsApp',
   '63018': 'se superó el límite de envíos de WhatsApp; probá de nuevo en unos minutos',

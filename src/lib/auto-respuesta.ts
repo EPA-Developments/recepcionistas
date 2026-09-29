@@ -39,7 +39,9 @@ export function ventana24h(ultimoEntrante: string | undefined, ahora: Date = new
     return { abierta: false, restanteMin: 0, porCerrar: false };
   }
   const cierra = desde + VENTANA_WHATSAPP_HORAS * 60 * MIN;
-  const restanteMin = Math.max(0, Math.floor((cierra - ahora.getTime()) / MIN));
+  // Nunca más de 24 h: el `sent` lo pone el servidor y el reloj de la computadora de
+  // Recepción puede estar un poco atrasado ("24 h 1 min").
+  const restanteMin = Math.min(VENTANA_WHATSAPP_HORAS * 60, Math.max(0, Math.floor((cierra - ahora.getTime()) / MIN)));
   const abierta = cierra > ahora.getTime();
   return {
     abierta,

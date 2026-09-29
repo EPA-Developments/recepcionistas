@@ -164,6 +164,7 @@ describe('WhatsApp · webhook de Twilio', () => {
     expect(fallido.extension?.filter((e) => e.url === EXT.estadoEntrega)).toHaveLength(1);
     expect(fallido.statusReason?.text).toMatch(/24 h/);
     expect(explicarErrorTwilio('99999')).toMatch(/twilio\.com\/docs\/api\/errors\/99999/);
+    expect(explicarErrorTwilio('63112')).toContain('WhatsApp Manager');
     expect(explicarErrorTwilio(undefined)).toBeUndefined();
   });
 
