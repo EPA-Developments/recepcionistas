@@ -14,8 +14,8 @@
  */
 import 'dotenv/config';
 import type { ProjectSetting } from '@medplum/fhirtypes';
-import { PLANTILLAS_WHATSAPP, type PlantillaWhatsApp } from '../config/plantillas-whatsapp.js';
-import { contenidoTwilio, problemasPlantilla } from '../lib/plantillas-whatsapp.js';
+import { PLANTILLA_AVISO, PLANTILLAS_WHATSAPP, type PlantillaWhatsApp } from '../config/plantillas-whatsapp.js';
+import { contenidoTwilio, mientrasNoSeAprueba, problemasPlantilla } from '../lib/plantillas-whatsapp.js';
 import { conectarMedplum } from './conexion.js';
 import { guardarSecretos, leerSecretos, valorSecreto } from './secretos.js';
 
@@ -166,7 +166,10 @@ async function procesar(
     console.warn(`  ⚠️  Meta la recategorizó como ${estado.category} (se cobra distinto y el paciente puede silenciarla).`);
   }
   if (estado?.status !== 'approved') {
-    console.log(`  · ${p.secret} se guarda cuando esté aprobada: hasta entonces los avisos salen como texto libre.`);
+    console.log(
+      `  · ${p.secret} se guarda cuando esté aprobada. Hasta entonces ` +
+        `${mientrasNoSeAprueba(p, Boolean(valorSecreto(secretos, PLANTILLA_AVISO.secret)))}.`,
+    );
     return;
   }
   if (valorSecreto(secretos, p.secret) === sid) {
