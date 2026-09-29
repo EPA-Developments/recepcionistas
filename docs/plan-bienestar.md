@@ -170,6 +170,31 @@ Las derivaciones del catálogo firmado (`src/config/catalogo-pb100d.ts`, ver
 tienen su consulta en el catálogo (`DERIVACIONES_PB100D`): el portal las muestra en su
 grupo pero no las ofrece sin la tarea de derivación del plan (`soloDesdeTarea`, R-20).
 
+## Menú del equipo
+
+El equipo médico trabaja el plan desde el **menú del equipo** del monorepo del plan
+(`EPA-Developments/plan-bienestar-100-dias`, `@epa-bienestar/plan-bienestar-equipo`):
+día 0, instrumentos, alertas y derivaciones, acciones, seguimiento, inscripción y
+material. Recepción no depende de ese paquete: recibe lo que necesita como archivos
+generados y bots, y ve sólo lo operativo.
+
+| Qué | Cómo llega a Recepción | Dónde |
+|---|---|---|
+| **Instrumentos del equipo** (STOP-Bang, PHQ-2/GAD-2/PSS-4, AHC-HRSN, potenciadores, reconciliación de medicación) | Los `Questionnaire` los genera el monorepo (`npm run exportar:instrumentos`) y los carga el **seed** (idempotentes por `url`). El equipo los responde desde el menú; la policy del rol clínico ya lee `Questionnaire`/`QuestionnaireResponse`. | `src/config/instrumentos-pb100d.ts` (generado), `src/seed/builders.ts` |
+| **Día 0** (qué datos pide el catálogo firmado y quién los carga) | Las evaluaciones clasificadas (`quien`, `detector`) vienen generadas del monorepo (`npm run exportar:evaluaciones`); el bot `som-bienestar-dia0` las cruza con lo cargado y devuelve estado y fecha, **nunca el valor**. | `src/config/evaluaciones-pb100d.ts` (generado), `src/lib/dia0-pb100d.ts`, `src/bots/bienestar-dia0.ts` |
+| **Plan clínico y material** | El mismo bot lee el `CarePlan` `pb100d-ckm` y sus pasos (`Task` educación / conducta / monitoreo) y arma el aviso por WhatsApp y la hoja imprimible con los títulos. La ficha lo muestra en la tarjeta "día 0 y material" (Copiar / Abrir en WhatsApp / Imprimir). | `app/src/components/EquipoPlanBienestar.tsx` |
+| **Derivaciones** (R-20) | El equipo decide una derivación desde el menú → `Task` `intent: order`, código del catálogo firmado (`…/CodeSystem/catalogo-pb100d`) y la especialidad en `performerType`. Recepción la ve en la ficha ("Derivaciones del plan") y la agenda **desde su tarea** con una consulta del grupo de esa especialidad; las consultas de derivación (`DERIVACIONES_PB100D`, `soloDesdeTarea`) sueltas se bloquean. El turno lleva la tarea en `supportingInformation` y la completa. | `src/lib/derivaciones-pb100d.ts`, `som-reservar-turno` (`tareaId`), `app/src/components/DerivacionesPlan.tsx` |
+
+Los dos `CarePlan` conviven: el de **inscripción** (`plan-bienestar-100`, lo crea Recepción,
+día 1 = consulta inicial, lo lee el portal) y el **clínico** (`pb100d-ckm`, lo empieza el
+equipo o la persona desde el portal, día 0 = alta). Recepción inscribe; el plan clínico lo
+ve, no lo toca.
+
+Cuando cambia el catálogo firmado o los instrumentos, se regeneran los dos archivos
+desde el monorepo (`npm run exportar:evaluaciones -- <ruta>` y
+`npm run exportar:instrumentos -- <ruta>`) y `npm run seed` vuelve a cargar los
+`Questionnaire`.
+
 ## Pendientes
 
 Ver [`decisiones-pendientes.md`](decisiones-pendientes.md#plan-bienestar-100-días-y-teleconsulta).

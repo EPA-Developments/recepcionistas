@@ -13,6 +13,7 @@ import type {
   PlanDefinition,
   Practitioner,
   PractitionerRole,
+  Questionnaire,
   Resource,
   Schedule,
   Slot,
@@ -23,6 +24,7 @@ import type { Servicio } from '../domain/types.js';
 import { MEDICOS, type Medico } from '../config/medicos.js';
 import { BIOMARCADORES, PANEL_DISPLAY, type Biomarcador } from '../config/biomarcadores.js';
 import { CODIGO_CONSULTA_PB100D, CODIGO_CONTROL_GLP1, GRUPOS_ESPECIALIDAD, SERVICIOS } from '../config/catalogo.js';
+import { INSTRUMENTOS_PB100D } from '../config/instrumentos-pb100d.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
 import { RECURSOS } from '../config/recursos.js';
 import { TC_DEFAULT } from '../config/tipo-cambio.js';
@@ -328,6 +330,8 @@ export interface RecursosSeed {
   tcConfig: Basic;
   activityDefinitions: ActivityDefinition[];
   planDefinitions: PlanDefinition[];
+  /** Instrumentos del equipo del Plan Bienestar 100 Días® (STOP-Bang, PHQ-2/GAD-2/PSS-4, AHC-HRSN, potenciadores, reconciliación), generados del monorepo. */
+  questionnaires: Questionnaire[];
   locations: Location[];
   /** Agendas de los recursos físicos y de cada profesional. */
   schedules: Schedule[];
@@ -344,6 +348,7 @@ export function buildSeed(): RecursosSeed {
     tcConfig: buildTcConfig(),
     activityDefinitions: SERVICIOS.map(buildActivityDefinition),
     planDefinitions: [buildPlanDefinitionGlp1(), buildPlanDefinitionBienestar()],
+    questionnaires: INSTRUMENTOS_PB100D.map((q) => ({ ...q })),
     locations: RECURSOS.map((r) => buildLocation(r.codigo)),
     schedules: [...RECURSOS.map((r) => buildSchedule(r.codigo)), ...MEDICOS.map((m) => buildScheduleProfesional(m.codigo))],
     practitioners: MEDICOS.map((m) => buildPractitioner(m.codigo)),
@@ -365,6 +370,7 @@ export function gruposSeed(seed: RecursosSeed): Array<[string, Resource[]]> {
     ['Basic (config TC)', [seed.tcConfig]],
     ['ActivityDefinition (servicios)', seed.activityDefinitions],
     ['PlanDefinition (programas)', seed.planDefinitions],
+    ['Questionnaire (instrumentos del equipo PB100D)', seed.questionnaires],
     ['Location (recursos)', seed.locations],
     ['Practitioner (médicos)', seed.practitioners],
     ['PractitionerRole (especialidad, modalidades, disponibilidad)', seed.practitionerRoles],

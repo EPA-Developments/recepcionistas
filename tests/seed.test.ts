@@ -25,6 +25,16 @@ describe('Seed — composición', () => {
     // consulta del Plan Bienestar + control GLP-1.
     expect(seed.activityDefinitions.length).toBe(12 + 9 + 2);
     expect(seed.planDefinitions.map((p) => p.url)).toEqual([PLAN_GLP1_URL, PLAN_BIENESTAR_URL]);
+    // Instrumentos del equipo del Plan Bienestar (generados del monorepo del plan): cinco
+    // Questionnaire con la URL y la versión que el menú del equipo espera en cada respuesta.
+    expect(seed.questionnaires.map((q) => q.url)).toEqual([
+      'https://epa-bienestar.ar/fhir/Questionnaire/pb100d-stop-bang-v1',
+      'https://epa-bienestar.ar/fhir/Questionnaire/pb100d-phq2-gad2-pss4-v1',
+      'https://epa-bienestar.ar/fhir/Questionnaire/pb100d-ahc-hrsn-v1',
+      'https://epa-bienestar.ar/fhir/Questionnaire/pb100d-potenciadores-v1',
+      'https://epa-bienestar.ar/fhir/Questionnaire/pb100d-reconciliacion-medicacion-v1',
+    ]);
+    expect(seed.questionnaires.every((q) => q.status === 'active' && q.version === '1.0' && (q.item?.length ?? 0) > 0)).toBe(true);
     expect(seed.locations.length).toBe(4); // 2 consultorios + agenda de teleconsulta + sala de rehabilitación
     // Una agenda por recurso físico más una por profesional (R-22).
     expect(seed.schedules.length).toBe(4 + MEDICOS.length);
@@ -52,6 +62,7 @@ describe('Seed — composición', () => {
       1 + // tcConfig
       seed.activityDefinitions.length +
       seed.planDefinitions.length +
+      seed.questionnaires.length +
       seed.locations.length +
       seed.schedules.length +
       seed.practitioners.length +
