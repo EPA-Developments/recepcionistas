@@ -147,7 +147,11 @@ export function pasosSeguimientoLaboratorio(d: DatosSeguimientoLaboratorio): Pas
     pasos.push({
       titulo: 'El bot lo procesó',
       estado: 'falla',
-      detalle: `La última ejecución falló (${fechaHoraAR(ultima.recorded)}): ${primeraLinea(ultima.outcomeDesc) || 'sin detalle'}. Log completo en Medplum → Bot → som-procesar-laboratorio.`,
+      detalle:
+        `La última ejecución falló (${fechaHoraAR(ultima.recorded)}): ` +
+        (primeraLinea(ultima.outcomeDesc)
+          ? `${primeraLinea(ultima.outcomeDesc)}. Log completo en Medplum → Bot → som-procesar-laboratorio.`
+          : 'sin log. Una ejecución que falla sin log suele ser el corte por tiempo de Lambda (10 s por defecto): npm run deploy:bots le fija 300 s al bot.'),
     });
   } else {
     pasos.push({
