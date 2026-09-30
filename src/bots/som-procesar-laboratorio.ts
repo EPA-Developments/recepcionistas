@@ -26,16 +26,7 @@
  * La lógica testeable vive en `src/lib/laboratorio.ts`.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type {
-  AuditEvent,
-  Bot,
-  Communication,
-  DiagnosticReport,
-  DocumentReference,
-  Observation,
-  Reference,
-  Task,
-} from '@medplum/fhirtypes';
+import type { Communication, DiagnosticReport, DocumentReference, Observation, Task } from '@medplum/fhirtypes';
 import {
   BOT_SOM_LABORATORIO,
   COD,
@@ -59,7 +50,7 @@ import {
   type EntradaCatalogo,
   type ExtraccionLaboratorio,
 } from '../lib/laboratorio.js';
-import { PROCESO_IA, auditEventUsoIa, usoDeRespuesta, type UsoIa } from '../lib/uso-ia.js';
+import { PROCESO_IA, registrarUsoIa, usoDeRespuesta, type UsoIa } from '../lib/uso-ia.js';
 import { clienteClaude, textoRespuesta } from './_claude.js';
 import { tieneConsentimiento } from './_shared.js';
 
@@ -119,7 +110,16 @@ export async function handler(
   const { extraccion, uso, motivo } = await extraer(claude, base64, catalogo);
   const legible = Boolean(extraccion?.esInformeDeLaboratorio && extraccion.analitos.length > 0);
   if (uso) {
-    await registrarUso(medplum, event.bot, documentoRef, uso, legible, motivo ?? 'sin resultados legibles');
+    await registrarUsoIa(medplum, {
+      proceso: PROCESO_IA.laboratorioPdf,
+      uso,
+      bot: event.bot,
+      botNombre: BOT_SOM_LABORATORIO,
+      origen: documentoRef,
+      ok: legible,
+      motivo: motivo ?? 'sin resultados legibles',
+      esfuerzo: ESFUERZO_CLAUDE_LABORATORIO,
+    });
   }
   if (!extraccion || !legible) {
     return derivarAlEquipo(medplum, pacienteRef, documentoRef, 'no se pudieron leer resultados en el PDF');
@@ -212,36 +212,6 @@ async function extraer(
   } catch (err) {
     console.error('som-procesar-laboratorio: respuesta ilegible:', err instanceof Error ? err.message : err);
     return { uso, motivo: 'respuesta ilegible' };
-  }
-}
-
-/** Deja el AuditEvent de uso de IA; si el servidor no lo acepta, no frena el procesamiento. */
-async function registrarUso(
-  medplum: MedplumClient,
-  bot: Reference<Bot> | undefined,
-  documentoRef: string,
-  uso: UsoIa,
-  ok: boolean,
-  motivo: string,
-): Promise<void> {
-  try {
-    await medplum.createResource<AuditEvent>(
-      auditEventUsoIa({
-        proceso: PROCESO_IA.laboratorioPdf,
-        uso,
-        bot,
-        botNombre: BOT_SOM_LABORATORIO,
-        origen: documentoRef,
-        ok,
-        motivo,
-        esfuerzo: ESFUERZO_CLAUDE_LABORATORIO,
-      }),
-    );
-  } catch (err) {
-    console.error(
-      `som-procesar-laboratorio: no se pudo registrar el uso (${uso.modelo}, ${uso.tokensEntrada} + ${uso.tokensSalida} tokens):`,
-      err instanceof Error ? err.message : err,
-    );
   }
 }
 

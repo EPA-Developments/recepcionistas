@@ -290,6 +290,7 @@ export const BOT_BORRADOR_RESPUESTA = 'som-borrador-respuesta';
  * una negativa.
  */
 export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5-5';
+export const ESFUERZO_CLAUDE_BORRADOR = 'low' as const;
 /** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
 export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
 /**

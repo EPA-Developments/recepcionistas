@@ -11,6 +11,7 @@
  * (`fallbacks`), cada intento se cobra aparte a la tarifa de su modelo: se suman todos los
  * de `usage.iterations` (el `usage` de arriba cuenta solo el intento que respondió).
  */
+import type { MedplumClient } from '@medplum/core';
 import type { AuditEvent, AuditEventEntityDetail, Bot, Reference } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
 
@@ -33,6 +34,7 @@ export const PRECIOS_USD_POR_MTOK: Readonly<Record<string, PrecioModelo>> = {
 /** Procesos que registran uso (`AuditEvent.subtype`). */
 export const PROCESO_IA = {
   laboratorioPdf: { code: 'laboratorio-pdf', display: 'Transcripción de laboratorio en PDF' },
+  borradorMensaje: { code: 'borrador-mensaje', display: 'Borrador de respuesta en Mensajes' },
 } as const;
 
 /** `AuditEvent.type` de todos los registros de uso de IA. */
@@ -145,11 +147,23 @@ export function auditEventUsoIa(r: RegistroUsoIa): AuditEvent {
   };
 }
 
+/** Deja el AuditEvent de uso; si el servidor no lo acepta, lo loguea y sigue (nunca frena al bot). */
+export async function registrarUsoIa(medplum: MedplumClient, r: RegistroUsoIa): Promise<void> {
+  try {
+    await medplum.createResource<AuditEvent>(auditEventUsoIa(r));
+  } catch (err) {
+    console.error(
+      `${r.botNombre}: no se pudo registrar el uso de IA (${r.uso.modelo}, ${r.uso.tokensEntrada} + ${r.uso.tokensSalida} tokens):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 export interface ResumenUsoIa {
   proceso: string;
   nombre: string;
   llamadas: number;
-  /** Llamadas cuya respuesta no sirvió (el caso pasó al equipo). */
+  /** Llamadas cuya respuesta no sirvió: el caso lo resolvió una persona. */
   sinResultado: number;
   tokensEntrada: number;
   tokensSalida: number;

@@ -43,7 +43,7 @@ async function main(): Promise<void> {
     const conPrecio = r.llamadas - r.sinPrecio;
     console.log(
       `  ${r.nombre}: ${numero(r.llamadas)} llamadas` +
-        `${r.sinResultado ? ` (${numero(r.sinResultado)} pasaron al equipo)` : ''}` +
+        `${r.sinResultado ? ` (${numero(r.sinResultado)} sin resultado: las resolvió una persona)` : ''}` +
         ` · ${numero(r.tokensEntrada)} tokens de entrada · ${numero(r.tokensSalida)} de salida` +
         ` · ≈ ${dolares(r.costoUsd)}` +
         `${conPrecio > 0 ? ` (≈ ${dolares(r.costoUsd / conPrecio)} por llamada)` : ''}`,

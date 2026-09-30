@@ -38,7 +38,7 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-procesar-laboratorio` | **Interno (SOM):** transcribe el PDF de laboratorio que manda el paciente (Claude) a `Observation` + `DiagnosticReport` y lo liga al documento; si no puede, avisa al paciente y deja un `Task` `revisar-laboratorio`. | `Subscription` (solo *create*) sobre `DocumentReference?category=…/documento\|resultado-laboratorio` (la crea `deploy:bots`). |
 | `som-bienestar-inscribir` | **Plan Bienestar 100 Días® (Recepción):** crea el `CarePlan` `plan-bienestar-100` (100 días) que lee el portal, con sus tres consultas programadas, y una `Task` `agendar-consulta-pb100d` por consulta. Idempotente (a un plan viejo le suma las tareas que falten). No cobra. | `executeBot` (Atender → Plan Bienestar 100 Días®). Ver [`plan-bienestar.md`](plan-bienestar.md). |
 | `som-bienestar-dia0` | **Plan Bienestar 100 Días® (Recepción):** lo operativo del menú del equipo, **sin valores clínicos**: el **día 0** (qué datos pide el catálogo firmado para el estadío de la persona, si están cargados / a medias / vencidos / faltan y quién los carga), el estado del **plan clínico** (`pb100d-ckm`: desde cuándo, día X, pasos completados) y el **material** para el paciente (títulos de sus pasos y el aviso por WhatsApp). Lee lo clínico con su identidad y devuelve sólo "falta el laboratorio", nunca el resultado ni el estadío. Sólo lectura. | `executeBot` (Atender → tarjeta "día 0 y material"). Ver [`plan-bienestar.md`](plan-bienestar.md#menú-del-equipo). |
-| `som-borrador-respuesta` | **Mensajes (Recepción) — "Sugerir":** con la conversación y el contexto operativo del paciente (nombre, motivo, próximo turno, programas, consentimiento; nunca historia clínica) redacta con Claude el **borrador** de la respuesta. Solo lectura: no escribe ni envía nada; la recepcionista lo revisa y toca Enviar (la respuesta queda marcada `borrador-usado` = `sin-editar`/`editado`). Si es clínico o una posible urgencia, no redacta y lo dice. | `executeBot` (Mensajes → Sugerir). |
+| `som-borrador-respuesta` | **Mensajes (Recepción) — "Sugerir":** con la conversación y el contexto operativo del paciente (nombre, motivo, próximo turno, programas, consentimiento; nunca historia clínica) redacta con Claude el **borrador** de la respuesta. No envía nada ni escribe datos del paciente (solo el registro de uso de IA, ver abajo); la recepcionista lo revisa y toca Enviar (la respuesta queda marcada `borrador-usado` = `sin-editar`/`editado`). Si es clínico o una posible urgencia, no redacta y lo dice. | `executeBot` (Mensajes → Sugerir). |
 | `som-glp1-plan` | **GLP-1 (equipo médico):** con la indicación (molécula, esquema de titulación, fecha de inicio) arma o recalcula el programa: `CarePlan`, `Goal`, pedidos de laboratorio y tareas de agenda de Recepción. **Recepción no puede ejecutarlo.** | `executeBot` / app de Medplum (input JSON). Ver [`glp1.md`](glp1.md). |
 
 ## Deploy
@@ -70,6 +70,14 @@ documento, con la extensión `subscription-supported-interaction=create`).
 > Los bots que llaman a Claude (`bot-som-report`, `som-procesar-laboratorio`, `som-borrador-respuesta`)
 > pueden tardar más que el timeout por defecto del Bot: subir `Bot.timeout` en
 > Medplum si el log muestra cortes.
+
+**Uso de IA.** `som-procesar-laboratorio` y `som-borrador-respuesta` dejan, por cada
+llamada a Claude, un `AuditEvent` (type `…/CodeSystem/uso-ia|llamada-modelo`; subtype
+`laboratorio-pdf` / `borrador-mensaje`) ligado al recurso que la originó (el
+`DocumentReference` del PDF / la conversación), con modelo, tokens, esfuerzo y costo
+estimado; `outcome` 4 si la respuesta no sirvió. Del paciente solo guarda esa referencia. Resumen del
+mes: `npm run uso:ia -- AAAA-MM`. Si el servidor no acepta el registro, el bot sigue
+igual (queda en su log). Lógica y precios en `src/lib/uso-ia.ts`.
 
 Es idempotente: reejecutar redeploya el código sobre los bots existentes. Los ids
 de `medplum.config.json` son del proyecto SOM: arrancan vacíos y los completa el
