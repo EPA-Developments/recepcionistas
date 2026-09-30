@@ -79,6 +79,7 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 | `npm run build:app` | Build de producción del front |
 | `npm run bots:bundle` | Bundlea los Bots y muestra tamaños (sin conectarse) |
 | `npm run deploy:bots` | Crea + bundlea + deploya los Bots a Medplum (ver `docs/bots.md`) |
+| `npm run uso:ia [-- AAAA-MM]` | Uso de IA del mes (llamadas, tokens y costo estimado por proceso), desde los `AuditEvent` `uso-ia` |
 
 ## Estructura
 
