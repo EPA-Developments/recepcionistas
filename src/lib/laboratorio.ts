@@ -214,6 +214,16 @@ export function informeYaGenerado(doc: DocumentReference): string | undefined {
   return doc.context?.related?.find((r) => r.reference?.startsWith('DiagnosticReport/'))?.reference;
 }
 
+/**
+ * Los PDF de laboratorio que siguen "En proceso" (sin DiagnosticReport ligado), del más
+ * viejo al más nuevo: los que `laboratorio:reprocesar` vuelve a pasar por el bot.
+ */
+export function pendientesDeProcesar(docs: DocumentReference[]): DocumentReference[] {
+  return docs
+    .filter((d) => esDocumentoLaboratorio(d) && d.status === 'current' && !informeYaGenerado(d))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+}
+
 /** El PDF del documento: por `url` (Binary) o embebido (`data` base64). */
 export function adjuntoPdf(doc: DocumentReference): Attachment | undefined {
   return doc.content?.map((c) => c.attachment).find((a) => a?.contentType === 'application/pdf' && (a.url || a.data));

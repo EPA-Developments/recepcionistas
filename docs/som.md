@@ -239,6 +239,11 @@ por especialidad. Recepción los evalúa con su propia estadificación:
    paso — consentimiento, bot, Subscription, secret, envío, ejecuciones del bot, uso de
    IA y resultado (informe o tarea `revisar-laboratorio`) — con el arreglo de cada falla.
    Sale con 1 si algo falló.
+5. PDF trabados en "En proceso" (la Subscription solo dispara al crear): arreglada la
+   causa y con `npm run deploy:bots`, `npm run laboratorio:reprocesar -- <id del paciente>`
+   los lista (dry-run) y con `--apply` ejecuta el bot con cada uno, de a uno. Si sale bien
+   cierra su tarea `revisar-laboratorio`; si vuelve a fallar, actualiza el motivo de esa
+   tarea sin avisarle de nuevo al paciente.
 
 ## Patient Journey y Plan Bienestar
 

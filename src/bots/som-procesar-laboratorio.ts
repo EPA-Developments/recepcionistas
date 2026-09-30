@@ -156,18 +156,22 @@ export async function handler(
 
 const TAREA_ABIERTA: ReadonlySet<Task['status']> = new Set(['draft', 'requested', 'received', 'accepted', 'ready', 'in-progress', 'on-hold']);
 
+/** Las tareas "revisar-laboratorio" todavía abiertas del documento. */
+async function revisionesAbiertas(medplum: MedplumClient, documentoRef: string): Promise<Task[]> {
+  const tareas = await medplum.searchResources('Task', { focus: documentoRef, _count: '20' }).catch(() => [] as Task[]);
+  return tareas.filter(
+    (t) => TAREA_ABIERTA.has(t.status) && t.code?.coding?.some((c) => c.system === SYSTEM.taskTipo && c.code === COD.revisarLaboratorio),
+  );
+}
+
 /** Cierra las tareas "revisar-laboratorio" abiertas del documento (ya quedó procesado). */
 async function cerrarRevisionesPendientes(medplum: MedplumClient, documentoRef: string): Promise<void> {
-  const tareas = await medplum.searchResources('Task', { focus: documentoRef, _count: '20' }).catch(() => [] as Task[]);
-  for (const t of tareas) {
-    const esRevision = t.code?.coding?.some((c) => c.system === SYSTEM.taskTipo && c.code === COD.revisarLaboratorio);
-    if (esRevision && TAREA_ABIERTA.has(t.status)) {
-      await medplum
-        .updateResource<Task>({ ...t, status: 'completed', businessStatus: { text: 'Procesado automáticamente al reprocesar el PDF' } })
-        .catch((err: unknown) =>
-          console.error(`som-procesar-laboratorio: no se pudo cerrar Task/${t.id}:`, err instanceof Error ? err.message : err),
-        );
-    }
+  for (const t of await revisionesAbiertas(medplum, documentoRef)) {
+    await medplum
+      .updateResource<Task>({ ...t, status: 'completed', businessStatus: { text: 'Procesado automáticamente al reprocesar el PDF' } })
+      .catch((err: unknown) =>
+        console.error(`som-procesar-laboratorio: no se pudo cerrar Task/${t.id}:`, err instanceof Error ? err.message : err),
+      );
   }
 }
 
@@ -263,7 +267,8 @@ async function extraer(
 
 /**
  * No se pudo procesar: mensaje al paciente (lo ve en Mensajes del portal) y tarea al
- * equipo para revisarlo a mano. El documento queda "En proceso" hasta que el equipo
+ * equipo para revisarlo a mano. Si ya tenía una revisión abierta (un reproceso que vuelve
+ * a fallar), solo se actualiza su motivo: ni tarea duplicada ni otro aviso al paciente. El documento queda "En proceso" hasta que el equipo
  * lo resuelva (p. ej. reejecutando este bot con el DocumentReference).
  */
 async function derivarAlEquipo(
@@ -272,6 +277,13 @@ async function derivarAlEquipo(
   documentoRef: string,
   motivo: string,
 ): Promise<ResultadoLaboratorio> {
+  const resultado: ResultadoLaboratorio = { ok: false, derivadoAlEquipo: true, mensaje: `No se pudo procesar automáticamente: ${motivo}.` };
+  const descripcion = `Revisar a mano un PDF de laboratorio del paciente (${motivo}).`;
+  const [abierta] = await revisionesAbiertas(medplum, documentoRef);
+  if (abierta) {
+    await medplum.updateResource<Task>({ ...abierta, description: descripcion });
+    return resultado;
+  }
   await medplum.createResource<Communication>({
     resourceType: 'Communication',
     status: 'in-progress',
@@ -291,7 +303,7 @@ async function derivarAlEquipo(
     code: { coding: [{ system: SYSTEM.taskTipo, code: COD.revisarLaboratorio }], text: 'Revisar estudio de laboratorio' },
     for: { reference: pacienteRef },
     focus: { reference: documentoRef },
-    description: `Revisar a mano un PDF de laboratorio del paciente (${motivo}).`,
+    description: descripcion,
   });
-  return { ok: false, derivadoAlEquipo: true, mensaje: `No se pudo procesar automáticamente: ${motivo}.` };
+  return resultado;
 }

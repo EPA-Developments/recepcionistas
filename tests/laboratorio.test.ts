@@ -8,6 +8,7 @@ import {
   normalizarExtraccion,
   relatedConInforme,
   type ExtraccionLaboratorio,
+  pendientesDeProcesar,
 } from '../src/lib/laboratorio.js';
 import { handler as procesar } from '../src/bots/som-procesar-laboratorio.js';
 import { buildSeed } from '../src/seed/builders.js';
@@ -113,6 +114,28 @@ describe('Laboratorio — recursos FHIR', () => {
     const una = relatedConInforme(doc, 'DiagnosticReport/d1');
     expect(una.related).toEqual([{ reference: 'X/1' }, { reference: 'DiagnosticReport/d1' }]);
     expect(relatedConInforme({ ...doc, context: una }, 'DiagnosticReport/d1').related).toHaveLength(2);
+  });
+});
+
+describe('Laboratorio — reprocesar', () => {
+  it('pendientes: solo los PDF de laboratorio vigentes sin informe, del más viejo al más nuevo', () => {
+    const lab = (id: string, date: string, extra: Partial<DocumentReference> = {}): DocumentReference => ({
+      resourceType: 'DocumentReference',
+      id,
+      status: 'current',
+      date,
+      category: [{ coding: [{ system: SYSTEM.documento, code: COD.resultadoLaboratorio }] }],
+      content: [],
+      ...extra,
+    });
+    const pendientes = pendientesDeProcesar([
+      lab('nuevo', '2026-09-30T21:04:26Z'),
+      lab('procesado', '2026-09-20T10:00:00Z', { context: { related: [{ reference: 'DiagnosticReport/r1' }] } }),
+      lab('viejo', '2026-09-24T23:32:58Z'),
+      lab('anulado', '2026-09-25T10:00:00Z', { status: 'entered-in-error' }),
+      { ...lab('consentimiento', '2026-09-01T10:00:00Z'), category: [] },
+    ]);
+    expect(pendientes.map((d) => d.id)).toEqual(['viejo', 'nuevo']);
   });
 });
 
@@ -352,6 +375,30 @@ describe('Bot som-procesar-laboratorio', () => {
       expect(todos<Task>('Task')[0]?.description).toContain('falló la llamada a Claude (HTTP 400)');
       expect(todos('AuditEvent')).toHaveLength(0);
     });
+  });
+
+  it('un reproceso que vuelve a fallar actualiza el motivo de la tarea abierta, sin duplicarla ni avisar de nuevo', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const revision: Task = {
+      resourceType: 'Task',
+      id: 'rev1',
+      status: 'requested',
+      intent: 'order',
+      code: { coding: [{ system: SYSTEM.taskTipo, code: COD.revisarLaboratorio }] },
+      focus: { reference: 'DocumentReference/lab1' },
+      description: 'Revisar a mano un PDF de laboratorio del paciente (no se pudieron leer resultados en el PDF).',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (..._a: unknown[]) => respuestaClaude({ esInformeDeLaboratorio: false, fechaExtraccion: null, laboratorio: null, analitos: [] })),
+    );
+    const { medplum, todos } = fakeMedplum([consentimiento, docLab, revision, ...defs]);
+
+    expect(await procesar(medplum, evento(docLab))).toMatchObject({ ok: false, derivadoAlEquipo: true });
+    expect(todos<Task>('Task')).toEqual([
+      expect.objectContaining({ id: 'rev1', status: 'requested', description: expect.stringContaining('el PDF no parece un informe de laboratorio') }),
+    ]);
+    expect(todos('Communication')).toHaveLength(0);
   });
 
   it('ignora documentos que no son resultados de laboratorio (p. ej. el consentimiento)', async () => {
