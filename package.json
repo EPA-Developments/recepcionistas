@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "seed": "tsx src/seed/index.ts",
     "diagnostico-acceso": "tsx src/seed/diagnostico-acceso.ts",
+    "puesta-en-marcha": "tsx src/seed/puesta-en-marcha.ts",
     "seed:prueba-recordatorios": "tsx src/seed/prueba-recordatorios.ts",
     "datos-demo": "tsx src/seed/datos-demo.ts",
     "limpiar": "tsx src/seed/limpiar.ts",

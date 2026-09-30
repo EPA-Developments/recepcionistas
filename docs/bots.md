@@ -55,6 +55,14 @@ npm run bots:bundle   # opcional: bundlea y muestra tamaños, sin conectarse
 npm run deploy:bots   # crea (si faltan) + bundlea + deploya + guarda ids
 ```
 
+> **Chequeo de la puesta en marcha:** `npm run puesta-en-marcha` (sólo lectura) lista qué
+> hay en el proyecto y qué falta, con el comando que lo arregla: bots creados, roles al día
+> con el repo, catálogo del seed (instrumentos, programas, profesionales, agendas), recursos
+> del monorepo del plan, Project Secrets por nombre (nunca valores) y el default patient
+> access policy. Termina con código 1 si falta algo. La lógica está en
+> `src/lib/puesta-en-marcha.ts`; el paso a paso completo, en el monorepo del plan
+> (`docs/puesta-en-marcha.md`).
+
 `deploy:bots` hace, por cada bot:
 1. lo busca por `name`; si no existe, lo crea (`POST admin/projects/{id}/bot`, runtime `awslambda`);
 2. bundlea el source con esbuild (CJS, sin dependencias externas; compactado sin
