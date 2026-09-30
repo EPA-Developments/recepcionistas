@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent, MedplumClient } from '@medplum/core';
-import type { DiagnosticReport, DocumentReference, RiskAssessment, ServiceRequest } from '@medplum/fhirtypes';
+import type { AuditEvent, DiagnosticReport, DocumentReference, RiskAssessment, ServiceRequest } from '@medplum/fhirtypes';
 import {
   construirExtensionSecciones,
   construirRiskAssessment,
@@ -238,17 +238,17 @@ describe('Bot bot-som-report — consentimiento y Claude', () => {
     content: [{ attachment: { title: 'Consentimiento' } }],
   };
 
-  function respuestaClaude(secciones: Record<string, string>): Response {
+  function respuestaClaude(secciones: Record<string, string>, stopReason = 'end_turn'): Response {
     return new Response(
       JSON.stringify({
         id: 'msg_1',
         type: 'message',
         role: 'assistant',
         model: 'claude-sonnet-4-6',
-        content: [{ type: 'text', text: JSON.stringify(secciones) }],
-        stop_reason: 'end_turn',
+        content: stopReason === 'refusal' ? [] : [{ type: 'text', text: JSON.stringify(secciones) }],
+        stop_reason: stopReason,
         stop_sequence: null,
-        usage: { input_tokens: 1, output_tokens: 1 },
+        usage: { input_tokens: 20_000, output_tokens: 3_000 },
       }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     );
@@ -267,6 +267,7 @@ describe('Bot bot-som-report — consentimiento y Claude', () => {
     const dr = todos<DiagnosticReport>('DiagnosticReport')[0]!;
     const resumen = dr.extension?.[0]?.extension?.find((e) => e.url === 'executive-summary')?.valueString;
     expect(resumen).toMatch(/revisará la solicitud manualmente/);
+    expect(todos('AuditEvent')).toHaveLength(0);
   });
 
   it('Con consentimiento: Claude (modelo del contrato) redacta las secciones', async () => {
@@ -316,6 +317,34 @@ describe('Bot bot-som-report — consentimiento y Claude', () => {
     // PDF del informe ligado a la solicitud (DocumentReference?related=ServiceRequest/<id>).
     const pdf = todos<DocumentReference>('DocumentReference').find((d) => d.type?.coding?.[0]?.code === '11488-4');
     expect(pdf?.context?.related?.[0]?.reference).toBe('ServiceRequest/sr1');
+
+    // El uso de la llamada queda ligado a la solicitud: 20000 × US$3 + 3000 × US$15 por millón.
+    const [uso, ...mas] = todos<AuditEvent>('AuditEvent');
+    expect(mas).toHaveLength(0);
+    expect(uso).toMatchObject({
+      type: { system: SYSTEM.usoIa, code: 'llamada-modelo' },
+      subtype: [{ code: 'informe-som' }],
+      outcome: '0',
+      entity: [{ what: { reference: 'ServiceRequest/sr1' } }],
+    });
+    const detalle = Object.fromEntries((uso?.entity?.[0]?.detail ?? []).map((d) => [d.type, d.valueString]));
+    expect(detalle).toMatchObject({ modelo: 'claude-sonnet-4-6', 'tokens-entrada': '20000', 'costo-usd': '0.105000' });
+    expect(detalle.esfuerzo).toBeUndefined(); // el contrato no fija esfuerzo: no se inventa
+  });
+
+  it('si Claude declina: el informe sale con las secciones mínimas y el uso queda registrado', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn(async (..._a: unknown[]) => respuestaClaude({}, 'refusal')));
+    const { medplum, todos } = fakeMedplum([paciente, sr, consentimiento]);
+
+    const r = await somReportHandler(medplum, { input: sr, secrets: secretos } as unknown as BotEvent<ServiceRequest>);
+
+    expect(r.ok).toBe(true);
+    const dr = todos<DiagnosticReport>('DiagnosticReport')[0]!;
+    const resumen = dr.extension?.[0]?.extension?.find((e) => e.url === 'executive-summary')?.valueString;
+    expect(resumen).toMatch(/revisará la solicitud manualmente/);
+    const [uso] = todos<AuditEvent>('AuditEvent');
+    expect(uso).toMatchObject({ outcome: '4', outcomeDesc: 'refusal', entity: [{ what: { reference: 'ServiceRequest/sr1' } }] });
   });
 });
 

@@ -35,6 +35,7 @@ export const PRECIOS_USD_POR_MTOK: Readonly<Record<string, PrecioModelo>> = {
 export const PROCESO_IA = {
   laboratorioPdf: { code: 'laboratorio-pdf', display: 'Transcripción de laboratorio en PDF' },
   borradorMensaje: { code: 'borrador-mensaje', display: 'Borrador de respuesta en Mensajes' },
+  informeSom: { code: 'informe-som', display: 'Informe de Segunda Opinión Médica' },
 } as const;
 
 /** `AuditEvent.type` de todos los registros de uso de IA. */
