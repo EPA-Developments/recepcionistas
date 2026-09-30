@@ -181,6 +181,27 @@ export function normalizarExtraccion(crudo: unknown, catalogo: EntradaCatalogo[]
  */
 export const CRITERIO_SUBSCRIPTION_LABORATORIO = `DocumentReference?category=${SYSTEM.documento}|${COD.resultadoLaboratorio}`;
 
+/**
+ * ¿La URL del adjunto es externa a Medplum? El servidor devuelve el `Binary` como link
+ * firmado del almacenamiento (S3: `X-Amz-Signature`); ése se baja sin el token de Medplum.
+ */
+export function esUrlExterna(url: string, baseUrlMedplum: string): boolean {
+  return /^https?:\/\//i.test(url) && !url.startsWith(baseUrlMedplum);
+}
+
+/** ¿Los bytes son un PDF? La firma `%PDF-` puede venir tras basura inicial (hasta 1 KB). */
+export function pareceUnPdf(bytes: Uint8Array): boolean {
+  return Buffer.from(bytes.subarray(0, 1024)).toString('latin1').includes('%PDF-');
+}
+
+/** Por qué una lectura de Claude no dio resultados (para la tarea del equipo y el uso de IA). */
+export function motivoSinResultados(extraccion: ExtraccionLaboratorio | undefined): string {
+  if (!extraccion) {
+    return 'no se pudieron leer resultados en el PDF';
+  }
+  return extraccion.esInformeDeLaboratorio ? 'no se encontraron valores en el PDF' : 'el PDF no parece un informe de laboratorio';
+}
+
 /** ¿El DocumentReference es un PDF de laboratorio del paciente (el que dispara el bot)? */
 export function esDocumentoLaboratorio(doc: DocumentReference): boolean {
   return Boolean(

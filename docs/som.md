@@ -194,8 +194,11 @@ por especialidad. Recepción los evalúa con su propia estadificación:
 
 ## Laboratorio en PDF (`som-procesar-laboratorio`)
 
-1. Lee el PDF del `DocumentReference`: por `url` (`medplum.download`) o embebido en
-   `attachment.data` (base64, hasta que el servidor deje crear el `Binary`).
+1. Lee el PDF del `DocumentReference`: embebido en `attachment.data` (base64, hasta que
+   el servidor deje crear el `Binary`) o por `url`. El servidor devuelve el `Binary` como
+   **link firmado de S3** (`X-Amz-Signature`): se baja con `fetch` **sin** el token de
+   Medplum (S3 rechaza firma + `Authorization`, y `medplum.download` agrega el token y no
+   mira el estado HTTP). Verifica que sea un PDF (`%PDF-`) antes de mandarlo a Claude.
 2. **Claude `claude-opus-5-5`** (esfuerzo `high`) transcribe (salida estructurada;
    `fallbacks: "default"` ante una negativa) nombre, valor, unidad, rango del laboratorio y fecha de
    extracción. El **catálogo de códigos sale de las `ObservationDefinition` del
@@ -210,8 +213,10 @@ por especialidad. Recepción los evalúa con su propia estadificación:
 4. Suma `DiagnosticReport/<id>` a `DocumentReference.context.related`: el portal
    pasa de "En proceso" a "Ver resultados".
 5. Si no se puede leer (o falta `ANTHROPIC_API_KEY`): `Communication` al paciente
-   ("te vamos a contactar por Mensajes") y `Task` `revisar-laboratorio` al equipo.
-   Para reprocesar, ejecutar el bot con el `DocumentReference` como entrada.
+   ("te vamos a contactar por Mensajes") y `Task` `revisar-laboratorio` al equipo, con el
+   motivo en `description` (no se pudo descargar · HTTP n, no es un PDF, falló la llamada
+   a Claude · HTTP n, no parece un informe de laboratorio, sin valores). Para reprocesar,
+   ejecutar el bot con el `DocumentReference` como entrada: si sale bien, cierra esa tarea.
 6. **Uso de IA**: cada llamada a Claude deja un `AuditEvent` (type
    `…/CodeSystem/uso-ia|llamada-modelo`, subtype `laboratorio-pdf`), sirva o no la
    respuesta: `entity` = el `DocumentReference`, `source.observer` = el bot y en

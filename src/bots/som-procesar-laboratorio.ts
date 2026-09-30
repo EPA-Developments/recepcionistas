@@ -17,7 +17,9 @@
  *  4) Crea una Observation por analito y el DiagnosticReport (LAB, LOINC 11502-2).
  *  5) Cierra el circuito: suma el DiagnosticReport a `context.related` del documento
  *     (el portal pasa de "En proceso" a "Ver resultados").
- *  6) Si no se puede leer: mensaje al paciente (Communication) y Task al equipo.
+ *  6) Si no se puede leer: mensaje al paciente (Communication) y Task al equipo, con el
+ *     motivo concreto (descarga, archivo que no es PDF, falla de la API, sin valores). Al
+ *     reprocesarlo con éxito, esa tarea se cierra sola.
  *  7) Cada llamada a Claude deja su uso (tokens y costo estimado) en un AuditEvent
  *     `uso-ia` ligado al documento, sirva o no la respuesta (`src/lib/uso-ia.ts`).
  *
@@ -25,6 +27,7 @@
  * reprocesar a mano, ejecutar el bot con el DocumentReference como entrada.
  * La lógica testeable vive en `src/lib/laboratorio.ts`.
  */
+import Anthropic from '@anthropic-ai/sdk';
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Communication, DiagnosticReport, DocumentReference, Observation, Task } from '@medplum/fhirtypes';
 import {
@@ -44,8 +47,11 @@ import {
   construirObservaciones,
   construirPromptLaboratorio,
   esDocumentoLaboratorio,
+  esUrlExterna,
   informeYaGenerado,
+  motivoSinResultados,
   normalizarExtraccion,
+  pareceUnPdf,
   relatedConInforme,
   type EntradaCatalogo,
   type ExtraccionLaboratorio,
@@ -94,10 +100,11 @@ export async function handler(
 
   // 2) El PDF.
   const pdf = adjuntoPdf(doc);
-  const base64 = pdf ? await leerPdfBase64(medplum, pdf.url, pdf.data) : undefined;
-  if (!base64) {
-    return derivarAlEquipo(medplum, pacienteRef, documentoRef, 'no se encontró el PDF en el documento');
+  const lectura = pdf ? await leerPdf(medplum, pdf.url, pdf.data) : { motivo: 'no se encontró el PDF en el documento' };
+  if ('motivo' in lectura) {
+    return derivarAlEquipo(medplum, pacienteRef, documentoRef, lectura.motivo);
   }
+  const { base64 } = lectura;
 
   // 3) Claude transcribe; el catálogo del servidor define los códigos.
   const claude = clienteClaude(event.secrets);
@@ -117,12 +124,12 @@ export async function handler(
       botNombre: BOT_SOM_LABORATORIO,
       origen: documentoRef,
       ok: legible,
-      motivo: motivo ?? 'sin resultados legibles',
+      motivo: motivo ?? motivoSinResultados(extraccion),
       esfuerzo: ESFUERZO_CLAUDE_LABORATORIO,
     });
   }
   if (!extraccion || !legible) {
-    return derivarAlEquipo(medplum, pacienteRef, documentoRef, 'no se pudieron leer resultados en el PDF');
+    return derivarAlEquipo(medplum, pacienteRef, documentoRef, motivo ?? motivoSinResultados(extraccion));
   }
 
   // 4) Observations + DiagnosticReport.
@@ -141,25 +148,64 @@ export async function handler(
 
   // 5) Cerrar el circuito en el documento (el portal muestra "Ver resultados").
   await medplum.updateResource<DocumentReference>({ ...doc, context: relatedConInforme(doc, `DiagnosticReport/${informe.id}`) });
+  // Si antes había pasado al equipo (esto es un reproceso), esa revisión ya no hace falta.
+  await cerrarRevisionesPendientes(medplum, documentoRef);
 
   return { ok: true, diagnosticReportId: informe.id, observaciones: observaciones.length };
 }
 
-/** El PDF en base64: embebido (`data`) o descargado del Binary (`url`). */
-async function leerPdfBase64(medplum: MedplumClient, url?: string, data?: string): Promise<string | undefined> {
+const TAREA_ABIERTA: ReadonlySet<Task['status']> = new Set(['draft', 'requested', 'received', 'accepted', 'ready', 'in-progress', 'on-hold']);
+
+/** Cierra las tareas "revisar-laboratorio" abiertas del documento (ya quedó procesado). */
+async function cerrarRevisionesPendientes(medplum: MedplumClient, documentoRef: string): Promise<void> {
+  const tareas = await medplum.searchResources('Task', { focus: documentoRef, _count: '20' }).catch(() => [] as Task[]);
+  for (const t of tareas) {
+    const esRevision = t.code?.coding?.some((c) => c.system === SYSTEM.taskTipo && c.code === COD.revisarLaboratorio);
+    if (esRevision && TAREA_ABIERTA.has(t.status)) {
+      await medplum
+        .updateResource<Task>({ ...t, status: 'completed', businessStatus: { text: 'Procesado automáticamente al reprocesar el PDF' } })
+        .catch((err: unknown) =>
+          console.error(`som-procesar-laboratorio: no se pudo cerrar Task/${t.id}:`, err instanceof Error ? err.message : err),
+        );
+    }
+  }
+}
+
+/**
+ * El PDF en base64: embebido (`data`) o descargado (`url`). El link firmado del
+ * almacenamiento (S3) se baja con `fetch` SIN el token: S3 rechaza el pedido que trae su
+ * firma y además `Authorization`, y `medplum.download` agrega el token siempre y no mira el
+ * estado HTTP (devolvía la página de error de S3 como si fuera el PDF). Se verifica que lo
+ * bajado sea un PDF antes de mandarlo a Claude.
+ */
+async function leerPdf(medplum: MedplumClient, url?: string, data?: string): Promise<{ base64: string } | { motivo: string }> {
   if (data) {
-    return data;
+    return pareceUnPdf(Buffer.from(data, 'base64')) ? { base64: data } : { motivo: 'el archivo adjunto no es un PDF' };
   }
   if (!url) {
-    return undefined;
+    return { motivo: 'no se encontró el PDF en el documento' };
   }
+  let bytes: Buffer;
   try {
-    const blob = await medplum.download(url);
-    return Buffer.from(await blob.arrayBuffer()).toString('base64');
+    if (esUrlExterna(url, medplum.getBaseUrl())) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error(`som-procesar-laboratorio: el almacenamiento respondió HTTP ${res.status} al bajar el PDF.`);
+        return { motivo: `no se pudo descargar el PDF (HTTP ${res.status})` };
+      }
+      bytes = Buffer.from(await res.arrayBuffer());
+    } else {
+      bytes = Buffer.from(await (await medplum.download(url)).arrayBuffer());
+    }
   } catch (err) {
     console.error('som-procesar-laboratorio: no se pudo descargar el PDF:', err instanceof Error ? err.message : err);
-    return undefined;
+    return { motivo: 'no se pudo descargar el PDF' };
   }
+  if (!pareceUnPdf(bytes)) {
+    console.error(`som-procesar-laboratorio: lo descargado no es un PDF (${bytes.length} bytes).`);
+    return { motivo: 'el archivo descargado no es un PDF' };
+  }
+  return { base64: bytes.toString('base64') };
 }
 
 interface Transcripcion {
@@ -197,10 +243,10 @@ async function extraer(
     })
     .catch((err: unknown) => {
       console.error('som-procesar-laboratorio: error de extracción:', err instanceof Error ? err.message : err);
-      return undefined;
+      return err instanceof Anthropic.APIError ? err : undefined;
     });
-  if (!resp) {
-    return {};
+  if (!resp || resp instanceof Anthropic.APIError) {
+    return { motivo: `falló la llamada a Claude${resp?.status ? ` (HTTP ${resp.status})` : ''}` };
   }
   const uso = usoDeRespuesta(resp, MODELO_CLAUDE_LABORATORIO);
   if (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') {
