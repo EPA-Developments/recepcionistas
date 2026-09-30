@@ -17,6 +17,8 @@
  *  3) Llama a Claude (`claude-sonnet-4-6`, secret `ANTHROPIC_API_KEY`) para
  *     redactar las 6 secciones del informe — solo si el paciente firmó el
  *     consentimiento informado (sin él, ningún dato clínico sale hacia el LLM).
+ *     La llamada deja su uso (tokens y costo estimado) en un AuditEvent `uso-ia`
+ *     ligado a la solicitud, sirva o no la respuesta (`src/lib/uso-ia.ts`).
  *  4) Genera un PDF → `Binary` → `DocumentReference` (LOINC 11488-4).
  *  5) Crea el `DiagnosticReport` final (secciones en la extensión `som-sections`).
  *  6) Pasa la ServiceRequest a `completed` y notifica al paciente.
@@ -33,7 +35,7 @@ import type {
   Observation,
   ServiceRequest,
 } from '@medplum/fhirtypes';
-import { COD, LOINC_INFORME, MODELO_CLAUDE_SOM, SYSTEM } from '../fhir/identifiers.js';
+import { BOT_SOM_REPORT, COD, LOINC_INFORME, MODELO_CLAUDE_SOM, SYSTEM } from '../fhir/identifiers.js';
 import { UMBRALES_PREVENT_GUIA } from '../config/ckm.js';
 import { estadificarCkm, resumenCkm, type EntradaCkm } from '../lib/ckm.js';
 import { MOMENTOS_INFORME_SOM, alertasCatalogo, perfilCatalogo, resumenAlertasCatalogo } from '../lib/ckm-catalogo.js';
@@ -55,6 +57,7 @@ import {
   type Secciones,
 } from '../lib/som-report.js';
 import { SOM_SECCIONES } from '../fhir/identifiers.js';
+import { PROCESO_IA, registrarUsoIa, usoDeRespuesta } from '../lib/uso-ia.js';
 import { clienteClaude, textoRespuesta } from './_claude.js';
 import { enviarWhatsApp, tieneConsentimiento } from './_shared.js';
 
@@ -140,7 +143,7 @@ export async function handler(
   // Sin consentimiento informado firmado no se envía ningún dato clínico al LLM
   // (defensa en profundidad: `som-solicitar` ya lo exige al crear la solicitud).
   const secciones = (await tieneConsentimiento(medplum, pacienteRef))
-    ? await redactarSecciones(contexto, event.secrets)
+    ? await redactarSecciones(medplum, event, srRef, contexto)
     : seccionesFallback(contexto);
 
   // 4) PDF → Binary → DocumentReference.
@@ -275,10 +278,12 @@ function textoMedication(m: MedicationRequest): string {
 // ───────────────────────────── Claude ─────────────────────────────
 
 async function redactarSecciones(
+  medplum: MedplumClient,
+  event: BotEvent<ServiceRequest>,
+  srRef: string,
   contexto: ContextoClinico,
-  secrets: BotEvent['secrets'],
 ): Promise<Partial<Secciones>> {
-  const claude = clienteClaude(secrets);
+  const claude = clienteClaude(event.secrets);
   if (!claude) {
     console.warn('som-report: falta ANTHROPIC_API_KEY; se emite el informe sin análisis de Claude.');
     return seccionesFallback(contexto);
@@ -290,12 +295,22 @@ async function redactarSecciones(
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: construirPromptUsuario(contexto) }],
     });
+    const secciones = resp.stop_reason === 'refusal' ? {} : parsearSecciones(textoRespuesta(resp.content));
+    const redactado = Object.keys(secciones).length > 0;
+    // Los tokens se cobran sirva o no la respuesta: el uso se registra siempre.
+    await registrarUsoIa(medplum, {
+      proceso: PROCESO_IA.informeSom,
+      uso: usoDeRespuesta(resp, MODELO_CLAUDE_SOM),
+      bot: event.bot,
+      botNombre: BOT_SOM_REPORT,
+      origen: srRef,
+      ok: redactado,
+      motivo: resp.stop_reason === 'end_turn' ? 'sin secciones legibles' : (resp.stop_reason ?? 'sin secciones legibles'),
+    });
     if (resp.stop_reason === 'refusal') {
       console.error('som-report: Claude declinó redactar el informe.');
-      return seccionesFallback(contexto);
     }
-    const secciones = parsearSecciones(textoRespuesta(resp.content));
-    return Object.keys(secciones).length > 0 ? secciones : seccionesFallback(contexto);
+    return redactado ? secciones : seccionesFallback(contexto);
   } catch (err) {
     console.error('som-report: error llamando a Claude:', err instanceof Error ? err.message : err);
     return seccionesFallback(contexto);

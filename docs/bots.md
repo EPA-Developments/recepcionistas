@@ -79,12 +79,18 @@ documento, con la extensión `subscription-supported-interaction=create`).
 > pueden tardar más que el timeout por defecto del Bot: subir `Bot.timeout` en
 > Medplum si el log muestra cortes.
 
-**Uso de IA.** `som-procesar-laboratorio` y `som-borrador-respuesta` dejan, por cada
-llamada a Claude, un `AuditEvent` (type `…/CodeSystem/uso-ia|llamada-modelo`; subtype
-`laboratorio-pdf` / `borrador-mensaje`) ligado al recurso que la originó (el
-`DocumentReference` del PDF / la conversación), con modelo, tokens, esfuerzo y costo
-estimado; `outcome` 4 si la respuesta no sirvió. Del paciente solo guarda esa referencia. Resumen del
-mes: `npm run uso:ia -- AAAA-MM`. Si el servidor no acepta el registro, el bot sigue
+**Uso de IA.** Los tres bots que llaman a Claude dejan, por cada llamada, un
+`AuditEvent` (type `…/CodeSystem/uso-ia|llamada-modelo`) ligado al recurso que la
+originó, con modelo, tokens, esfuerzo (si el bot lo fija) y costo estimado; `outcome` 4
+si la respuesta no sirvió. Del paciente solo guarda esa referencia.
+
+| Bot | `subtype` | Ligado a |
+|---|---|---|
+| `som-procesar-laboratorio` | `laboratorio-pdf` | el `DocumentReference` del PDF |
+| `som-borrador-respuesta` | `borrador-mensaje` | la conversación (`Communication`) |
+| `bot-som-report` | `informe-som` | la solicitud (`ServiceRequest`) |
+
+Resumen del mes: `npm run uso:ia -- AAAA-MM`. Si el servidor no acepta el registro, el bot sigue
 igual (queda en su log). Lógica y precios en `src/lib/uso-ia.ts`.
 
 Es idempotente: reejecutar redeploya el código sobre los bots existentes. Los ids
