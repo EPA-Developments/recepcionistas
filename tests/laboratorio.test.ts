@@ -225,7 +225,7 @@ describe('Bot som-procesar-laboratorio', () => {
     const sinLeer = fakeMedplum([consentimiento, docLab, ...defs]);
     await procesar(sinLeer.medplum, evento(docLab));
     const [uso] = sinLeer.todos<AuditEvent>('AuditEvent');
-    expect(uso).toMatchObject({ outcome: '4', outcomeDesc: 'sin resultados legibles' });
+    expect(uso).toMatchObject({ outcome: '4', outcomeDesc: 'el PDF no parece un informe de laboratorio' });
 
     vi.stubGlobal(
       'fetch',
@@ -283,6 +283,75 @@ describe('Bot som-procesar-laboratorio', () => {
     const [tarea] = todos<Task>('Task');
     expect(tarea).toMatchObject({ status: 'requested', focus: { reference: 'DocumentReference/lab1' } });
     expect(tarea?.code?.coding?.[0]?.code).toBe(COD.revisarLaboratorio);
+  });
+
+  describe('PDF por link firmado del almacenamiento (S3)', () => {
+    const S3 = 'https://s3.sa-east-1.amazonaws.com/storage/binary/b1/v1?X-Amz-Signature=abc';
+    const docS3: DocumentReference = {
+      ...docLab,
+      content: [{ attachment: { contentType: 'application/pdf', url: S3, title: 'lab.pdf' } }],
+    };
+    const PDF = new TextEncoder().encode('%PDF-1.7\nresto');
+    const extraccionOk = {
+      esInformeDeLaboratorio: true,
+      fechaExtraccion: '2026-09-18',
+      laboratorio: null,
+      analitos: [{ nombre: 'Colesterol LDL', codigo: LDL, valor: 131, valorTexto: null, unidad: 'mg/dL', referencia: null }],
+    };
+    /** S3 responde lo pedido; Claude, la extracción (o un error de la API). */
+    const red = (s3: () => Response, claude: () => Response = () => respuestaClaude(extraccionOk)) =>
+      vi.fn(async (...a: unknown[]) => (String(a[0]).startsWith('https://s3.') ? s3() : claude()));
+    const revision: Task = {
+      resourceType: 'Task',
+      id: 'rev1',
+      status: 'requested',
+      intent: 'order',
+      code: { coding: [{ system: SYSTEM.taskTipo, code: COD.revisarLaboratorio }] },
+      focus: { reference: 'DocumentReference/lab1' },
+    };
+
+    it('lo baja SIN el token de Medplum (S3 rechaza firma + Authorization) y, al reprocesar, cierra la revisión', async () => {
+      const fetchMock = red(() => new Response(PDF, { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      const { medplum, todos } = fakeMedplum([consentimiento, docS3, revision, ...defs]);
+
+      expect(await procesar(medplum, evento(docS3))).toMatchObject({ ok: true, observaciones: 1 });
+      const [bajada] = fetchMock.mock.calls.filter((c) => String(c[0]) === S3);
+      expect(new Headers((bajada?.[1] as RequestInit | undefined)?.headers).get('authorization')).toBeNull();
+      const [llamada] = llamadasClaude(fetchMock);
+      const body = JSON.parse(String((llamada![1] as RequestInit).body));
+      expect(body.messages[0].content[0].source.data).toBe(Buffer.from(PDF).toString('base64'));
+      expect(todos<Task>('Task').find((t) => t.id === 'rev1')).toMatchObject({ status: 'completed' });
+    });
+
+    it('si el almacenamiento responde error, o lo bajado no es un PDF, no llama a Claude y la tarea dice por qué', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      for (const [s3, motivo] of [
+        [() => new Response('<Error><Code>InvalidArgument</Code></Error>', { status: 400 }), 'no se pudo descargar el PDF (HTTP 400)'],
+        [() => new Response('<html>no</html>', { status: 200 }), 'el archivo descargado no es un PDF'],
+      ] as const) {
+        const fetchMock = red(s3);
+        vi.stubGlobal('fetch', fetchMock);
+        const { medplum, todos } = fakeMedplum([consentimiento, docS3, ...defs]);
+        expect(await procesar(medplum, evento(docS3))).toMatchObject({ ok: false, derivadoAlEquipo: true });
+        expect(llamadasClaude(fetchMock)).toHaveLength(0);
+        expect(todos<Task>('Task')[0]?.description).toContain(motivo);
+      }
+    });
+
+    it('si la API de Claude falla, la tarea lo dice (y no hay uso que registrar)', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const errorApi = () =>
+        new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'The PDF specified was not valid.' } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        });
+      vi.stubGlobal('fetch', red(() => new Response(PDF, { status: 200 }), errorApi));
+      const { medplum, todos } = fakeMedplum([consentimiento, docS3, ...defs]);
+      expect(await procesar(medplum, evento(docS3))).toMatchObject({ ok: false, derivadoAlEquipo: true });
+      expect(todos<Task>('Task')[0]?.description).toContain('falló la llamada a Claude (HTTP 400)');
+      expect(todos('AuditEvent')).toHaveLength(0);
+    });
   });
 
   it('ignora documentos que no son resultados de laboratorio (p. ej. el consentimiento)', async () => {

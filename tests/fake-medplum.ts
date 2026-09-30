@@ -64,6 +64,8 @@ function cumple(r: Registro, param: string, valor: string): boolean {
     }
     case 'based-on':
       return ((r.basedOn as Array<{ reference?: string }> | undefined) ?? []).some((b) => b.reference === valor);
+    case 'focus':
+      return (r.focus as { reference?: string } | undefined)?.reference === valor;
     case 'schedule':
       return (r.schedule as { reference?: string } | undefined)?.reference === valor;
     case 'start':
@@ -148,6 +150,7 @@ export function fakeMedplum(iniciales: Resource[] = []) {
 
   const medplum = {
     getProfile: () => ({ meta: { project: 'proyecto-test' } }),
+    getBaseUrl: () => 'https://api.medplum.test/',
     createResource: async (r: Resource) => {
       const nuevo = versionar({ ...copia(r), id: `${r.resourceType.toLowerCase()}-${++n}` } as Registro);
       store.set(clave(nuevo.resourceType, nuevo.id!), nuevo);
