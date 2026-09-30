@@ -220,6 +220,21 @@ por especialidad. Recepción los evalúa con su propia estadificación:
    paciente solo guarda la referencia al documento. Resumen del mes: `npm run uso:ia -- AAAA-MM`. Precios en
    `src/lib/uso-ia.ts`. Si el servidor no acepta el `AuditEvent`, el PDF se procesa igual.
 
+### Probar de punta a punta
+
+1. Una vez: `ANTHROPIC_API_KEY` en Medplum App → Project → Secrets, `npm run deploy:bots`
+   (bot + Subscription "SOM laboratorio"), `npm run seed` (permiso del portal para subir
+   el PDF y catálogo de analitos) y `npm run puesta-en-marcha` (sale con 1 si falta algo).
+2. Paciente de prueba con usuario del portal y consentimiento firmado; un PDF de
+   laboratorio de prueba (el PDF va a Claude: nunca el de otro paciente).
+3. Portal: "+" → **Enviar estudios en PDF** → PDF → "Autorizo…" → Enviar. Queda **En
+   proceso** en "Estudios enviados" y pasa a **Ver resultados** cuando el bot termina.
+4. `npm run laboratorio:seguimiento -- <id del paciente>` (solo lectura): toma el último
+   PDF del paciente (o `-- <paciente> <DocumentReference>`) y muestra la cadena paso a
+   paso — consentimiento, bot, Subscription, secret, envío, ejecuciones del bot, uso de
+   IA y resultado (informe o tarea `revisar-laboratorio`) — con el arreglo de cada falla.
+   Sale con 1 si algo falló.
+
 ## Patient Journey y Plan Bienestar
 
 - **`patient-origin`**: `som-invitar-paciente` lo escribe en el `Patient` al invitar

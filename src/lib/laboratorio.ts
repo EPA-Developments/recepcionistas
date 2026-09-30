@@ -175,6 +175,12 @@ export function normalizarExtraccion(crudo: unknown, catalogo: EntradaCatalogo[]
   };
 }
 
+/**
+ * Criterio de la Subscription "SOM laboratorio" que dispara el bot. La crea `deploy:bots`
+ * y la verifica `laboratorio:seguimiento`: un solo string para los dos.
+ */
+export const CRITERIO_SUBSCRIPTION_LABORATORIO = `DocumentReference?category=${SYSTEM.documento}|${COD.resultadoLaboratorio}`;
+
 /** ¿El DocumentReference es un PDF de laboratorio del paciente (el que dispara el bot)? */
 export function esDocumentoLaboratorio(doc: DocumentReference): boolean {
   return Boolean(
