@@ -75,9 +75,12 @@ Además asegura (idempotente) las `Subscription` de los bots internos SOM:
 `bot-som-report` (solicitud activa) y `som-procesar-laboratorio` (solo al crear el
 documento, con la extensión `subscription-supported-interaction=create`).
 
-> Los bots que llaman a Claude (`bot-som-report`, `som-procesar-laboratorio`, `som-borrador-respuesta`)
-> pueden tardar más que el timeout por defecto del Bot: subir `Bot.timeout` en
-> Medplum si el log muestra cortes.
+> Los bots que llaman a Claude tardan más que los 10 s con los que AWS Lambda corta por
+> defecto (`Task timed out after 10.00 seconds`). `deploy:bots` les fija `Bot.timeout`
+> antes de deployarlos: 300 s a `bot-som-report` y `som-procesar-laboratorio` (corren de
+> fondo) y 60 s a `som-borrador-respuesta` (Recepción espera). Si el log sigue mostrando
+> el corte a los 10 s, el servidor no pasó el timeout a Lambda: subilo en la configuración
+> de la función de Lambda del bot (AWS → Lambda → Configuration → General).
 
 **Uso de IA.** Los tres bots que llaman a Claude dejan, por cada llamada, un
 `AuditEvent` (type `…/CodeSystem/uso-ia|llamada-modelo`) ligado al recurso que la

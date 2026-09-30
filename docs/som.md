@@ -228,7 +228,7 @@ por especialidad. Recepción los evalúa con su propia estadificación:
 ### Probar de punta a punta
 
 1. Una vez: `ANTHROPIC_API_KEY` en Medplum App → Project → Secrets, `npm run deploy:bots`
-   (bot + Subscription "SOM laboratorio"), `npm run seed` (permiso del portal para subir
+   (bot con `timeout` de 300 s + Subscription "SOM laboratorio"), `npm run seed` (permiso del portal para subir
    el PDF y catálogo de analitos) y `npm run puesta-en-marcha` (sale con 1 si falta algo).
 2. Paciente de prueba con usuario del portal y consentimiento firmado; un PDF de
    laboratorio de prueba (el PDF va a Claude: nunca el de otro paciente).

@@ -36,7 +36,16 @@ interface DefBot {
   source: string;
   dist: string;
   description: string;
+  /**
+   * Tiempo máximo de ejecución en segundos (`Bot.timeout`). Sin él, AWS Lambda corta a los
+   * 10 s: poco para los bots que llaman a Claude (leer un PDF o redactar un informe tarda más).
+   */
+  timeout?: number;
 }
+
+/** Los bots que llaman a Claude: informe y laboratorio corren de fondo; el borrador, con Recepción esperando. */
+const TIMEOUT_CLAUDE_FONDO = 300;
+const TIMEOUT_CLAUDE_INTERACTIVO = 60;
 
 const BOTS: DefBot[] = [
   { name: 'som-calcular-cobro', source: 'src/bots/calcular-cobro.ts', dist: 'dist/bots/calcular-cobro.js', description: 'Calcula el cobro (USD→ARS, splits) y emite Invoice.' },
@@ -57,13 +66,13 @@ const BOTS: DefBot[] = [
   { name: 'som-enviar-campana', source: 'src/bots/enviar-campana.ts', dist: 'dist/bots/enviar-campana.js', description: 'CRM: envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla aprobada) y registra una Communication por destinatario.' },
   // SOM — Segunda Opinión Médica.
   { name: 'som-solicitar', source: 'src/bots/som-solicitar.ts', dist: 'dist/bots/som-solicitar.js', description: 'SOM: crea una ServiceRequest de segunda opinión cardiológica desde el portal del paciente.' },
-  { name: 'bot-som-report', source: 'src/bots/som-report.ts', dist: 'dist/bots/som-report.js', description: 'SOM: genera el informe (PREVENT + Claude + PDF) ante una ServiceRequest activa. Lo dispara una Subscription.' },
-  { name: 'som-procesar-laboratorio', source: 'src/bots/som-procesar-laboratorio.ts', dist: 'dist/bots/som-procesar-laboratorio.js', description: 'SOM: transcribe el PDF de laboratorio que manda el paciente (Claude) a Observation + DiagnosticReport. Lo dispara una Subscription (create).' },
+  { name: 'bot-som-report', source: 'src/bots/som-report.ts', dist: 'dist/bots/som-report.js', description: 'SOM: genera el informe (PREVENT + Claude + PDF) ante una ServiceRequest activa. Lo dispara una Subscription.', timeout: TIMEOUT_CLAUDE_FONDO },
+  { name: 'som-procesar-laboratorio', source: 'src/bots/som-procesar-laboratorio.ts', dist: 'dist/bots/som-procesar-laboratorio.js', description: 'SOM: transcribe el PDF de laboratorio que manda el paciente (Claude) a Observation + DiagnosticReport. Lo dispara una Subscription (create).', timeout: TIMEOUT_CLAUDE_FONDO },
   // Seguimiento GLP-1 (docs/glp1.md).
   { name: 'som-glp1-inscribir', source: 'src/bots/glp1-inscribir.ts', dist: 'dist/bots/glp1-inscribir.js', description: 'GLP-1 (Recepción): inscribe al paciente en el seguimiento; deja la indicación pendiente al equipo médico.' },
   { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
   // Mensajes (Recepción): borrador de respuesta con Claude; nada sale sin que una persona toque Enviar.
-  { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). No envía nada ni escribe datos del paciente; solo registra su uso de IA.' },
+  { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). No envía nada ni escribe datos del paciente; solo registra su uso de IA.', timeout: TIMEOUT_CLAUDE_INTERACTIVO },
   // Plan Bienestar 100 Días® (portal: tarjeta de progreso; Recepción: sus tres consultas).
   { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar 100 Días® (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 (100 días, lo lee el portal) con sus tres consultas y las tareas para agendarlas.' },
   { name: 'som-bienestar-dia0', source: 'src/bots/bienestar-dia0.ts', dist: 'dist/bots/bienestar-dia0.js', description: 'Plan Bienestar 100 Días® (Recepción): el día 0 (qué datos del catálogo firmado faltan y quién los carga), el estado del plan clínico y el material para el paciente, sin valores clínicos. Solo lectura.' },
@@ -153,6 +162,10 @@ async function main(): Promise<void> {
       faltantes.push(b.name);
       continue;
     }
+    // Antes del $deploy: el servidor configura la función de Lambda con el timeout del Bot.
+    if (b.timeout) {
+      await asegurarTimeout(medplum, id, b.timeout);
+    }
     await medplum.post(medplum.fhirUrl('Bot', id, '$deploy'), {
       code: bundles.get(b.name),
       filename: basename(b.dist),
@@ -184,6 +197,15 @@ async function main(): Promise<void> {
     );
   } else {
     console.log('\nDeploy de bots completado. Ids guardados en medplum.config.json.');
+  }
+}
+
+/** Deja `Bot.timeout` en los segundos pedidos (solo escribe si cambió). */
+async function asegurarTimeout(medplum: MedplumClient, id: string, segundos: number): Promise<void> {
+  const bot = await medplum.readResource('Bot', id);
+  if (bot.timeout !== segundos) {
+    await medplum.updateResource<Bot>({ ...bot, timeout: segundos });
+    console.log(`    ⏱ timeout: ${bot.timeout ?? 'por defecto (10 s en Lambda)'} → ${segundos} s`);
   }
 }
 

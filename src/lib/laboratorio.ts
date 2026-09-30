@@ -22,6 +22,7 @@ import type {
   Observation,
   ObservationDefinition,
   ObservationReferenceRange,
+  Task,
 } from '@medplum/fhirtypes';
 import { COD, LOINC_INFORME_LABORATORIO, SYSTEM } from '../fhir/identifiers.js';
 
@@ -222,6 +223,29 @@ export function pendientesDeProcesar(docs: DocumentReference[]): DocumentReferen
   return docs
     .filter((d) => esDocumentoLaboratorio(d) && d.status === 'current' && !informeYaGenerado(d))
     .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+}
+
+/** ¿Es la tarea "revisar-laboratorio" que el bot le deja al equipo cuando no puede leer un PDF? */
+export function esRevisionLaboratorio(t: Task): boolean {
+  return Boolean(t.code?.coding?.some((c) => c.system === SYSTEM.taskTipo && c.code === COD.revisarLaboratorio));
+}
+
+export type EstadoProcesamiento =
+  | { estado: 'procesado'; informe: string }
+  | { estado: 'derivado'; motivo: string }
+  | { estado: 'en-proceso' };
+
+/**
+ * Dónde quedó un PDF después de pasarlo por el bot: con informe, pasado al equipo (una
+ * revisión creada o actualizada desde `desde`) o todavía en proceso.
+ */
+export function estadoProcesamiento(doc: DocumentReference, tareas: Task[], desde: string): EstadoProcesamiento {
+  const informe = informeYaGenerado(doc);
+  if (informe) {
+    return { estado: 'procesado', informe };
+  }
+  const revision = tareas.find((t) => esRevisionLaboratorio(t) && (t.meta?.lastUpdated ?? '') >= desde);
+  return revision ? { estado: 'derivado', motivo: revision.description ?? 'sin motivo' } : { estado: 'en-proceso' };
 }
 
 /** El PDF del documento: por `url` (Binary) o embebido (`data` base64). */

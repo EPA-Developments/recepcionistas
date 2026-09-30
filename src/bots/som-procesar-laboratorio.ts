@@ -47,6 +47,7 @@ import {
   construirObservaciones,
   construirPromptLaboratorio,
   esDocumentoLaboratorio,
+  esRevisionLaboratorio,
   esUrlExterna,
   informeYaGenerado,
   motivoSinResultados,
@@ -159,9 +160,7 @@ const TAREA_ABIERTA: ReadonlySet<Task['status']> = new Set(['draft', 'requested'
 /** Las tareas "revisar-laboratorio" todavía abiertas del documento. */
 async function revisionesAbiertas(medplum: MedplumClient, documentoRef: string): Promise<Task[]> {
   const tareas = await medplum.searchResources('Task', { focus: documentoRef, _count: '20' }).catch(() => [] as Task[]);
-  return tareas.filter(
-    (t) => TAREA_ABIERTA.has(t.status) && t.code?.coding?.some((c) => c.system === SYSTEM.taskTipo && c.code === COD.revisarLaboratorio),
-  );
+  return tareas.filter((t) => TAREA_ABIERTA.has(t.status) && esRevisionLaboratorio(t));
 }
 
 /** Cierra las tareas "revisar-laboratorio" abiertas del documento (ya quedó procesado). */

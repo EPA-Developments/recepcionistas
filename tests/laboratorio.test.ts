@@ -8,6 +8,7 @@ import {
   normalizarExtraccion,
   relatedConInforme,
   type ExtraccionLaboratorio,
+  estadoProcesamiento,
   pendientesDeProcesar,
 } from '../src/lib/laboratorio.js';
 import { handler as procesar } from '../src/bots/som-procesar-laboratorio.js';
@@ -136,6 +137,29 @@ describe('Laboratorio — reprocesar', () => {
       { ...lab('consentimiento', '2026-09-01T10:00:00Z'), category: [] },
     ]);
     expect(pendientes.map((d) => d.id)).toEqual(['viejo', 'nuevo']);
+  });
+
+  it('estado después de pasarlo por el bot: informe, revisión tocada en esta corrida, o en proceso', () => {
+    const doc: DocumentReference = { resourceType: 'DocumentReference', id: 'd1', status: 'current', content: [] };
+    const revision = (lastUpdated: string): Task => ({
+      resourceType: 'Task',
+      status: 'requested',
+      intent: 'order',
+      code: { coding: [{ system: SYSTEM.taskTipo, code: COD.revisarLaboratorio }] },
+      description: 'Revisar a mano un PDF de laboratorio del paciente (no se pudo descargar el PDF (HTTP 403)).',
+      meta: { lastUpdated },
+    });
+    const desde = '2026-09-30T21:40:00.000Z';
+    expect(estadoProcesamiento({ ...doc, context: { related: [{ reference: 'DiagnosticReport/r1' }] } }, [], desde)).toEqual({
+      estado: 'procesado',
+      informe: 'DiagnosticReport/r1',
+    });
+    expect(estadoProcesamiento(doc, [revision('2026-09-30T21:41:00.000Z')], desde)).toEqual({
+      estado: 'derivado',
+      motivo: expect.stringContaining('HTTP 403'),
+    });
+    // Una revisión vieja (de una corrida anterior) no dice nada de esta.
+    expect(estadoProcesamiento(doc, [revision('2026-09-30T18:06:25.000Z')], desde)).toEqual({ estado: 'en-proceso' });
   });
 });
 
