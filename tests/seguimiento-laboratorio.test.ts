@@ -145,6 +145,9 @@ describe('Seguimiento del laboratorio en PDF', () => {
       base({ documento: documento(2), documentosEnviados: 1, ejecuciones: [ejecucion('8', '\nTypeError: x is undefined\n  at handler')] }),
     );
     expect(paso(fallo, 'El bot lo procesó')).toMatchObject({ estado: 'falla', detalle: expect.stringMatching(/TypeError: x is undefined\./) });
+    // Sin log (el corte por tiempo de Lambda no deja): lo dice y da el arreglo.
+    const sinLog = pasosSeguimientoLaboratorio(base({ documento: documento(2), documentosEnviados: 1, ejecuciones: [ejecucion('8')] }));
+    expect(paso(sinLog, 'El bot lo procesó')?.detalle).toMatch(/sin log.*corte por tiempo de Lambda.*deploy:bots/);
 
     const sinPdf = pasosSeguimientoLaboratorio(base({ documento: documento(2, false), documentosEnviados: 1 }));
     expect(paso(sinPdf, 'PDF enviado')).toMatchObject({ estado: 'falla', detalle: expect.stringMatching(/vuelva a mandar/) });
