@@ -25,6 +25,7 @@ import {
   COD,
   SYSTEM,
 } from '../fhir/identifiers.js';
+import { CRITERIO_SUBSCRIPTION_LABORATORIO } from '../lib/laboratorio.js';
 import { conectarMedplum } from './conexion.js';
 
 /** Runtime de los bots. El servidor Medplum de SOM usa AWS Lambda. Configurable por env. */
@@ -240,7 +241,7 @@ const SUBSCRIPTIONS: DefSubscription[] = [
     bot: BOT_SOM_LABORATORIO,
     nombre: 'SOM laboratorio',
     reason: 'SOM: procesar el PDF de laboratorio que manda el paciente desde el portal.',
-    criteria: `DocumentReference?category=${SYSTEM.documento}|${COD.resultadoLaboratorio}`,
+    criteria: CRITERIO_SUBSCRIPTION_LABORATORIO,
     // Solo al crear: el bot actualiza ese mismo documento al terminar.
     soloEn: 'create',
   },
