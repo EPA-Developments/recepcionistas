@@ -5,7 +5,10 @@ import { RUTA_WEBHOOK_TWILIO } from '../src/config/urls.js';
 import { construirAvisoContacto, resolverAviso } from '../src/lib/contactos-whatsapp.js';
 import {
   alertasRelevantes,
+  autocreacionDe,
+  conversacionesQueCapturan,
   entrantesEnOtroPaciente,
+  entrantesSinEjecucion,
   entrantesSinRegistrar,
   explicarAlertaTwilio,
   lineaMensajeTwilio,
@@ -175,6 +178,16 @@ describe('pasosSeguimiento: el paso a paso de la prueba de WhatsApp', () => {
   });
 });
 
+describe('pasosSeguimiento: el número de Recepción', () => {
+  it('si el celular es RECEPCION_WHATSAPP_TO, el paso 2 falla y explica que el bot lo ignora a propósito', () => {
+    const existente: Patient = { resourceType: 'Patient', id: 'ana', name: [{ given: ['Ana'], family: 'Pérez' }] };
+    const pasos = pasosSeguimiento({ paciente: existente, mensajes: [], ahora: AHORA, esRecepcion: true });
+    expect(pasos[1]!.estado).toBe('falla');
+    expect(pasos[1]!.detalle).toContain('RECEPCION_WHATSAPP_TO');
+    expect(pasos[1]!.detalle).toContain('otro celular');
+  });
+});
+
 describe('textoVentana', () => {
   it('abierta con lo que queda; cerrada sin mensajes o pasadas 24 h', () => {
     expect(textoVentana([entrante()], AHORA)).toContain('quedan 23 h 50 min');
@@ -214,6 +227,12 @@ describe('cruce con Twilio', () => {
     expect(lineaMensajeTwilio(twilio[0]!, enOtro, PAC, AHORA)).toContain('en Patient/prueba-mp, otro paciente');
     expect(lineaMensajeTwilio(twilio[1]!, enOtro, PAC, AHORA)).toMatch(/en SOM ✓$/);
     expect([...entrantesEnOtroPaciente(twilio, enOtro, PAC)]).toEqual([['Patient/prueba-mp', 1]]);
+  });
+
+  it('en un entrante, el 12300 es la respuesta del webhook (inofensiva), no una entrega fallida', () => {
+    const linea = lineaMensajeTwilio({ sid: 'SMnuevo', direction: 'inbound', status: 'received', error_code: 12300 }, ubicaciones, PAC, AHORA);
+    expect(linea).toContain('inofensiva');
+    expect(linea).not.toContain('no entregó');
   });
 
   it('fechas de Twilio en RFC 2822 (y sin fecha no revienta)', () => {
@@ -304,6 +323,17 @@ describe('revisarRuteoEntrante: paso 1, a dónde manda Twilio los mensajes que l
     expect(mal[1]!.estado).toBe('falla');
   });
 
+  it('con el servicio mandando, avisa si el número tiene su propio webhook a otro sistema', () => {
+    const h = revisar(
+      [sender({ callback_url: 'https://otro-sistema.example.com/whatsapp', callback_method: 'POST' })],
+      [servicio({ inbound_request_url: URL_SOM, inbound_method: 'POST' })],
+    );
+    expect(h.map((x) => x.estado)).toEqual(['ok', 'ok', 'pendiente']);
+    expect(h[2]!.texto).toContain('otro-sistema.example.com');
+    // Si el propio del número también es el de SOM, no hay nada que avisar.
+    expect(revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: URL_SOM })])).toHaveLength(2);
+  });
+
   it('un Messaging Service que no reenvía (sin webhook ni "Defer"): falla', () => {
     const h = revisar([sender({ callback_url: URL_SOM })], [servicio({ inbound_request_url: null })]);
     expect(h[1]!.estado).toBe('falla');
@@ -335,5 +365,39 @@ describe('revisarRuteoEntrante: paso 1, a dónde manda Twilio los mensajes que l
     expect(mismoRemitente('whatsapp:+54 9 11 5555-6666', '+5491155556666')).toBe(true);
     expect(mismoRemitente('whatsapp:+5491155556666', 'whatsapp:+5491155556667')).toBe(false);
     expect(mismoRemitente(undefined, '')).toBe(false);
+  });
+});
+
+describe('Twilio Conversations: lo que se queda con los mensajes antes que el webhook', () => {
+  const SOM_FROM = 'whatsapp:+15554435352';
+  const conv = (state: string, proxy = SOM_FROM) => ({
+    conversation_sid: `CH${state}`,
+    conversation_state: state,
+    participant_messaging_binding: { address: 'whatsapp:+5491169315830', proxy_address: proxy },
+  });
+
+  it('una conversación abierta o inactiva del celular con el número de SOM captura sus mensajes; una cerrada no', () => {
+    const r = conversacionesQueCapturan([conv('active'), conv('inactive'), conv('closed'), conv('active', 'whatsapp:+14155238886')], SOM_FROM);
+    expect(r.map((c) => c.conversation_sid)).toEqual(['CHactive', 'CHinactive']);
+    expect(conversacionesQueCapturan([conv('active')], undefined)).toEqual([]);
+  });
+
+  it('la autocreación de Conversations en el número de SOM', () => {
+    const dirs = [
+      { address: 'whatsapp:+15554435352', auto_creation: { enabled: true, type: 'webhook' } },
+      { address: 'whatsapp:+14155238886', auto_creation: { enabled: true } },
+    ];
+    expect(autocreacionDe(dirs, SOM_FROM)?.auto_creation?.type).toBe('webhook');
+    expect(autocreacionDe([{ address: SOM_FROM, auto_creation: { enabled: false } }], SOM_FROM)).toBeUndefined();
+  });
+
+  it('entrantes sin ninguna ejecución del bot cerca de su hora: Twilio no llamó al webhook', () => {
+    const perdidos = [
+      { sid: 'SMa', direction: 'inbound', date_created: 'Mon, 28 Sep 2026 10:31:50 +0000' },
+      { sid: 'SMb', direction: 'inbound', date_created: 'Mon, 28 Sep 2026 16:34:00 +0000' },
+      { sid: 'SMc', direction: 'inbound' },
+    ];
+    const ejecuciones = ['2026-09-28T10:31:53.000Z', 'no es fecha'];
+    expect(entrantesSinEjecucion(perdidos, ejecuciones).map((m) => m.sid)).toEqual(['SMb']);
   });
 });

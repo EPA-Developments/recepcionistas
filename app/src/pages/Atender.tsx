@@ -33,6 +33,8 @@ import { InvitarPortal } from '../components/InvitarPortal';
 import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
 import { SeguimientoGlp1 } from '../components/SeguimientoGlp1';
 import { PlanBienestar } from '../components/PlanBienestar';
+import { EquipoPlanBienestar } from '../components/EquipoPlanBienestar';
+import { DerivacionesPlan } from '../components/DerivacionesPlan';
 import type { Modalidad } from '@som/domain/types';
 import { SERVICIOS, nombreSegunModalidad, ofreceModalidad } from '@som/config/catalogo';
 import { recursosPara } from '@som/config/recursos';
@@ -165,6 +167,8 @@ function FichaPaciente({ paciente, onVolver }: { paciente: Patient; onVolver: ()
       <PanelReserva paciente={paciente} />
       <SeguimientoGlp1 paciente={paciente} />
       <PlanBienestar paciente={paciente} />
+      <DerivacionesPlan paciente={paciente} />
+      <EquipoPlanBienestar paciente={paciente} />
       <PanelCobro paciente={paciente} />
     </Stack>
   );

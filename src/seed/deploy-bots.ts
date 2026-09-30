@@ -62,9 +62,10 @@ const BOTS: DefBot[] = [
   { name: 'som-glp1-inscribir', source: 'src/bots/glp1-inscribir.ts', dist: 'dist/bots/glp1-inscribir.js', description: 'GLP-1 (Recepción): inscribe al paciente en el seguimiento; deja la indicación pendiente al equipo médico.' },
   { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
   // Mensajes (Recepción): borrador de respuesta con Claude; nada sale sin que una persona toque Enviar.
-  { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). Solo lectura: no escribe ni envía nada.' },
+  { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). No envía nada ni escribe datos del paciente; solo registra su uso de IA.' },
   // Plan Bienestar 100 Días® (portal: tarjeta de progreso; Recepción: sus tres consultas).
   { name: 'som-bienestar-inscribir', source: 'src/bots/bienestar-inscribir.ts', dist: 'dist/bots/bienestar-inscribir.js', description: 'Plan Bienestar 100 Días® (Recepción): inscribe al paciente; crea el CarePlan plan-bienestar-100 (100 días, lo lee el portal) con sus tres consultas y las tareas para agendarlas.' },
+  { name: 'som-bienestar-dia0', source: 'src/bots/bienestar-dia0.ts', dist: 'dist/bots/bienestar-dia0.js', description: 'Plan Bienestar 100 Días® (Recepción): el día 0 (qué datos del catálogo firmado faltan y quién los carga), el estado del plan clínico y el material para el paciente, sin valores clínicos. Solo lectura.' },
   // WhatsApp (Twilio): canal de las conversaciones de Mensajes (docs/whatsapp.md).
   { name: BOT_WHATSAPP_ENTRANTE, source: 'src/bots/whatsapp-entrante.ts', dist: 'dist/bots/whatsapp-entrante.js', description: 'WhatsApp (webhook de Twilio): el mensaje entra en la conversación abierta del paciente (o abre una), un número nuevo es un lead con su aviso a Recepción (pestaña WhatsApp y campanita), respuestas automáticas (acuse / fuera de horario) y los estados de entrega (✓✓).' },
   { name: BOT_WHATSAPP_RESPONDER, source: 'src/bots/whatsapp-responder.ts', dist: 'dist/bots/whatsapp-responder.js', description: 'Mensajes (Recepción): manda por WhatsApp la respuesta si el paciente escribió por WhatsApp y la ventana de 24 h sigue abierta (texto y adjuntos).' },
@@ -76,6 +77,7 @@ const BOTS: DefBot[] = [
   { name: 'som-teleconsulta-entrar', source: 'src/bots/teleconsulta-entrar.ts', dist: 'dist/bots/teleconsulta-entrar.js', description: 'Portal: la paciente entra a la videollamada de su teleconsulta confirmada (link de Jitsi) y marca su presencia (arrived + Encounter VR).' },
   { name: 'som-teleconsulta-cancelar', source: 'src/bots/teleconsulta-cancelar.ts', dist: 'dist/bots/teleconsulta-cancelar.js', description: 'Portal: la paciente cancela su teleconsulta (R-14: primero ve qué pasa con la seña), libera las franjas y avisa a Recepción si había seña.' },
   { name: 'som-teleconsulta-pago', source: 'src/bots/teleconsulta-pago.ts', dist: 'dist/bots/teleconsulta-pago.js', description: 'Portal: vuelve a abrir el link de MercadoPago de la seña de una teleconsulta tentativa (R-23).' },
+  { name: 'som-teleconsulta-token', source: 'src/bots/teleconsulta-token.ts', dist: 'dist/bots/teleconsulta-token.js', description: 'Dashboard: token firmado de moderador para que el profesional del turno entre a la sala de Jitsi (sin los secretos JITSI_APP_ID/JITSI_APP_SECRET no emite nada).' },
 ];
 
 /** Resuelve imports relativos ".js" a su fuente ".ts" (ESM + Bundler). */

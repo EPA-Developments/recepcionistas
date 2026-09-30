@@ -14,9 +14,13 @@
  *  - control GLP-1 (R-19): valida la ventana del control;
  *  - consulta del Plan Bienestar 100 Días® (R-20): valida su ventana y, si es la
  *    inicial, corre el plan a esa fecha (día 1) y recalcula las otras dos. Está incluida
- *    en el plan: el turno queda confirmado, sin seña.
- * El control GLP-1 y la consulta del plan sin su tarea se bloquean. Una consulta por
- * especialidad (con cargo) de un paciente con el plan activo queda ligada al plan.
+ *    en el plan: el turno queda confirmado, sin seña;
+ *  - derivación del Plan Bienestar que decidió el equipo médico (R-20): la consulta tiene
+ *    que ser del grupo de la especialidad derivada; el turno es con cargo (salvo que la
+ *    consulta esté incluida) y lleva la tarea en `supportingInformation`.
+ * El control GLP-1, la consulta del plan y las consultas de derivación del catálogo
+ * firmado sin su tarea se bloquean. Una consulta por especialidad (con cargo) de un
+ * paciente con el plan activo queda ligada al plan.
  *
  * Agenda por profesional (R-22): con `medicoCodigo` (o `slotId` de una franja suya) el
  * turno ocupa las franjas libres del profesional —las que generan su disponibilidad y el
@@ -43,6 +47,7 @@ import {
   permiteModalidad,
 } from '../lib/agenda-profesional.js';
 import { avisoReserva } from '../lib/avisos.js';
+import { esTareaDerivacion, validarDerivacionSinTarea, validarTareaDerivacion, type DatosDerivacion } from '../lib/derivaciones-pb100d.js';
 import { validarControlSinTarea, validarTareaAgenda, validarVentanaControl } from '../lib/glp1-plan.js';
 import {
   dentroDelPlan,
@@ -151,6 +156,8 @@ export interface ContextoReserva {
   ventanaControl?: Ventana;
   /** Consulta del Plan Bienestar que se agenda (R-20). */
   consultaPlan?: Pick<DatosConsultaPlan, 'titulo' | 'ventana'>;
+  /** Derivación del Plan Bienestar que decidió el equipo médico y este turno resuelve (R-20). */
+  derivacion?: Pick<DatosDerivacion, 'titulo' | 'codigo'>;
   /** Modalidad pedida (R-21); si falta, la del recurso. */
   modalidad?: Modalidad;
   /** ¿El paciente firmó el consentimiento de teleconsulta? (R-21). */
@@ -258,6 +265,10 @@ export function validarReserva(ctx: ContextoReserva): ResultadoValidacion {
   partes.push(
     ctx.consultaPlan ? validarVentanaConsultaPlan(ctx.inicio, ctx.consultaPlan) : validarConsultaPlanSinTarea(ctx.servicio.codigo),
   );
+  // R-20: las consultas de derivación del catálogo firmado se agendan desde la derivación del equipo.
+  if (!ctx.derivacion) {
+    partes.push(validarDerivacionSinTarea(ctx.servicio.codigo));
+  }
 
   return combinar(...partes);
 }
@@ -332,12 +343,20 @@ export async function handler(
   let ventanaControl: Ventana | undefined;
   let traerLaboratorio = false;
   let consultaPlan: DatosConsultaPlan | undefined;
+  let derivacion: DatosDerivacion | undefined;
   if (e.tareaId) {
     tarea = await medplum.readResource('Task', e.tareaId).catch(() => undefined);
     if (!tarea) {
       return bloqueo('R-19', 'La tarea no existe.');
     }
-    if (esTareaConsultaPlan(tarea)) {
+    if (esTareaDerivacion(tarea)) {
+      // Derivación del Plan Bienestar decidida por el equipo médico (R-20).
+      const check = validarTareaDerivacion(tarea, { pacienteRef: e.pacienteRef, servicioCodigo: e.servicioCodigo });
+      if (!check.ok) {
+        return bloqueo('R-20', check.error);
+      }
+      derivacion = check.datos;
+    } else if (esTareaConsultaPlan(tarea)) {
       const datos = leerTareaConsultaPlan(tarea);
       let inicialAgendada = datos.clave === 'inicial';
       if (!inicialAgendada && datos.carePlanRef) {
@@ -381,6 +400,7 @@ export async function handler(
     ahora,
     ventanaControl,
     consultaPlan,
+    derivacion,
     modalidad: e.modalidad,
     consentimientoTeleconsulta,
   });
@@ -478,7 +498,7 @@ export async function handler(
     ? nombreSegunModalidad({ nombre: tituloConsultaPlan(consultaPlan.titulo) }, modalidad)
     : nombreSegunModalidad(servicio, modalidad);
   const supportingInformation: Reference[] = [
-    ...(consultaPlan && tarea?.id ? [{ reference: `Task/${tarea.id}` }] : []),
+    ...((consultaPlan || derivacion) && tarea?.id ? [{ reference: `Task/${tarea.id}` }] : []),
     ...(consultaPlan?.carePlanRef ? [{ reference: consultaPlan.carePlanRef }] : []),
     ...(planExtra?.id ? [{ reference: `CarePlan/${planExtra.id}` }] : []),
   ];

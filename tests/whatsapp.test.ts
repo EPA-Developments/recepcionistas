@@ -26,6 +26,7 @@ import {
   etiquetaDia,
   explicarErrorTwilio,
   fechaCorta,
+  fechaHoraAR,
   formatoTelefono,
   haceCuanto,
   iniciales,
@@ -163,6 +164,7 @@ describe('WhatsApp · webhook de Twilio', () => {
     expect(fallido.extension?.filter((e) => e.url === EXT.estadoEntrega)).toHaveLength(1);
     expect(fallido.statusReason?.text).toMatch(/24 h/);
     expect(explicarErrorTwilio('99999')).toMatch(/twilio\.com\/docs\/api\/errors\/99999/);
+    expect(explicarErrorTwilio('63112')).toContain('WhatsApp Manager');
     expect(explicarErrorTwilio(undefined)).toBeUndefined();
   });
 
@@ -379,6 +381,15 @@ describe('WhatsApp · el número nuevo es un lead', () => {
     expect(elegirPacientePorTelefono([demo, real])?.id).toBe('real');
     expect(elegirPacientePorTelefono([demo, lead])?.id).toBe('lead');
     expect(elegirPacientePorTelefono([demo])?.id).toBe('prueba-mp');
+  });
+});
+
+describe('WhatsApp · fecha y hora para los diagnósticos', () => {
+  it('Siempre en 24 h y en hora de Argentina (las 20:27 no se leen como 08:27)', () => {
+    expect(fechaHoraAR('2026-09-28T23:27:08Z')).toBe('28/09/2026, 20:27:08');
+    expect(fechaHoraAR(new Date('2026-09-28T11:27:08Z'))).toBe('28/09/2026, 08:27:08');
+    expect(fechaHoraAR(undefined)).toBe('');
+    expect(fechaHoraAR('no es fecha')).toBe('');
   });
 });
 

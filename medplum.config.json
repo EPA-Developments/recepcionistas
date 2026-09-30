@@ -145,6 +145,12 @@
       "dist": "dist/bots/bienestar-inscribir.js"
     },
     {
+      "name": "som-bienestar-dia0",
+      "id": "",
+      "source": "src/bots/bienestar-dia0.ts",
+      "dist": "dist/bots/bienestar-dia0.js"
+    },
+    {
       "name": "som-borrador-respuesta",
       "id": "",
       "source": "src/bots/borrador-respuesta.ts",
@@ -179,6 +185,12 @@
       "id": "",
       "source": "src/bots/teleconsulta-pago.ts",
       "dist": "dist/bots/teleconsulta-pago.js"
+    },
+    {
+      "name": "som-teleconsulta-token",
+      "id": "",
+      "source": "src/bots/teleconsulta-token.ts",
+      "dist": "dist/bots/teleconsulta-token.js"
     }
   ]
 }

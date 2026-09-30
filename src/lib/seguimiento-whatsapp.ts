@@ -42,6 +42,11 @@ export interface DatosSeguimiento {
   /** Los mensajes de su conversación más reciente (en cualquier orden). */
   mensajes: Communication[];
   ahora: Date;
+  /**
+   * El celular es `RECEPCION_WHATSAPP_TO` (el que recibe los avisos internos): el bot ignora
+   * a propósito sus mensajes, no es un paciente.
+   */
+  esRecepcion?: boolean;
 }
 
 const MARCA: Readonly<Record<EstadoPaso, string>> = { ok: '✓', pendiente: '·', falla: '✗', 'no-aplica': '–' };
@@ -131,7 +136,16 @@ export function pasosSeguimiento(d: DatosSeguimiento): PasoSeguimiento[] {
   );
 
   // 2) Quién es en SOM.
-  if (!d.paciente) {
+  if (d.esRecepcion) {
+    pasos.push({
+      titulo: 'Quién es en SOM',
+      estado: 'falla',
+      detalle:
+        'Es el número de Recepción (Project Secret RECEPCION_WHATSAPP_TO, el que recibe los avisos internos): ' +
+        'som-whatsapp-entrante ignora a propósito sus mensajes, no es un paciente. Para probar, usá otro celular ' +
+        '(o poné otro número en RECEPCION_WHATSAPP_TO).',
+    });
+  } else if (!d.paciente) {
     pasos.push({
       titulo: 'Quién es en SOM',
       estado: 'pendiente',
@@ -328,7 +342,8 @@ export function lineaMensajeTwilio(
   ahora: Date,
 ): string {
   const entrante = esEntranteTwilio(m);
-  const error = m.error_code ? explicarErrorTwilio(m.error_code) : undefined;
+  // En un entrante, el código es del webhook (p. ej. 12300); en un saliente, de la entrega.
+  const error = m.error_code ? (entrante ? explicarAlertaTwilio(m.error_code) : explicarErrorTwilio(m.error_code)) : undefined;
   const donde = ubicaciones.get(m.sid);
   const enSom =
     donde === undefined
@@ -558,6 +573,18 @@ export function revisarRuteoEntrante(p: {
     hallazgos.push({ estado: 'ok', texto: `Twilio manda los mensajes entrantes a ${p.urlEsperada} (POST), desde ${donde}.` });
   }
 
+  // Si manda el servicio, el webhook propio del número no se usaría; pero si apunta a otro
+  // sistema y ese sistema responde, es por ahí que se están yendo los mensajes.
+  const propio = sender.webhook?.callback_url?.trim();
+  if (servicio && !servicio.use_inbound_webhook_on_number && propio && propio !== p.urlEsperada.trim()) {
+    hallazgos.push({
+      estado: 'pendiente',
+      texto:
+        `El número tiene además su propio webhook: ${ocultarClaveUrl(propio)}. En teoría manda el servicio, pero si ` +
+        'los mensajes no llegan a SOM y otro sistema responde, van ahí: ponele también la URL de SOM (o vaciala).',
+    });
+  }
+
   const estados = sender.webhook?.status_callback_url?.trim();
   if (estados && estados !== p.urlEsperada.trim()) {
     hallazgos.push({
@@ -566,4 +593,65 @@ export function revisarRuteoEntrante(p: {
     });
   }
   return hallazgos;
+}
+
+// ───────────────────────────── Twilio Conversations ─────────────────────────────
+
+/**
+ * Una conversación de Twilio Conversations en la que participa el celular
+ * (`conversations.twilio.com/v1/ParticipantConversations?Address=`).
+ */
+export interface ConversacionTwilio {
+  conversation_sid: string;
+  /** `active`, `inactive` o `closed`. */
+  conversation_state?: string | null;
+  conversation_friendly_name?: string | null;
+  conversation_unique_name?: string | null;
+  chat_service_sid?: string | null;
+  conversation_date_updated?: string | null;
+  participant_messaging_binding?: { address?: string | null; proxy_address?: string | null } | null;
+}
+
+/**
+ * Las conversaciones de Twilio Conversations del celular con el número de SOM que no están
+ * cerradas: mientras haya una, Twilio mete ahí los mensajes de ese celular y **no llama al
+ * webhook de SOM** (una `inactive` se reactiva con el próximo mensaje).
+ */
+export function conversacionesQueCapturan(convs: ConversacionTwilio[], from: string | undefined): ConversacionTwilio[] {
+  return convs.filter(
+    (c) => c.conversation_state !== 'closed' && mismoRemitente(c.participant_messaging_binding?.proxy_address ?? undefined, from),
+  );
+}
+
+/** La configuración de una dirección en Conversations (`/v1/Configuration/Addresses`). */
+export interface DireccionConversations {
+  address?: string | null;
+  type?: string | null;
+  friendly_name?: string | null;
+  auto_creation?: {
+    enabled?: boolean | null;
+    type?: string | null;
+    webhook_url?: string | null;
+    conversation_service_sid?: string | null;
+  } | null;
+}
+
+/**
+ * Si Conversations crea una conversación con cada mensaje nuevo que llega al número de SOM
+ * (autocreación): esos mensajes van a Conversations y no al webhook de SOM.
+ */
+export function autocreacionDe(direcciones: DireccionConversations[], from: string | undefined): DireccionConversations | undefined {
+  return direcciones.find((d) => d.auto_creation?.enabled === true && mismoRemitente(d.address ?? undefined, from));
+}
+
+/**
+ * Los entrantes que no llegaron a SOM y no tienen ninguna ejecución del bot cerca de su hora
+ * (de 5 s antes a `margenSeg` después): Twilio no llamó al webhook. Uno sin fecha no se juzga.
+ */
+export function entrantesSinEjecucion(perdidos: MensajeTwilio[], ejecuciones: string[], margenSeg = 120): MensajeTwilio[] {
+  const tiempos = ejecuciones.map((e) => Date.parse(e)).filter((t) => !Number.isNaN(t));
+  return perdidos.filter((m) => {
+    const t = Date.parse(m.date_created ?? '');
+    return !Number.isNaN(t) && !tiempos.some((e) => e >= t - 5_000 && e <= t + margenSeg * 1000);
+  });
 }

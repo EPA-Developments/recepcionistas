@@ -26,9 +26,10 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `som-reservar-portal` | **Portal (R-23):** la paciente elige una franja libre de un profesional y el bot **reserva** con las reglas de Recepción (reutiliza `som-reservar-turno`): consulta del plan con su tarea → **confirmada** sin seña; consulta con cargo → **tentativa** con la franja retenida 30 min y el link de MercadoPago de la seña (queda en `link-pago-sena` y sale por WhatsApp). Sin link (MercadoPago caído o sin configurar) no vence y avisa a Recepción. Solo para sí misma (`requester`); nunca devuelve el link de la videollamada antes de la seña. | `executeBot` desde el **portal** de la paciente. |
 | `som-vencer-reservas` | **Cron (R-23):** cancela las reservas tentativas del portal cuya retención venció sin seña, libera sus franjas y avisa a la paciente. No toca los tentativos de Recepción (sin vencimiento). `If-Match`: si el webhook la confirmó en el medio, no la pisa. | `cronTimer` del Bot (cada ~5 min). |
 | `som-solicitar-turno` | **Portal:** crea una solicitud de turno (`Task` `code=solicitud-turno`) del paciente, presencial o teleconsulta (`modalidad`; la teleconsulta exige el consentimiento de teleconsulta, R-21), y avisa a Recepción por WhatsApp (`RECEPCION_WHATSAPP_TO`). No reserva: Recepción confirma. Alternativa en texto libre a `som-reservar-portal`. | `executeBot` desde el **portal** del paciente. |
-| `som-teleconsulta-entrar` | **Portal (R-21):** la paciente entra a la videollamada de su teleconsulta. Con el turno confirmado y la sala abierta (`ENTRADA_TELECONSULTA_MIN` = 15 min antes, provisional, hasta el fin) devuelve el link de Jitsi del turno y marca la presencia (el turno pasa a `arrived` y se abre el `Encounter` `VR`, como el check-in de `som-estado-turno`). Tentativa → `pagar: true`; antes de hora → `abre`. | `executeBot` desde el **portal** (`{ appointmentId }`). |
+| `som-teleconsulta-entrar` | **Portal (R-21):** la paciente entra a la videollamada de su teleconsulta. Con el turno confirmado y la sala abierta (`ENTRADA_TELECONSULTA_MIN` = 15 min antes, provisional, hasta el fin) devuelve el link de Jitsi del turno y marca la presencia (el turno pasa a `arrived` y se abre el `Encounter` `VR`, como el check-in de `som-estado-turno`). Tentativa → `pagar: true`; antes de hora → `abre`. La paciente entra **sin token**, como invitada que espera al profesional (decisión del 29/09/2026, [`decisiones-pendientes.md`](decisiones-pendientes.md), Jitsi 2b): el link es el mismo que el del WhatsApp. | `executeBot` desde el **portal** (`{ appointmentId }`). |
 | `som-teleconsulta-cancelar` | **Portal (R-14, R-20, R-22):** la paciente cancela su teleconsulta. Sin `confirmar` solo informa qué pasa (con < 24 h la sesión se consume y la seña no vuelve; con ≥ 24 h no se pierde); con `confirmar: true` cancela (motivo `pat`) vía `som-estado-turno` (libera las franjas; la consulta del plan vuelve a quedar por agendar) y, si tenía la seña paga, avisa a Recepción por WhatsApp. | `executeBot` desde el **portal** (`{ appointmentId, confirmar? }`). |
 | `som-teleconsulta-pago` | **Portal (R-23):** vuelve a abrir el pago de la seña de una teleconsulta tentativa: devuelve el link guardado (`link-pago-sena`) o lo genera con `som-link-mercadopago`. Vencida, paga o incluida en el plan → `ok: false` con el motivo. | `executeBot` desde el **portal** (`{ appointmentId }`). |
+| `som-teleconsulta-token` | **Dashboard del profesional:** el token firmado (JWT) para entrar a la sala de Jitsi **como moderador** (abre la sala, admite a la paciente, la puede cerrar). Quién pide lo dice `requester`, nunca el input: sólo un `Practitioner` que sea `participant` del turno; a cualquier otro le contesta lo mismo que si el turno no existiera. Turno confirmado (`booked`/`arrived`/`checked-in`), link del mismo Jitsi que `JITSI_BASE_URL`, ventana de 15 min antes a 1 h después del fin. El token vence con la sala y no se guarda. Sin `JITSI_APP_ID`/`JITSI_APP_SECRET` devuelve `sinConfigurar: true` y el dashboard entra con el link, sin moderar. Recepción **no** lo ejecuta. | `executeBot` desde el **dashboard** (`{ appointmentId }`). |
 | `som-recomputar-segmentos` | **CRM:** recalcula los miembros de los segmentos del embudo (origen del lead / red social, perfil, ciclo de vida, biomarcadores). | `cronTimer` o `executeBot` con un `Group`. Ver [`crm.md`](crm.md). |
 | `som-enviar-campana` | **CRM:** envía una campaña a un segmento (email; WhatsApp queda pendiente de plantilla) y registra una `Communication` por destinatario. **Requiere admin** para email. | `executeBot`. Ver [`crm.md`](crm.md). |
 | `som-glp1-inscribir` | **GLP-1 (Recepción):** inscribe al paciente en el seguimiento: deja un `Task` `indicacion-glp1` al equipo médico (idempotente; si ya está activo, devuelve cuántos controles faltan agendar). | `executeBot` (Atender → Seguimiento GLP-1 → Inscribir). Ver [`glp1.md`](glp1.md). |
@@ -36,7 +37,8 @@ deployan al runtime **`awslambda`** de Medplum (configurable con la env
 | `bot-som-report` | **Interno (SOM):** PREVENT → `RiskAssessment`, informe con Claude → `DiagnosticReport` + PDF, `ServiceRequest` → `completed`, aviso al paciente. Sin consentimiento no llama a Claude. | `Subscription` sobre `ServiceRequest?status=active&code=…som-cardiology` (la crea `deploy:bots`). |
 | `som-procesar-laboratorio` | **Interno (SOM):** transcribe el PDF de laboratorio que manda el paciente (Claude) a `Observation` + `DiagnosticReport` y lo liga al documento; si no puede, avisa al paciente y deja un `Task` `revisar-laboratorio`. | `Subscription` (solo *create*) sobre `DocumentReference?category=…/documento\|resultado-laboratorio` (la crea `deploy:bots`). |
 | `som-bienestar-inscribir` | **Plan Bienestar 100 Días® (Recepción):** crea el `CarePlan` `plan-bienestar-100` (100 días) que lee el portal, con sus tres consultas programadas, y una `Task` `agendar-consulta-pb100d` por consulta. Idempotente (a un plan viejo le suma las tareas que falten). No cobra. | `executeBot` (Atender → Plan Bienestar 100 Días®). Ver [`plan-bienestar.md`](plan-bienestar.md). |
-| `som-borrador-respuesta` | **Mensajes (Recepción) — "Sugerir":** con la conversación y el contexto operativo del paciente (nombre, motivo, próximo turno, programas, consentimiento; nunca historia clínica) redacta con Claude el **borrador** de la respuesta. Solo lectura: no escribe ni envía nada; la recepcionista lo revisa y toca Enviar (la respuesta queda marcada `borrador-usado` = `sin-editar`/`editado`). Si es clínico o una posible urgencia, no redacta y lo dice. | `executeBot` (Mensajes → Sugerir). |
+| `som-bienestar-dia0` | **Plan Bienestar 100 Días® (Recepción):** lo operativo del menú del equipo, **sin valores clínicos**: el **día 0** (qué datos pide el catálogo firmado para el estadío de la persona, si están cargados / a medias / vencidos / faltan y quién los carga), el estado del **plan clínico** (`pb100d-ckm`: desde cuándo, día X, pasos completados) y el **material** para el paciente (títulos de sus pasos y el aviso por WhatsApp). Lee lo clínico con su identidad y devuelve sólo "falta el laboratorio", nunca el resultado ni el estadío. Sólo lectura. | `executeBot` (Atender → tarjeta "día 0 y material"). Ver [`plan-bienestar.md`](plan-bienestar.md#menú-del-equipo). |
+| `som-borrador-respuesta` | **Mensajes (Recepción) — "Sugerir":** con la conversación y el contexto operativo del paciente (nombre, motivo, próximo turno, programas, consentimiento; nunca historia clínica) redacta con Claude el **borrador** de la respuesta. No envía nada ni escribe datos del paciente (solo el registro de uso de IA, ver abajo); la recepcionista lo revisa y toca Enviar (la respuesta queda marcada `borrador-usado` = `sin-editar`/`editado`). Si es clínico o una posible urgencia, no redacta y lo dice. | `executeBot` (Mensajes → Sugerir). |
 | `som-glp1-plan` | **GLP-1 (equipo médico):** con la indicación (molécula, esquema de titulación, fecha de inicio) arma o recalcula el programa: `CarePlan`, `Goal`, pedidos de laboratorio y tareas de agenda de Recepción. **Recepción no puede ejecutarlo.** | `executeBot` / app de Medplum (input JSON). Ver [`glp1.md`](glp1.md). |
 
 ## Deploy
@@ -53,6 +55,14 @@ npm run bots:bundle   # opcional: bundlea y muestra tamaños, sin conectarse
 npm run deploy:bots   # crea (si faltan) + bundlea + deploya + guarda ids
 ```
 
+> **Chequeo de la puesta en marcha:** `npm run puesta-en-marcha` (sólo lectura) lista qué
+> hay en el proyecto y qué falta, con el comando que lo arregla: bots creados, roles al día
+> con el repo, catálogo del seed (instrumentos, programas, profesionales, agendas), recursos
+> del monorepo del plan, Project Secrets por nombre (nunca valores) y el default patient
+> access policy. Termina con código 1 si falta algo. La lógica está en
+> `src/lib/puesta-en-marcha.ts`; el paso a paso completo, en el monorepo del plan
+> (`docs/puesta-en-marcha.md`).
+
 `deploy:bots` hace, por cada bot:
 1. lo busca por `name`; si no existe, lo crea (`POST admin/projects/{id}/bot`, runtime `awslambda`);
 2. bundlea el source con esbuild (CJS, sin dependencias externas; compactado sin
@@ -68,6 +78,14 @@ documento, con la extensión `subscription-supported-interaction=create`).
 > Los bots que llaman a Claude (`bot-som-report`, `som-procesar-laboratorio`, `som-borrador-respuesta`)
 > pueden tardar más que el timeout por defecto del Bot: subir `Bot.timeout` en
 > Medplum si el log muestra cortes.
+
+**Uso de IA.** `som-procesar-laboratorio` y `som-borrador-respuesta` dejan, por cada
+llamada a Claude, un `AuditEvent` (type `…/CodeSystem/uso-ia|llamada-modelo`; subtype
+`laboratorio-pdf` / `borrador-mensaje`) ligado al recurso que la originó (el
+`DocumentReference` del PDF / la conversación), con modelo, tokens, esfuerzo y costo
+estimado; `outcome` 4 si la respuesta no sirvió. Del paciente solo guarda esa referencia. Resumen del
+mes: `npm run uso:ia -- AAAA-MM`. Si el servidor no acepta el registro, el bot sigue
+igual (queda en su log). Lógica y precios en `src/lib/uso-ia.ts`.
 
 Es idempotente: reejecutar redeploya el código sobre los bots existentes. Los ids
 de `medplum.config.json` son del proyecto SOM: arrancan vacíos y los completa el
@@ -89,6 +107,7 @@ MercadoPago usan las credenciales propias de SOM.
 | `TWILIO_CONTENT_SID_AVISO` | los avisos (`enviarWhatsApp`): el `ContentSid` de la plantilla genérica `som_aviso` aprobada por Meta (lo guarda `npm run whatsapp:plantillas`) | para que los avisos lleguen fuera de la ventana de 24 h |
 | `RECEPCION_WHATSAPP_TO` | `som-solicitar-turno` (aviso a Recepción de solicitudes nuevas), `som-recordatorios` (alerta de consultas del Plan Bienestar sin agendar), `som-reservar-portal` (reserva del portal sin link de pago), seña de un turno ya cancelado (`confirmarReserva`: hay que reintegrar) | opcional |
 | `JITSI_BASE_URL` | `som-reservar-turno` (link de la videollamada de cada teleconsulta, p. ej. `https://meet.segundaopinionmedica.org`; solo `https`) | para el link de teleconsulta (sin él, el turno se agenda con advertencia y sin link) |
+| `JITSI_APP_ID`, `JITSI_APP_SECRET` | `som-teleconsulta-token` (el profesional entra como moderador): el emisor (`iss`) y el secreto HS256 que valida el Jitsi. Van **los dos**, con `JITSI_BASE_URL`, o ninguno. La paciente no usa token | para que el profesional modere; la configuración del Jitsi está en [`decisiones-pendientes.md`](decisiones-pendientes.md) (Jitsi) |
 | `MERCADOPAGO_ACCESS_TOKEN` | `som-link-mercadopago`, `som-webhook-mercadopago`. Va el **Access Token de producción** (`APP_USR-…`, varios bloques de números), **no** la Public Key | para cobrar por MP |
 | `MP_WEBHOOK_URL` | `som-link-mercadopago` (`notification_url`): la URL pública `https://api.medplum.com.ar/webhooks/som/mercadopago` (la guarda `npm run webhooks`) | recomendado |
 | `PORTAL_BASE_URL` | `som-invitar-paciente` (link al portal del paciente) y `som-link-mercadopago` (`back_urls`: después de pagar, el paciente vuelve al portal) | opcional (default `https://app.segundaopinionmedica.org`) |
@@ -193,6 +212,12 @@ Recepción solo habilita los bots de `BOTS_RECEPCION`
 `som-validar-turno`. Los clínicos (`som-glp1-plan`) y los de administración
 quedan fuera. Si la app empieza a llamar un bot nuevo, sumarlo ahí:
 `tests/seed.test.ts` falla si falta.
+
+Los especialistas, desde el dashboard clínico, ejecutan `BOTS_MEDICO` o
+`BOTS_NUTRICION`: `som-teleconsulta-token` y `som-estado-turno` (entrar a la
+teleconsulta y cerrarla), `puco-cobertura` y, sólo los médicos, `som-glp1-plan` y
+`refeps-verify`. `puco-cobertura` y `refeps-verify` son del dashboard y se despliegan
+desde ahí (`deploy-bots-server -- --solo`).
 
 ## Webhook de MercadoPago (confirmación automática)
 

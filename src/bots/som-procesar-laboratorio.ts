@@ -18,6 +18,8 @@
  *  5) Cierra el circuito: suma el DiagnosticReport a `context.related` del documento
  *     (el portal pasa de "En proceso" a "Ver resultados").
  *  6) Si no se puede leer: mensaje al paciente (Communication) y Task al equipo.
+ *  7) Cada llamada a Claude deja su uso (tokens y costo estimado) en un AuditEvent
+ *     `uso-ia` ligado al documento, sirva o no la respuesta (`src/lib/uso-ia.ts`).
  *
  * Idempotente: si el documento ya tiene su DiagnosticReport, no reprocesa. Para
  * reprocesar a mano, ejecutar el bot con el DocumentReference como entrada.
@@ -25,7 +27,13 @@
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import type { Communication, DiagnosticReport, DocumentReference, Observation, Task } from '@medplum/fhirtypes';
-import { COD, MODELO_CLAUDE_LABORATORIO, SYSTEM } from '../fhir/identifiers.js';
+import {
+  BOT_SOM_LABORATORIO,
+  COD,
+  ESFUERZO_CLAUDE_LABORATORIO,
+  MODELO_CLAUDE_LABORATORIO,
+  SYSTEM,
+} from '../fhir/identifiers.js';
 import {
   ESQUEMA_EXTRACCION,
   MENSAJE_NO_PROCESADO,
@@ -42,6 +50,7 @@ import {
   type EntradaCatalogo,
   type ExtraccionLaboratorio,
 } from '../lib/laboratorio.js';
+import { PROCESO_IA, registrarUsoIa, usoDeRespuesta, type UsoIa } from '../lib/uso-ia.js';
 import { clienteClaude, textoRespuesta } from './_claude.js';
 import { tieneConsentimiento } from './_shared.js';
 
@@ -98,8 +107,21 @@ export async function handler(
   }
   const defs = await medplum.searchResources('ObservationDefinition', '_count=1000').catch(() => []);
   const catalogo = catalogoDesdeObservationDefinitions(defs);
-  const extraccion = await extraer(claude, base64, catalogo);
-  if (!extraccion?.esInformeDeLaboratorio || extraccion.analitos.length === 0) {
+  const { extraccion, uso, motivo } = await extraer(claude, base64, catalogo);
+  const legible = Boolean(extraccion?.esInformeDeLaboratorio && extraccion.analitos.length > 0);
+  if (uso) {
+    await registrarUsoIa(medplum, {
+      proceso: PROCESO_IA.laboratorioPdf,
+      uso,
+      bot: event.bot,
+      botNombre: BOT_SOM_LABORATORIO,
+      origen: documentoRef,
+      ok: legible,
+      motivo: motivo ?? 'sin resultados legibles',
+      esfuerzo: ESFUERZO_CLAUDE_LABORATORIO,
+    });
+  }
+  if (!extraccion || !legible) {
     return derivarAlEquipo(medplum, pacienteRef, documentoRef, 'no se pudieron leer resultados en el PDF');
   }
 
@@ -140,14 +162,22 @@ async function leerPdfBase64(medplum: MedplumClient, url?: string, data?: string
   }
 }
 
-/** Claude transcribe el informe con salida estructurada; undefined si no pudo. */
+interface Transcripcion {
+  extraccion?: ExtraccionLaboratorio;
+  /** Tokens y costo de la llamada (falta solo si la llamada falló sin respuesta). */
+  uso?: UsoIa;
+  /** Por qué la respuesta no sirve (negativa, corte por largo, JSON ilegible). */
+  motivo?: string;
+}
+
+/** Claude transcribe el informe con salida estructurada; sin `extraccion` si no pudo. */
 async function extraer(
   claude: NonNullable<ReturnType<typeof clienteClaude>>,
   base64: string,
   catalogo: EntradaCatalogo[],
-): Promise<ExtraccionLaboratorio | undefined> {
-  try {
-    const resp = await claude.beta.messages.create({
+): Promise<Transcripcion> {
+  const resp = await claude.beta.messages
+    .create({
       model: MODELO_CLAUDE_LABORATORIO,
       max_tokens: 16000,
       // Si el modelo declina, el servidor reintenta con el modelo de respaldo recomendado.
@@ -163,16 +193,25 @@ async function extraer(
           ],
         },
       ],
-      output_config: { format: { type: 'json_schema', schema: ESQUEMA_EXTRACCION } },
-    });
-    if (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') {
-      console.error('som-procesar-laboratorio: extracción incompleta:', resp.stop_reason);
+      output_config: { effort: ESFUERZO_CLAUDE_LABORATORIO, format: { type: 'json_schema', schema: ESQUEMA_EXTRACCION } },
+    })
+    .catch((err: unknown) => {
+      console.error('som-procesar-laboratorio: error de extracción:', err instanceof Error ? err.message : err);
       return undefined;
-    }
-    return normalizarExtraccion(JSON.parse(textoRespuesta(resp.content)), catalogo);
+    });
+  if (!resp) {
+    return {};
+  }
+  const uso = usoDeRespuesta(resp, MODELO_CLAUDE_LABORATORIO);
+  if (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') {
+    console.error('som-procesar-laboratorio: extracción incompleta:', resp.stop_reason);
+    return { uso, motivo: resp.stop_reason };
+  }
+  try {
+    return { uso, extraccion: normalizarExtraccion(JSON.parse(textoRespuesta(resp.content)), catalogo) };
   } catch (err) {
-    console.error('som-procesar-laboratorio: error de extracción:', err instanceof Error ? err.message : err);
-    return undefined;
+    console.error('som-procesar-laboratorio: respuesta ilegible:', err instanceof Error ? err.message : err);
+    return { uso, motivo: 'respuesta ilegible' };
   }
 }
 

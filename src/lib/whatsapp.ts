@@ -280,9 +280,13 @@ export function leerWebhookTwilio(input: unknown): WebhookTwilio {
  */
 const ERRORES_TWILIO: Readonly<Record<string, string>> = {
   '63016': 'pasaron más de 24 h desde el último mensaje del paciente: WhatsApp solo deja mandar plantillas aprobadas',
+  '63112':
+    'Meta deshabilitó la cuenta de WhatsApp Business (WABA) del número de SOM o la verificación del negocio está pendiente: revisar el WhatsApp Manager de Meta',
   '63003': 'el número no tiene WhatsApp',
   '63024': 'el destinatario no es válido para WhatsApp',
   '63018': 'se superó el límite de envíos de WhatsApp; probá de nuevo en unos minutos',
+  '63049':
+    'Meta no entregó un mensaje de plantilla MARKETING (limita cuántos recibe cada persona); con la plantilla UTILITY propia del aviso aprobada no pasa',
   '21211': 'el número de teléfono no es válido',
   '30003': 'el teléfono del paciente no está disponible (apagado o sin señal)',
   '30005': 'el número no existe o ya no está activo',
@@ -738,6 +742,26 @@ const fmtFecha = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, weekday: 'long
 /** "HH:MM" en Argentina. */
 export function horaMensaje(iso: string | undefined): string {
   return iso ? fmtHora.format(new Date(iso)) : '';
+}
+
+const fmtFechaHora = new Intl.DateTimeFormat('es-AR', {
+  timeZone: TZ,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
+/**
+ * "28/09/2026, 20:27:08" en Argentina, siempre en 24 h (`toLocaleString('es-AR')` da 12 h
+ * sin "p. m." y las 20:27 se leen como 08:27). Vacío si no hay fecha o no es válida.
+ */
+export function fechaHoraAR(fecha: string | Date | undefined): string {
+  const d = fecha === undefined ? undefined : new Date(fecha);
+  return d && !Number.isNaN(d.getTime()) ? fmtFechaHora.format(d) : '';
 }
 
 

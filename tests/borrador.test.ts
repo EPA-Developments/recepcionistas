@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent } from '@medplum/core';
-import type { Appointment, CarePlan, Communication, DocumentReference, Patient, Resource } from '@medplum/fhirtypes';
+import type { Appointment, AuditEvent, CarePlan, Communication, DocumentReference, Patient, Resource } from '@medplum/fhirtypes';
 import { LOINC_CONSENTIMIENTO, SYSTEM } from '../src/fhir/identifiers.js';
 import {
   limpiarBorrador,
@@ -163,11 +163,88 @@ describe('bot som-borrador-respuesta', () => {
     });
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const secrets = { ANTHROPIC_API_KEY: { name: 'ANTHROPIC_API_KEY', valueString: 'sk-test' } };
+  const evento = { input: { hiloId: 'c1' }, secrets } as unknown as BotEvent<EntradaBorrador>;
+  const respuestaClaude = (texto: string) =>
+    vi.fn(async (..._a: unknown[]) =>
+      new Response(
+        JSON.stringify({
+          id: 'msg_1',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-5-5',
+          content: [{ type: 'text', text: texto }],
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: { input_tokens: 3000, output_tokens: 200 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+  const detalleUso = (e: AuditEvent | undefined) =>
+    Object.fromEntries((e?.entity?.[0]?.detail ?? []).map((d) => [d.type, d.valueString]));
+
+  it('pide el borrador a Opus 5.5 con esfuerzo bajo y respaldo, y devuelve el texto', async () => {
+    const fetchMock = respuestaClaude('¡Hola Ana! Ya te pasamos el turno al viernes.');
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum, todos } = fakeMedplum([ana, ...conversacion('paciente')]);
+
+    expect(await handler(medplum, evento)).toEqual({ borrador: '¡Hola Ana! Ya te pasamos el turno al viernes.' });
+    const [llamada] = fetchMock.mock.calls.filter((c) => String(c[0]).includes('api.anthropic.com'));
+    const init = llamada![1] as RequestInit;
+    const body = JSON.parse(String(init.body));
+    expect(body.model).toBe('claude-opus-5-5');
+    expect(body.output_config.effort).toBe('low');
+    expect(body.thinking).toBeUndefined(); // en Opus 5.5 no se puede apagar: no se envía
+    expect(body.fallbacks).toBe('default');
+    expect(new Headers(init.headers).get('anthropic-beta')).toContain('server-side-fallback-2026-07-01');
+
+    // El uso queda registrado, ligado a la conversación: 3000 × US$4 + 200 × US$20 por millón.
+    const [uso] = todos<AuditEvent>('AuditEvent');
+    expect(uso).toMatchObject({
+      type: { system: SYSTEM.usoIa, code: 'llamada-modelo' },
+      subtype: [{ code: 'borrador-mensaje' }],
+      outcome: '0',
+      entity: [{ what: { reference: 'Communication/c1' } }],
+    });
+    expect(detalleUso(uso)).toMatchObject({ modelo: 'claude-opus-5-5', 'costo-usd': '0.016000', esfuerzo: 'low' });
+    // Es lo único que escribe: ni mensajes ni cambios en la conversación.
+    expect(todos('AuditEvent')).toHaveLength(1);
+    expect(todos<Communication>('Communication')).toEqual(conversacion('paciente'));
+  });
+
+  it('registra el uso aunque no haya borrador, y si el servidor no lo acepta el borrador sale igual', async () => {
+    vi.stubGlobal('fetch', respuestaClaude(`${SIN_BORRADOR}: es una consulta clínica.`));
+    const clinica = fakeMedplum([ana, ...conversacion('paciente')]);
+    expect(await handler(clinica.medplum, evento)).toEqual({ motivo: 'es una consulta clínica.' });
+    const [uso] = clinica.todos<AuditEvent>('AuditEvent');
+    expect(uso).toMatchObject({ outcome: '4', outcomeDesc: 'es una consulta clínica.' });
+
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', respuestaClaude('¡Hola Ana!'));
+    const { medplum, todos } = fakeMedplum([ana, ...conversacion('paciente')]);
+    const crear = medplum.createResource.bind(medplum);
+    vi.spyOn(medplum, 'createResource').mockImplementation(async (recurso: Resource) => {
+      if (recurso.resourceType === 'AuditEvent') {
+        throw new Error('Forbidden');
+      }
+      return crear(recurso);
+    });
+    expect(await handler(medplum, evento)).toEqual({ borrador: '¡Hola Ana!' });
+    expect(todos('AuditEvent')).toHaveLength(0);
+  });
+
   it('sin ANTHROPIC_API_KEY avisa y no llama a nadie', async () => {
-    const { medplum } = fakeMedplum([ana, ...conversacion('paciente')]);
+    const { medplum, todos } = fakeMedplum([ana, ...conversacion('paciente')]);
     const event = { input: { hiloId: 'c1' }, secrets: {} } as unknown as BotEvent<EntradaBorrador>;
     expect(await handler(medplum, event)).toEqual({
       motivo: 'Falta el secret ANTHROPIC_API_KEY en Medplum: "Sugerir" está desactivado.',
     });
+    expect(todos('AuditEvent')).toHaveLength(0);
   });
 });

@@ -159,6 +159,11 @@ export const SYSTEM = {
   /** Identifier del mensaje en Twilio (MessageSid): deduplica entrantes y liga los estados de entrega. */
   twilioMessageSid: `${BASE}/Identifier/twilio-message-sid`,
   /**
+   * Uso de IA (`AuditEvent.type` `llamada-modelo`; `subtype` = el proceso, p. ej.
+   * `laboratorio-pdf`): tokens y costo estimado de cada llamada (`src/lib/uso-ia.ts`).
+   */
+  usoIa: `${BASE}/CodeSystem/uso-ia`,
+  /**
    * Identifier de los avisos a Recepción (`Task`): hace idempotente su creación (p. ej.
    * un solo aviso por cada número nuevo que escribe por WhatsApp).
    */
@@ -261,10 +266,16 @@ export const MODELO_CLAUDE_SOM = 'claude-sonnet-4-6';
 
 /**
  * Modelo de Claude que transcribe los PDF de laboratorio (`som-procesar-laboratorio`).
- * El contrato no lo fija: se usa el modelo actual más capaz de la línea Opus, con
- * salida estructurada y respaldo del servidor ante una negativa.
+ * El contrato no lo fija: se usa el Opus actual, con salida estructurada y respaldo
+ * del servidor ante una negativa.
  */
-export const MODELO_CLAUDE_LABORATORIO = 'claude-opus-5';
+export const MODELO_CLAUDE_LABORATORIO = 'claude-opus-5-5';
+/**
+ * Esfuerzo de la transcripción. Opus 5.5 usa `medium` si no se indica; se fija `high`
+ * (el nivel con el que se validó el bot) porque son valores clínicos. Bajarlo solo
+ * después de comparar con PDFs reales.
+ */
+export const ESFUERZO_CLAUDE_LABORATORIO = 'high' as const;
 
 /** Nombres canónicos de los bots SOM (deben coincidir con el portal y el deploy). */
 export const BOT_SOM_SOLICITAR = 'som-solicitar';
@@ -274,12 +285,25 @@ export const BOT_SOM_LABORATORIO = 'som-procesar-laboratorio';
 /** Borrador de respuesta para la bandeja de Mensajes de Recepción ("Sugerir"). */
 export const BOT_BORRADOR_RESPUESTA = 'som-borrador-respuesta';
 /**
- * Modelo del borrador de Mensajes: el más capaz de la línea Opus, con esfuerzo bajo
- * (un mensaje corto de atención) y respaldo del servidor ante una negativa.
+ * Modelo del borrador de Mensajes: el Opus actual, con esfuerzo bajo (un mensaje corto
+ * de atención; el bot lo fija, Opus 5.5 usaría `medium`) y respaldo del servidor ante
+ * una negativa.
  */
-export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5';
+export const MODELO_CLAUDE_BORRADOR = 'claude-opus-5-5';
+export const ESFUERZO_CLAUDE_BORRADOR = 'low' as const;
 /** Recepción: inscribe al paciente en el Plan Bienestar de 100 días (crea el CarePlan). */
 export const BOT_BIENESTAR_INSCRIBIR = 'som-bienestar-inscribir';
+/**
+ * Recepción: el día 0 del Plan Bienestar (qué datos del catálogo firmado faltan y quién
+ * los carga), el estado del plan clínico y el material para el paciente, **sin valores
+ * clínicos**. Lo calcula el bot con su identidad: la policy de Recepción no lee lo clínico.
+ */
+export const BOT_BIENESTAR_DIA0 = 'som-bienestar-dia0';
+/**
+ * Teleconsulta: el token firmado para entrar a la sala de Jitsi. El profesional sale
+ * moderador; el paciente, no. Recepción NO lo ejecuta.
+ */
+export const BOT_TELECONSULTA_TOKEN = 'som-teleconsulta-token';
 
 /** URL canónica del `ActivityDefinition` de un servicio del catálogo. */
 export function urlServicio(codigo: string): string {

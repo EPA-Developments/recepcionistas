@@ -1,7 +1,10 @@
 import type { Communication, Invoice } from '@medplum/fhirtypes';
 import type { Modalidad } from '@som/domain/types';
+import type { ResultadoDia0Bienestar } from '@som/bots/bienestar-dia0';
 import type { ConsultaPlanVista } from '@som/lib/plan-bienestar';
 import { medplum } from '../medplum';
+
+export type { ResultadoDia0Bienestar };
 
 /**
  * Toda la inteligencia vive en los Bots: el front solo orquesta. Estas funciones
@@ -233,6 +236,16 @@ export interface ResultadoInscripcionBienestar {
 export async function inscribirBienestar(pacienteRef: string): Promise<ResultadoInscripcionBienestar> {
   const id = await botIdPorNombre('som-bienestar-inscribir');
   return (await medplum.executeBot(id, { pacienteRef })) as ResultadoInscripcionBienestar;
+}
+
+/**
+ * Plan Bienestar 100 Días®, lo operativo del plan clínico para Recepción, sin valores
+ * clínicos: qué datos del día 0 faltan y quién los carga, el estado del plan clínico y el
+ * material para el paciente. Lo calcula el bot (la policy de Recepción no lee lo clínico).
+ */
+export async function bienestarDia0(pacienteRef: string, momento?: string): Promise<ResultadoDia0Bienestar> {
+  const id = await botIdPorNombre('som-bienestar-dia0');
+  return (await medplum.executeBot(id, { pacienteRef, ...(momento ? { momento } : {}) })) as ResultadoDia0Bienestar;
 }
 
 export interface ResultadoBorradorBot {
