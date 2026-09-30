@@ -3,15 +3,17 @@
  *
  * Lee la conversación y el contexto operativo del paciente y devuelve el BORRADOR de la
  * próxima respuesta. La recepcionista lo lee, lo corrige si hace falta y lo envía:
- * **nada sale sin que una persona toque Enviar**. Solo lectura: no escribe nada en
- * FHIR ni manda ningún mensaje. Lógica pura y reglas en `src/lib/borrador.ts`.
+ * **nada sale sin que una persona toque Enviar**. No manda ningún mensaje ni escribe
+ * datos del paciente: lo único que escribe es el registro de uso de IA de la llamada
+ * (AuditEvent `uso-ia`, ligado a la conversación; `src/lib/uso-ia.ts`). Lógica pura y
+ * reglas en `src/lib/borrador.ts`.
  *
  * Lo ejecuta Recepción (whitelisteado en su AccessPolicy). Requiere el Project Secret
  * ANTHROPIC_API_KEY; sin él devuelve un aviso claro y Recepción escribe a mano.
  */
 import type { BotEvent, MedplumClient } from '@medplum/core';
 import { formatHumanName } from '@medplum/core';
-import { MODELO_CLAUDE_BORRADOR, SYSTEM } from '../fhir/identifiers.js';
+import { BOT_BORRADOR_RESPUESTA, ESFUERZO_CLAUDE_BORRADOR, MODELO_CLAUDE_BORRADOR, SYSTEM } from '../fhir/identifiers.js';
 import {
   limpiarBorrador,
   promptBorrador,
@@ -21,6 +23,7 @@ import {
   type ResultadoBorrador,
 } from '../lib/borrador.js';
 import { esDelPaciente, motivoDe, textoMensaje } from '../lib/mensajes.js';
+import { PROCESO_IA, registrarUsoIa, usoDeRespuesta } from '../lib/uso-ia.js';
 import { clienteClaude, textoRespuesta } from './_claude.js';
 import { tieneConsentimiento } from './_shared.js';
 
@@ -139,21 +142,32 @@ export async function handler(medplum: MedplumClient, event: BotEvent<EntradaBor
       model: MODELO_CLAUDE_BORRADOR,
       max_tokens: 16000,
       // Un mensaje corto de atención: esfuerzo bajo alcanza y responde rápido.
-      output_config: { effort: 'low' },
+      output_config: { effort: ESFUERZO_CLAUDE_BORRADOR },
       // Si el modelo declina, el servidor reintenta con el modelo de respaldo recomendado.
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       system: systemBorrador(),
       messages: [{ role: 'user', content: promptBorrador(entrada.contexto, entrada.mensajes) }],
     });
-    // Una negativa no es un error: se le avisa a Recepción y listo.
-    if (resp.stop_reason === 'refusal') {
-      return { motivo: 'El asistente no redactó este mensaje. Contestalo vos.' };
-    }
-    if (resp.stop_reason === 'max_tokens') {
-      return { motivo: 'El borrador quedó incompleto. Escribí la respuesta a mano.' };
-    }
-    return limpiarBorrador(textoRespuesta(resp.content));
+    const resultado: ResultadoBorrador =
+      // Una negativa no es un error: se le avisa a Recepción y listo.
+      resp.stop_reason === 'refusal'
+        ? { motivo: 'El asistente no redactó este mensaje. Contestalo vos.' }
+        : resp.stop_reason === 'max_tokens'
+          ? { motivo: 'El borrador quedó incompleto. Escribí la respuesta a mano.' }
+          : limpiarBorrador(textoRespuesta(resp.content));
+    // Los tokens se cobran haya o no borrador: el uso se registra siempre.
+    await registrarUsoIa(medplum, {
+      proceso: PROCESO_IA.borradorMensaje,
+      uso: usoDeRespuesta(resp, MODELO_CLAUDE_BORRADOR),
+      bot: event.bot,
+      botNombre: BOT_BORRADOR_RESPUESTA,
+      origen: `Communication/${event.input.hiloId}`,
+      ok: Boolean(resultado.borrador),
+      motivo: resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens' ? resp.stop_reason : resultado.motivo,
+      esfuerzo: ESFUERZO_CLAUDE_BORRADOR,
+    });
+    return resultado;
   } catch (err) {
     console.log(`som-borrador-respuesta: la API falló: ${err instanceof Error ? err.message : err}`);
     return { motivo: 'No pude generar el borrador ahora. Escribí la respuesta a mano.' };
