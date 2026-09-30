@@ -98,6 +98,21 @@ describe('Puesta en marcha — chequeo', () => {
     expect(evaluarPuestaEnMarcha(sinPortal).find((c) => c.titulo === POLICY_PACIENTE_PORTAL.name)).toMatchObject({ estado: 'falta' });
   });
 
+  it('dos nombres con el mismo id en medplum.config.json: un deploy pisó a otro bot', () => {
+    const estado = completo();
+    estado.idsConfig = { 'som-solicitar-turno': 'fa209611', 'som-solicitar': 'fa209611', 'som-alta-paciente': 'abc', 'som-limpiar-demo': '' };
+    const chequeos = evaluarPuestaEnMarcha(estado);
+    expect(chequeos.find((c) => c.titulo.startsWith('Un solo bot'))).toMatchObject({
+      estado: 'falta',
+      titulo: 'Un solo bot (fa209611) con 2 nombres',
+      detalle: expect.stringMatching(/som-solicitar-turno y som-solicitar/),
+      arreglo: ARREGLO_DEPLOY,
+    });
+    expect(resumirPuestaEnMarcha(chequeos).listo).toBe(false);
+    // Ids vacíos (bots todavía no deployados) no cuentan como repetidos.
+    expect(evaluarPuestaEnMarcha({ ...completo(), idsConfig: { a: '', b: '' } }).filter((c) => c.titulo.startsWith('Un solo bot'))).toEqual([]);
+  });
+
   it('faltan un profesional y una agenda: los nombra', () => {
     const estado = completo();
     estado.practitionerCodigos = estado.practitionerCodigos.filter((c) => c !== 'MED_GOLD');

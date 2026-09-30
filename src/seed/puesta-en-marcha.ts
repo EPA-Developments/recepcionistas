@@ -29,10 +29,11 @@ import {
 } from '../lib/puesta-en-marcha.js';
 import { conectarMedplum } from './conexion.js';
 
-/** Los bots que deploya `npm run deploy:bots` (misma lista que escribe en `medplum.config.json`). */
-function botsEsperados(): string[] {
-  const config = JSON.parse(readFileSync('medplum.config.json', 'utf8')) as { bots?: Array<{ name: string }> };
-  return (config.bots ?? []).map((b) => b.name);
+/** Los bots que deploya `npm run deploy:bots` (misma lista que escribe en `medplum.config.json`), con el id que guardó. */
+function botsDelConfig(): { nombres: string[]; ids: Record<string, string> } {
+  const config = JSON.parse(readFileSync('medplum.config.json', 'utf8')) as { bots?: Array<{ name: string; id?: string }> };
+  const bots = config.bots ?? [];
+  return { nombres: bots.map((b) => b.name), ids: Object.fromEntries(bots.map((b) => [b.name, b.id ?? ''])) };
 }
 
 async function urlsExistentes(medplum: MedplumClient, tipo: 'PlanDefinition' | 'Questionnaire', urls: string[]): Promise<string[]> {
@@ -69,11 +70,13 @@ async function leerEstado(medplum: MedplumClient, projectId: string): Promise<Es
     ...RECURSOS_DEL_MONOREPO.filter((r) => r.tipo === 'PlanDefinition').map((r) => r.url),
   ]);
 
+  const config = botsDelConfig();
   return {
     projectId,
     ...(project.name ? { nombreProyecto: project.name } : {}),
     bots: bots.map((b) => b.name).filter((n): n is string => Boolean(n)),
-    botsEsperados: botsEsperados(),
+    botsEsperados: config.nombres,
+    idsConfig: config.ids,
     policies,
     questionnaireUrls,
     planDefinitionUrls,

@@ -86,6 +86,8 @@ export interface EstadoServidor {
   bots: string[];
   /** Nombres de los bots que deploya `npm run deploy:bots` (`medplum.config.json`). */
   botsEsperados: string[];
+  /** Ids guardados en `medplum.config.json` por nombre (los que ya se deployaron). */
+  idsConfig?: Record<string, string>;
   /** Las AccessPolicy del proyecto (para compararlas con las del repo). */
   policies: AccessPolicy[];
   /** `url` de los Questionnaire encontrados. */
@@ -125,6 +127,19 @@ export function evaluarPuestaEnMarcha(s: EstadoServidor): Chequeo[] {
       ? ok('Bots', `${s.botsEsperados.length} bots creados`, 'Existen en el proyecto; el código deployado es el del último `npm run deploy:bots`.')
       : falta('Bots', `Faltan ${botsFaltan.length} de ${s.botsEsperados.length} bots`, botsFaltan.join(', '), ARREGLO_DEPLOY),
   );
+  // Dos nombres con el mismo id en medplum.config.json: un deploy anterior buscó por
+  // prefijo y le cargó a un bot el código del otro. Se arregla volviendo a deployar.
+  const porId = new Map<string, string[]>();
+  for (const [nombre, id] of Object.entries(s.idsConfig ?? {})) {
+    if (id) {
+      porId.set(id, [...(porId.get(id) ?? []), nombre]);
+    }
+  }
+  for (const [id, nombres] of porId) {
+    if (nombres.length > 1) {
+      out.push(falta('Bots', `Un solo bot (${id}) con ${nombres.length} nombres`, `${nombres.join(' y ')}: el último deploy pisó el código de uno con el del otro.`, ARREGLO_DEPLOY));
+    }
+  }
 
   // Roles: cada policy del repo existe y está al día.
   for (const repo of ACCESS_POLICIES) {
