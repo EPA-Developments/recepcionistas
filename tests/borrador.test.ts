@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent } from '@medplum/core';
 import type { Appointment, CarePlan, Communication, DocumentReference, Patient, Resource } from '@medplum/fhirtypes';
 import { LOINC_CONSENTIMIENTO, SYSTEM } from '../src/fhir/identifiers.js';
@@ -161,6 +161,42 @@ describe('bot som-borrador-respuesta', () => {
     expect(await armarEntradaBorrador(medplum, 'no-existe')).toMatchObject({
       motivo: expect.stringMatching(/No encontré/),
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('pide el borrador a Opus 5.5 con esfuerzo bajo y respaldo, y devuelve el texto', async () => {
+    const fetchMock = vi.fn(async (..._a: unknown[]) =>
+      new Response(
+        JSON.stringify({
+          id: 'msg_1',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-5-5',
+          content: [{ type: 'text', text: '¡Hola Ana! Ya te pasamos el turno al viernes.' }],
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum } = fakeMedplum([ana, ...conversacion('paciente')]);
+    const secrets = { ANTHROPIC_API_KEY: { name: 'ANTHROPIC_API_KEY', valueString: 'sk-test' } };
+    const event = { input: { hiloId: 'c1' }, secrets } as unknown as BotEvent<EntradaBorrador>;
+
+    expect(await handler(medplum, event)).toEqual({ borrador: '¡Hola Ana! Ya te pasamos el turno al viernes.' });
+    const [llamada] = fetchMock.mock.calls.filter((c) => String(c[0]).includes('api.anthropic.com'));
+    const init = llamada![1] as RequestInit;
+    const body = JSON.parse(String(init.body));
+    expect(body.model).toBe('claude-opus-5-5');
+    expect(body.output_config.effort).toBe('low');
+    expect(body.thinking).toBeUndefined(); // en Opus 5.5 no se puede apagar: no se envía
+    expect(body.fallbacks).toBe('default');
+    expect(new Headers(init.headers).get('anthropic-beta')).toContain('server-side-fallback-2026-07-01');
   });
 
   it('sin ANTHROPIC_API_KEY avisa y no llama a nadie', async () => {
