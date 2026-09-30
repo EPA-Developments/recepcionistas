@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   const { medplum, baseUrl, projectId } = await conectarMedplum();
   console.log(`Conectado a ${baseUrl}. Probando WhatsApp a: ${to}`);
 
-  const bot = await medplum.searchOne('Bot', 'name=som-enviar-whatsapp');
+  const bot = await medplum.searchOne('Bot', { 'name:exact': 'som-enviar-whatsapp' });
   if (!bot?.id) {
     console.error('\n✗ No encontré el bot "som-enviar-whatsapp". Deployalo: npm run deploy:bots');
     process.exitCode = 1;

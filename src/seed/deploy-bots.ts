@@ -186,9 +186,15 @@ async function main(): Promise<void> {
   }
 }
 
-/** Devuelve el id del bot: lo busca por nombre; si no existe intenta crearlo. */
+/** Devuelve el id del bot: lo busca por nombre exacto; si no existe intenta crearlo. */
 async function asegurarBot(medplum: MedplumClient, projectId: string, b: DefBot): Promise<string | undefined> {
-  const existente = await medplum.searchOne('Bot', `name=${encodeURIComponent(b.name)}`);
+  // `name=` en FHIR es "empieza con": buscando `som-solicitar` el servidor devolvía
+  // `som-solicitar-turno`, y el deploy le cargaba a ese bot el código del otro. Sólo vale
+  // el nombre exacto, y si igual viniera otro, se aborta antes de deployar.
+  const existente = await medplum.searchOne('Bot', { 'name:exact': b.name });
+  if (existente?.id && existente.name !== b.name) {
+    throw new Error(`Buscando el bot "${b.name}" el servidor devolvió "${existente.name}" (${existente.id}). No se deploya.`);
+  }
   if (existente?.id) {
     console.log(`  = Bot existente: ${b.name} (${existente.id})`);
     return existente.id;
