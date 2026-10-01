@@ -82,6 +82,7 @@ function contextosDe(s: Servicio): UsageContext[] {
   return contextos;
 }
 import { construirPlanDefinitionGlp1 } from '../lib/glp1-plan.js';
+import { codingsBiomarcador, construirPlanDefinitionLaboratorio } from '../lib/laboratorio-rutina.js';
 
 
 export function buildActivityDefinition(s: Servicio): ActivityDefinition {
@@ -286,28 +287,21 @@ export function buildPlanDefinitionGlp1(): PlanDefinition {
   return construirPlanDefinitionGlp1(urlServicio(CODIGO_CONTROL_GLP1));
 }
 
-const LOINC = 'http://loinc.org';
 const UCUM = 'http://unitsofmeasure.org';
 
 /**
  * ObservationDefinition de un biomarcador, con el shape que parsea el portal
- * (`app/src/fhir/biomarkers.ts`): `code` LOINC, `category` panel-biomarcador,
- * `quantitativeDetails.unit` (UCUM) y `qualifiedInterval` convencional (con `gender`
- * si es por sexo). Solo rangos de salud convencional: nunca `funcional`.
+ * (`EPA-Developments/app`, `src/fhir/biomarkers.ts`): `code` LOINC (todos los del
+ * analito), `identifier` con su clave, `category` panel-biomarcador y nivel,
+ * `quantitativeDetails.unit` (UCUM) y `qualifiedInterval` convencional solo si hay rango
+ * de guía (con `gender` si es por sexo). Nunca `funcional`.
  */
 export function buildObservationDefinition(b: Biomarcador): ObservationDefinition {
-  const sistema = b.sistema === 'som' ? SYSTEM.biomarker : LOINC;
   return {
     resourceType: 'ObservationDefinition',
     // Otros códigos LOINC del mismo valor (p. ej. eGFR 62238-1 + 33914-3): el bot los
     // escribe todos en la Observation, así la encuentra cada lector.
-    code: {
-      coding: [
-        { system: sistema, code: b.codigo, display: b.nombre },
-        ...(b.codigosEquivalentes ?? []).map((code) => ({ system: LOINC, code, display: b.nombre })),
-      ],
-      text: b.nombre,
-    },
+    code: { coding: codingsBiomarcador(b), text: b.nombre },
     identifier: [{ system: SYSTEM.analito, value: b.slug }],
     category: [
       { coding: [{ system: SYSTEM.panelBiomarcador, code: b.panel, display: PANEL_DISPLAY[b.panel] }] },
@@ -372,7 +366,12 @@ export function buildSeed(): RecursosSeed {
     accessPolicies: ACCESS_POLICIES,
     tcConfig: buildTcConfig(),
     activityDefinitions: SERVICIOS.map(buildActivityDefinition),
-    planDefinitions: [buildPlanDefinitionGlp1(), buildPlanDefinitionBienestar()],
+    planDefinitions: [
+      buildPlanDefinitionGlp1(),
+      buildPlanDefinitionBienestar(),
+      construirPlanDefinitionLaboratorio('esencial'),
+      construirPlanDefinitionLaboratorio('extensivo'),
+    ],
     questionnaires: INSTRUMENTOS_PB100D.map((q) => ({ ...q })),
     locations: RECURSOS.map((r) => buildLocation(r.codigo)),
     schedules: [...RECURSOS.map((r) => buildSchedule(r.codigo)), ...MEDICOS.map((m) => buildScheduleProfesional(m.codigo))],
@@ -394,7 +393,7 @@ export function gruposSeed(seed: RecursosSeed): Array<[string, Resource[]]> {
     ['AccessPolicy (roles)', seed.accessPolicies],
     ['Basic (config TC)', [seed.tcConfig]],
     ['ActivityDefinition (servicios)', seed.activityDefinitions],
-    ['PlanDefinition (programas)', seed.planDefinitions],
+    ['PlanDefinition (programas y laboratorio de rutina)', seed.planDefinitions],
     ['Questionnaire (instrumentos del equipo PB100D)', seed.questionnaires],
     ['Location (recursos)', seed.locations],
     ['Practitioner (médicos)', seed.practitioners],

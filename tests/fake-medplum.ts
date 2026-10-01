@@ -1,7 +1,7 @@
 /**
  * MedplumClient en memoria para tests de bots: guarda recursos y resuelve las
  * búsquedas que usan los bots y la app (_id, subject/patient, sender, status, category,
- * code, type, based-on, part-of, part-of:missing, identifier, phone, email; en los tokens, la
+ * code, type, based-on, part-of, part-of:missing, identifier, requisition, phone, email; en los tokens, la
  * coma es OR; `_sort` por `sent`). No es un servidor FHIR: solo lo necesario para
  * probar la orquestación sin red.
  */
@@ -100,6 +100,13 @@ function cumple(r: Registro, param: string, valor: string): boolean {
       return ((r.identifier as Array<{ system?: string; value?: string }> | undefined) ?? []).some(
         (i) => (sistema === undefined || i.system === sistema) && i.value === v,
       );
+    }
+    case 'requisition': {
+      const corte = valor.indexOf('|');
+      const sistema = corte === -1 ? undefined : valor.slice(0, corte);
+      const v = corte === -1 ? valor : valor.slice(corte + 1);
+      const req = r.requisition as { system?: string; value?: string } | undefined;
+      return Boolean(req) && (sistema === undefined || req?.system === sistema) && req?.value === v;
     }
     default:
       return true; // _count, _sort, start, etc.: no filtran en el fake

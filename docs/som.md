@@ -354,6 +354,34 @@ definiciones que ya estaban en el servidor con rangos funcionales:
 `npm run biomarcadores:convencional` (lista, dry-run) y `-- --apply` (los quita,
 conserva los convencionales; Medplum guarda el historial).
 
+## Pedido de laboratorio de rutina (`som-pedir-laboratorio`)
+
+El pedido estándar del médico sale del mismo catálogo: los **esenciales** (17 analitos:
+perfil básico y riesgo cardiovascular, función renal y electrolitos) y, si hace falta,
+los **extensivos**. Se piden los analitos principales; los que "cuentan como" otro (BUN,
+LDL directo, calcio iónico, Lp(a) en mg/dL) son alternativas que el laboratorio puede
+informar en su lugar.
+
+- **Plantillas** (`npm run seed`): `PlanDefinition` `order-set`
+  `…/PlanDefinition/laboratorio-rutina-esencial` y `…-extensivo`, con un grupo por panel
+  y una acción por analito (LOINC).
+- **Bot** (lo ejecuta el equipo médico; Recepción no):
+
+  ```json
+  { "pacienteRef": "Patient/123", "niveles": ["esencial", "extensivo"],
+    "paneles": ["renal"], "solicitanteRef": "Practitioner/456", "avisar": true }
+  ```
+
+  Solo `pacienteRef` es obligatorio: por defecto, los esenciales de todos los paneles.
+  Crea un `ServiceRequest` por analito (`status=active`, `intent=order`, categoría
+  laboratorio + panel, `code` con todos los LOINC del analito, `instantiatesCanonical` a
+  la plantilla de su nivel) agrupados por `requisition` (`…/Identifier/pedido-laboratorio`,
+  paciente + día + niveles + paneles), y un `Communication` al paciente con la lista y el
+  recordatorio de mandar el PDF. El mismo pedido el mismo día no se duplica ni se vuelve a
+  avisar. Devuelve el pedido en texto, un panel por línea.
+- **En el portal**, cada panel de Biomarcadores avisa "te faltan X de 17 estudios
+  esenciales" de los últimos 12 meses, con la misma lista.
+
 ## ⚠️ Pendientes / a validar
 
 - **Firma médica (Gobernanza).** PREVENT (coeficientes ya verificados contra la

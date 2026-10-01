@@ -157,6 +157,8 @@ export const SYSTEM = {
   planCuidado: `${BASE}/CodeSystem/care-plans`,
   /** Identifier de los recursos de un programa GLP-1 (CarePlan, Goal, pedidos, tareas). */
   programaGlp1: `${BASE}/Identifier/programa-glp1`,
+  /** Pedido de laboratorio de rutina: `requisition` que agrupa sus ServiceRequest (uno por analito). */
+  pedidoLaboratorio: `${BASE}/Identifier/pedido-laboratorio`,
   /** Identifier de las tareas del Plan Bienestar 100 Días® (una por consulta programada). */
   programaBienestar: `${BASE}/Identifier/programa-bienestar`,
   /** Canal de una Communication (`Communication.category`), p. ej. `whatsapp`: así se busca el chat. */
@@ -342,6 +344,15 @@ export const PLAN_GLP1_VERSION = '1';
 export const BOT_GLP1_INSCRIBIR = 'som-glp1-inscribir';
 /** Equipo médico: con la indicación, arma o recalcula el plan. Recepción NO lo ejecuta. */
 export const BOT_GLP1_PLAN = 'som-glp1-plan';
+
+/** Laboratorio de rutina: pedido estándar (PlanDefinition order-set) por nivel, del catálogo de biomarcadores. */
+export const PLAN_LABORATORIO_RUTINA_URL = {
+  esencial: `${BASE}/PlanDefinition/laboratorio-rutina-esencial`,
+  extensivo: `${BASE}/PlanDefinition/laboratorio-rutina-extensivo`,
+} as const;
+export const PLAN_LABORATORIO_RUTINA_VERSION = '1';
+/** Equipo médico: pide el laboratorio de rutina de un paciente. Recepción NO lo ejecuta. */
+export const BOT_PEDIR_LABORATORIO = 'som-pedir-laboratorio';
 
 /** Clave del recurso de configuración de Tipo de Cambio (Basic). */
 export const CONFIG_TC_ID = 'config-tipo-cambio';
