@@ -24,7 +24,14 @@ import type {
   ObservationReferenceRange,
   Task,
 } from '@medplum/fhirtypes';
-import { COD, LOINC_INFORME_LABORATORIO, SYSTEM } from '../fhir/identifiers.js';
+import type Anthropic from '@anthropic-ai/sdk';
+import {
+  COD,
+  ESFUERZO_CLAUDE_LABORATORIO,
+  LOINC_INFORME_LABORATORIO,
+  MODELO_CLAUDE_LABORATORIO,
+  SYSTEM,
+} from '../fhir/identifiers.js';
 
 const UCUM = 'http://unitsofmeasure.org';
 
@@ -201,6 +208,34 @@ export function motivoSinResultados(extraccion: ExtraccionLaboratorio | undefine
     return 'no se pudieron leer resultados en el PDF';
   }
   return extraccion.esInformeDeLaboratorio ? 'no se encontraron valores en el PDF' : 'el PDF no parece un informe de laboratorio';
+}
+
+/**
+ * El pedido a Claude que transcribe un PDF de laboratorio: el que manda el bot y el que
+ * prueba `npm run claude:probar` (así la prueba mide exactamente lo mismo).
+ */
+export function pedidoExtraccionLaboratorio(
+  base64: string,
+  catalogo: EntradaCatalogo[],
+): Anthropic.Beta.Messages.MessageCreateParamsNonStreaming {
+  return {
+    model: MODELO_CLAUDE_LABORATORIO,
+    max_tokens: 16000,
+    // Si el modelo declina, el servidor reintenta con el modelo de respaldo recomendado.
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    system: SYSTEM_PROMPT_LABORATORIO,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+          { type: 'text', text: construirPromptLaboratorio(catalogo) },
+        ],
+      },
+    ],
+    output_config: { effort: ESFUERZO_CLAUDE_LABORATORIO, format: { type: 'json_schema', schema: ESQUEMA_EXTRACCION } },
+  };
 }
 
 /** ¿El DocumentReference es un PDF de laboratorio del paciente (el que dispara el bot)? */

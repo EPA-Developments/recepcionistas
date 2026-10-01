@@ -38,14 +38,11 @@ import {
   SYSTEM,
 } from '../fhir/identifiers.js';
 import {
-  ESQUEMA_EXTRACCION,
   MENSAJE_NO_PROCESADO,
-  SYSTEM_PROMPT_LABORATORIO,
   adjuntoPdf,
   catalogoDesdeObservationDefinitions,
   construirDiagnosticReportLaboratorio,
   construirObservaciones,
-  construirPromptLaboratorio,
   esDocumentoLaboratorio,
   esRevisionLaboratorio,
   esUrlExterna,
@@ -53,6 +50,7 @@ import {
   motivoSinResultados,
   normalizarExtraccion,
   pareceUnPdf,
+  pedidoExtraccionLaboratorio,
   relatedConInforme,
   type EntradaCatalogo,
   type ExtraccionLaboratorio,
@@ -226,24 +224,7 @@ async function extraer(
   catalogo: EntradaCatalogo[],
 ): Promise<Transcripcion> {
   const resp = await claude.beta.messages
-    .create({
-      model: MODELO_CLAUDE_LABORATORIO,
-      max_tokens: 16000,
-      // Si el modelo declina, el servidor reintenta con el modelo de respaldo recomendado.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system: SYSTEM_PROMPT_LABORATORIO,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-            { type: 'text', text: construirPromptLaboratorio(catalogo) },
-          ],
-        },
-      ],
-      output_config: { effort: ESFUERZO_CLAUDE_LABORATORIO, format: { type: 'json_schema', schema: ESQUEMA_EXTRACCION } },
-    })
+    .create(pedidoExtraccionLaboratorio(base64, catalogo))
     .catch((err: unknown) => {
       console.error('som-procesar-laboratorio: error de extracción:', err instanceof Error ? err.message : err);
       return err instanceof Anthropic.APIError ? err : undefined;

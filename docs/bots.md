@@ -81,6 +81,12 @@ documento, con la extensión `subscription-supported-interaction=create`).
 > fondo) y 60 s a `som-borrador-respuesta` (Recepción espera). Si el log sigue mostrando
 > el corte a los 10 s, el servidor no pasó el timeout a Lambda: subilo en la configuración
 > de la función de Lambda del bot (AWS → Lambda → Configuration → General).
+>
+> Para probar la API de Claude por fuera de Medplum: `npm run claude:probar` (con
+> `ANTHROPIC_API_KEY` en la terminal) verifica la clave, los modelos de los bots y una
+> respuesta corta; con `-- estudio.pdf` lee ese PDF con el mismo pedido que el bot de
+> laboratorio y dice si entra en sus 300 s. Si desde tu máquina anda y desde el bot no, el
+> problema es la salida a internet de la Lambda (VPC sin NAT): mirá sus logs en CloudWatch.
 
 **Uso de IA.** Los tres bots que llaman a Claude dejan, por cada llamada, un
 `AuditEvent` (type `…/CodeSystem/uso-ia|llamada-modelo`) ligado al recurso que la

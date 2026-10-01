@@ -81,6 +81,7 @@ npm run seed               # carga el catálogo en Medplum (requiere credenciale
 | `npm run deploy:bots` | Crea + bundlea + deploya los Bots a Medplum (ver `docs/bots.md`) |
 | `npm run laboratorio:seguimiento -- <id del paciente>` | Prueba del laboratorio en PDF: la cadena del último PDF del paciente paso a paso, con el arreglo de lo que falle (solo lectura; ver `docs/som.md`) |
 | `npm run laboratorio:reprocesar -- <id del paciente> [--apply]` | PDF de laboratorio del paciente que siguen "En proceso": los lista (dry-run); con `--apply` ejecuta el bot con cada uno |
+| `npm run claude:probar [-- estudio.pdf]` | Prueba la API de Claude con la clave de `ANTHROPIC_API_KEY` (la del secret de Medplum): clave, modelos de los bots y una respuesta corta; con un PDF, lo lee como el bot de laboratorio y mide si entra en su límite de 300 s. No escribe en Medplum |
 | `npm run uso:ia [-- AAAA-MM]` | Uso de IA del mes (llamadas, tokens y costo estimado por proceso), desde los `AuditEvent` `uso-ia` |
 
 ## Estructura
