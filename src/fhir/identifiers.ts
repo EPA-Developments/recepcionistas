@@ -159,6 +159,11 @@ export const SYSTEM = {
   /** Identifier del mensaje en Twilio (MessageSid): deduplica entrantes y liga los estados de entrega. */
   twilioMessageSid: `${BASE}/Identifier/twilio-message-sid`,
   /**
+   * Huella del PDF de laboratorio (SHA-256 del archivo, en hex) como Identifier del
+   * DocumentReference: el bot reconoce un PDF que el paciente ya mandó y reutiliza su informe.
+   */
+  huellaPdf: `${BASE}/Identifier/huella-pdf`,
+  /**
    * Uso de IA (`AuditEvent.type` `llamada-modelo`; `subtype` = el proceso, p. ej.
    * `laboratorio-pdf`): tokens y costo estimado de cada llamada (`src/lib/uso-ia.ts`).
    */

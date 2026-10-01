@@ -9,6 +9,8 @@ import {
   relatedConInforme,
   type ExtraccionLaboratorio,
   estadoProcesamiento,
+  huellaPdf,
+  originalProcesado,
   pendientesDeProcesar,
 } from '../src/lib/laboratorio.js';
 import { handler as procesar } from '../src/bots/som-procesar-laboratorio.js';
@@ -423,6 +425,64 @@ describe('Bot som-procesar-laboratorio', () => {
       expect.objectContaining({ id: 'rev1', status: 'requested', description: expect.stringContaining('el PDF no parece un informe de laboratorio') }),
     ]);
     expect(todos('Communication')).toHaveLength(0);
+  });
+
+  describe('el mismo PDF mandado dos veces', () => {
+    const huella = huellaPdf(Buffer.from('JVBERi0xLjQK', 'base64'));
+    const original: DocumentReference = {
+      ...docLab,
+      id: 'lab0',
+      date: '2026-09-24T23:32:58Z',
+      identifier: [{ system: SYSTEM.huellaPdf, value: huella }],
+      context: { related: [{ reference: 'DiagnosticReport/dr0' }] },
+    };
+    const otraVez: DocumentReference = { ...docLab, id: 'lab2', date: '2026-09-30T21:04:26Z' };
+
+    it('reutiliza el informe del original: sin llamar a Claude, sin valores repetidos', async () => {
+      const fetchMock = vi.fn(async (..._a: unknown[]) => respuestaClaude({}));
+      vi.stubGlobal('fetch', fetchMock);
+      const { medplum, todos } = fakeMedplum([consentimiento, original, otraVez, ...defs]);
+
+      expect(await procesar(medplum, evento(otraVez))).toMatchObject({
+        ok: true,
+        diagnosticReportId: 'dr0',
+        duplicadoDe: 'DocumentReference/lab0',
+      });
+      expect(llamadasClaude(fetchMock)).toHaveLength(0);
+      expect(todos('Observation')).toHaveLength(0);
+      expect(todos('DiagnosticReport')).toHaveLength(0);
+      const doc = todos<DocumentReference>('DocumentReference').find((d) => d.id === 'lab2');
+      expect(doc?.context?.related).toEqual([{ reference: 'DiagnosticReport/dr0' }]);
+      expect(doc?.identifier).toEqual([{ system: SYSTEM.huellaPdf, value: huella }]);
+    });
+
+    it('si el original todavía no tiene informe, este se procesa normal (y guarda su huella)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (..._a: unknown[]) =>
+          respuestaClaude({
+            esInformeDeLaboratorio: true,
+            fechaExtraccion: '2026-09-18',
+            laboratorio: null,
+            analitos: [{ nombre: 'Colesterol LDL', codigo: LDL, valor: 131, valorTexto: null, unidad: 'mg/dL', referencia: null }],
+          }),
+        ),
+      );
+      const sinInforme = { ...original, context: undefined };
+      const { medplum, todos } = fakeMedplum([consentimiento, sinInforme, otraVez, ...defs]);
+      expect(await procesar(medplum, evento(otraVez))).toMatchObject({ ok: true, observaciones: 1 });
+      expect(todos<DocumentReference>('DocumentReference').find((d) => d.id === 'lab2')?.identifier).toEqual([
+        { system: SYSTEM.huellaPdf, value: huella },
+      ]);
+    });
+
+    it('originalProcesado: el más viejo con informe, nunca el mismo documento ni uno anulado', () => {
+      const anulado = { ...original, id: 'anulado', date: '2026-09-01T00:00:00Z', status: 'entered-in-error' as const };
+      expect(originalProcesado([otraVez, anulado, original], 'lab2')).toEqual({ documento: original, informe: 'DiagnosticReport/dr0' });
+      expect(originalProcesado([original], 'lab0')).toBeUndefined();
+      expect(huellaPdf(Buffer.from('%PDF-1.4'))).toMatch(/^[0-9a-f]{64}$/);
+      expect(huellaPdf(Buffer.from('%PDF-1.4'))).not.toBe(huellaPdf(Buffer.from('%PDF-1.5')));
+    });
   });
 
   it('ignora documentos que no son resultados de laboratorio (p. ej. el consentimiento)', async () => {

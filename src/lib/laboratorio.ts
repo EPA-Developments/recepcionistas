@@ -24,6 +24,7 @@ import type {
   ObservationReferenceRange,
   Task,
 } from '@medplum/fhirtypes';
+import { createHash } from 'node:crypto';
 import type Anthropic from '@anthropic-ai/sdk';
 import {
   COD,
@@ -258,6 +259,39 @@ export function pendientesDeProcesar(docs: DocumentReference[]): DocumentReferen
   return docs
     .filter((d) => esDocumentoLaboratorio(d) && d.status === 'current' && !informeYaGenerado(d))
     .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+}
+
+/** Huella de un PDF: SHA-256 del archivo en hex. Mismo archivo ⇒ misma huella. */
+export function huellaPdf(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+/** La huella guardada en el DocumentReference, si ya se calculó. */
+export function huellaDe(doc: DocumentReference): string | undefined {
+  return doc.identifier?.find((i) => i.system === SYSTEM.huellaPdf)?.value;
+}
+
+/** El documento con su huella (reemplaza una anterior; no toca otros identifiers). */
+export function conHuella(doc: DocumentReference, huella: string): DocumentReference {
+  return {
+    ...doc,
+    identifier: [...(doc.identifier ?? []).filter((i) => i.system !== SYSTEM.huellaPdf), { system: SYSTEM.huellaPdf, value: huella }],
+  };
+}
+
+/**
+ * Entre los PDF del paciente con la misma huella, el que ya tiene informe (el más viejo):
+ * el original del que `docId` es un duplicado. undefined si no hay ninguno procesado.
+ */
+export function originalProcesado(
+  candidatos: DocumentReference[],
+  docId: string | undefined,
+): { documento: DocumentReference; informe: string } | undefined {
+  const original = candidatos
+    .filter((d) => d.id !== docId && d.status === 'current' && informeYaGenerado(d))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))[0];
+  const informe = original ? informeYaGenerado(original) : undefined;
+  return original && informe ? { documento: original, informe } : undefined;
 }
 
 /** ¿Es la tarea "revisar-laboratorio" que el bot le deja al equipo cuando no puede leer un PDF? */

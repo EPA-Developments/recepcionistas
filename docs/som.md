@@ -199,6 +199,10 @@ por especialidad. Recepción los evalúa con su propia estadificación:
    **link firmado de S3** (`X-Amz-Signature`): se baja con `fetch` **sin** el token de
    Medplum (S3 rechaza firma + `Authorization`, y `medplum.download` agrega el token y no
    mira el estado HTTP). Verifica que sea un PDF (`%PDF-`) antes de mandarlo a Claude.
+   **PDF repetidos**: guarda la huella del archivo (SHA-256) como `Identifier`
+   `…/Identifier/huella-pdf` del documento. Si el paciente ya mandó ese mismo archivo y
+   quedó procesado, liga este documento al mismo `DiagnosticReport` y termina: ni otra
+   lectura de Claude ni valores repetidos en su historia.
 2. **Claude `claude-opus-5-5`** (esfuerzo `high`) transcribe (salida estructurada;
    `fallbacks: "default"` ante una negativa) nombre, valor, unidad, rango del laboratorio y fecha de
    extracción. El **catálogo de códigos sale de las `ObservationDefinition` del
