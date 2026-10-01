@@ -671,6 +671,87 @@ describe('Bot som-procesar-laboratorio', () => {
     });
   });
 
+  describe('releer con el catálogo vigente (laboratorio:actualizar)', () => {
+    const viejo: DiagnosticReport = {
+      resourceType: 'DiagnosticReport',
+      id: 'dr-viejo',
+      status: 'final',
+      code: { coding: [{ system: 'http://loinc.org', code: '11502-2' }] },
+      subject: { reference: 'Patient/p1' },
+      effectiveDateTime: '2026-09-18',
+      issued: '2026-09-24T23:40:00Z',
+      result: [{ reference: 'Observation/crea-vieja' }],
+    };
+    const creatininaVieja: Observation = {
+      resourceType: 'Observation',
+      id: 'crea-vieja',
+      status: 'final',
+      code: { text: 'Creatinina' },
+      subject: { reference: 'Patient/p1' },
+      effectiveDateTime: '2026-09-18',
+      valueQuantity: { value: 0.8, unit: 'mg/dL' },
+    };
+    const procesado: DocumentReference = { ...docLab, context: { related: [{ reference: 'DiagnosticReport/dr-viejo' }] } };
+    const copia: DocumentReference = { ...procesado, id: 'lab-copia', date: '2026-09-30T21:04:26Z' };
+    const paciente: Patient = { resourceType: 'Patient', id: 'p1', gender: 'female', birthDate: '1976-03-10' };
+    const releer = (ref: string) => ({ input: { releer: ref }, secrets: secretos }) as unknown as BotEvent<DocumentReference>;
+    const conCreatinina = () =>
+      respuestaClaude({
+        esInformeDeLaboratorio: true,
+        fechaExtraccion: '2026-09-18',
+        laboratorio: null,
+        analitos: [{ nombre: 'Creatinina', codigo: CREATININA, valor: 0.8, valorTexto: null, unidad: 'mg/dL', referencia: null }],
+      });
+
+    it('el informe nuevo (creatinina codificada + eGFR) reemplaza al viejo en el documento y en su copia', async () => {
+      vi.stubGlobal('fetch', vi.fn(async (..._a: unknown[]) => conCreatinina()));
+      const { medplum, todos } = fakeMedplum([consentimiento, procesado, copia, viejo, creatininaVieja, paciente, ...defs]);
+
+      const r = await procesar(medplum, releer('DocumentReference/lab1'));
+      expect(r).toMatchObject({ ok: true, observaciones: 2, reemplazaA: 'DiagnosticReport/dr-viejo' });
+      const nuevo = `DiagnosticReport/${r.diagnosticReportId}`;
+      for (const id of ['lab1', 'lab-copia']) {
+        expect(todos<DocumentReference>('DocumentReference').find((d) => d.id === id)?.context?.related).toEqual([{ reference: nuevo }]);
+      }
+      const informes = todos<DiagnosticReport>('DiagnosticReport');
+      expect(informes.find((d) => d.id === 'dr-viejo')).toMatchObject({ status: 'entered-in-error', conclusion: expect.stringMatching(/Reemplazado/) });
+      const obs = todos<Observation>('Observation');
+      expect(obs.find((o) => o.id === 'crea-vieja')?.status).toBe('entered-in-error');
+      const egfr = obs.find((o) => o.code?.coding?.some((c) => c.code === '62238-1'));
+      expect(egfr?.valueQuantity?.value).toBe(90);
+      // Sin avisos ni tareas: el paciente ya tenía sus resultados.
+      expect(todos('Communication')).toHaveLength(0);
+      expect(todos('Task')).toHaveLength(0);
+      expect(todos<AuditEvent>('AuditEvent')).toHaveLength(1);
+    });
+
+    it('si la relectura falla no cambia nada: el informe anterior sigue y no se avisa a nadie', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (..._a: unknown[]) => respuestaClaude({ esInformeDeLaboratorio: false, fechaExtraccion: null, laboratorio: null, analitos: [] })),
+      );
+      const { medplum, todos } = fakeMedplum([consentimiento, procesado, viejo, creatininaVieja, paciente, ...defs]);
+
+      expect(await procesar(medplum, releer('DocumentReference/lab1'))).toMatchObject({
+        ok: false,
+        mensaje: expect.stringMatching(/El informe anterior sigue vigente/),
+      });
+      expect(todos<DocumentReference>('DocumentReference').find((d) => d.id === 'lab1')?.context?.related).toEqual([
+        { reference: 'DiagnosticReport/dr-viejo' },
+      ]);
+      expect(todos<DiagnosticReport>('DiagnosticReport').map((d) => d.status)).toEqual(['final']);
+      expect(todos('Communication')).toHaveLength(0);
+      expect(todos('Task')).toHaveLength(0);
+    });
+
+    it('releer pide un documento que ya tenga informe', async () => {
+      const { medplum } = fakeMedplum([consentimiento, docLab, ...defs]);
+      expect(await procesar(medplum, releer('DocumentReference/lab1'))).toMatchObject({ ok: false, mensaje: expect.stringMatching(/reprocesar/) });
+      expect(await procesar(medplum, releer('Patient/p1'))).toMatchObject({ ok: false, mensaje: expect.stringMatching(/Entrada inválida/) });
+    });
+  });
+
   it('ignora documentos que no son resultados de laboratorio (p. ej. el consentimiento)', async () => {
     const { medplum } = fakeMedplum([consentimiento]);
     expect((await procesar(medplum, evento(consentimiento as DocumentReference))).ok).toBe(false);

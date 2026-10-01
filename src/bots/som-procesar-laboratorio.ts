@@ -28,6 +28,11 @@
  *
  * Idempotente: si el documento ya tiene su DiagnosticReport, no reprocesa. Para
  * reprocesar a mano, ejecutar el bot con el DocumentReference como entrada.
+ *
+ * Releer (`{ "releer": "DocumentReference/<id>" }`, lo usa `laboratorio:actualizar`):
+ * vuelve a leer con el catálogo vigente un PDF que ya tiene informe. El informe nuevo
+ * reemplaza al anterior (que pasa a `entered-in-error`); si falla, no cambia nada y no
+ * se avisa al paciente.
  * La lógica testeable vive en `src/lib/laboratorio.ts`.
  */
 import Anthropic from '@anthropic-ai/sdk';
@@ -63,6 +68,7 @@ import {
   type EntradaCatalogo,
   type ExtraccionLaboratorio,
 } from '../lib/laboratorio.js';
+import { anularInforme, religarDocumentos } from '../lib/laboratorio-actualizar.js';
 import { PROCESO_IA, registrarUsoIa, usoDeRespuesta, type UsoIa } from '../lib/uso-ia.js';
 import { clienteClaude, textoRespuesta } from './_claude.js';
 import { tieneConsentimiento } from './_shared.js';
@@ -76,13 +82,26 @@ export interface ResultadoLaboratorio {
   derivadoAlEquipo?: boolean;
   /** El documento original cuando este es el mismo PDF mandado otra vez. */
   duplicadoDe?: string;
+  /** En una relectura: el informe anterior, que quedó `entered-in-error`. */
+  reemplazaA?: string;
+}
+
+/**
+ * Releer un PDF ya procesado con el catálogo vigente (`npm run laboratorio:actualizar`):
+ * `executeBot` con `{ "releer": "DocumentReference/<id>" }`.
+ */
+export interface EntradaReleer {
+  releer: string;
 }
 
 export async function handler(
   medplum: MedplumClient,
-  event: BotEvent<DocumentReference>,
+  event: BotEvent<DocumentReference | EntradaReleer>,
 ): Promise<ResultadoLaboratorio> {
   const entrada = event.input;
+  if (entrada && 'releer' in entrada) {
+    return releer(medplum, event, entrada.releer);
+  }
   if (entrada?.resourceType !== 'DocumentReference' || !entrada.id) {
     return { ok: false, mensaje: 'Entrada inválida: se esperaba un DocumentReference.' };
   }
@@ -135,11 +154,38 @@ export async function handler(
     };
   }
 
-  // 3) Claude transcribe; el catálogo del servidor define los códigos.
+  // 3) y 4) Claude transcribe; Observations + DiagnosticReport.
+  const transcripto = await transcribirYGuardar(medplum, event, doc, base64);
+  if ('motivo' in transcripto) {
+    return derivarAlEquipo(medplum, pacienteRef, documentoRef, transcripto.motivo);
+  }
+  const { informe, observaciones } = transcripto;
+
+  // 5) Cerrar el circuito en el documento (el portal muestra "Ver resultados").
+  await medplum.updateResource<DocumentReference>({ ...doc, context: relatedConInforme(doc, `DiagnosticReport/${informe.id}`) });
+  // Si antes había pasado al equipo (esto es un reproceso), esa revisión ya no hace falta.
+  await cerrarRevisionesPendientes(medplum, documentoRef);
+
+  return { ok: true, diagnosticReportId: informe.id, observaciones: observaciones.length };
+}
+
+/**
+ * 3) Claude transcribe (el catálogo del servidor define los códigos) y 4) se guardan las
+ * Observation y el DiagnosticReport. Devuelve el motivo si no se pudo (nada escrito,
+ * salvo el uso de IA).
+ */
+async function transcribirYGuardar(
+  medplum: MedplumClient,
+  event: BotEvent<unknown>,
+  doc: DocumentReference,
+  base64: string,
+): Promise<{ informe: DiagnosticReport; observaciones: Observation[] } | { motivo: string }> {
+  const pacienteRef = doc.subject?.reference as string;
+  const documentoRef = `DocumentReference/${doc.id}`;
   const claude = clienteClaude(event.secrets);
   if (!claude) {
     console.warn('som-procesar-laboratorio: falta ANTHROPIC_API_KEY.');
-    return derivarAlEquipo(medplum, pacienteRef, documentoRef, 'procesamiento automático no configurado');
+    return { motivo: 'procesamiento automático no configurado' };
   }
   const defs = await medplum.searchResources('ObservationDefinition', '_count=1000').catch(() => []);
   const catalogo = catalogoDesdeObservationDefinitions(defs);
@@ -158,10 +204,10 @@ export async function handler(
     });
   }
   if (!extraccion || !legible) {
-    return derivarAlEquipo(medplum, pacienteRef, documentoRef, motivo ?? motivoSinResultados(extraccion));
+    return { motivo: motivo ?? motivoSinResultados(extraccion) };
   }
 
-  // 4) Observations + DiagnosticReport.
+  const pdf = adjuntoPdf(doc);
   const refs = { pacienteRef, documentoRef, fechaRespaldo: (doc.date ?? new Date().toISOString()).slice(0, 10), pdf };
   // El eGFR: si el informe no lo trae con un número, se calcula (CKD-EPI 2021) con la
   // creatinina, la edad y el sexo de la paciente.
@@ -177,13 +223,71 @@ export async function handler(
       refs,
     ),
   );
+  return { informe, observaciones };
+}
 
-  // 5) Cerrar el circuito en el documento (el portal muestra "Ver resultados").
-  await medplum.updateResource<DocumentReference>({ ...doc, context: relatedConInforme(doc, `DiagnosticReport/${informe.id}`) });
-  // Si antes había pasado al equipo (esto es un reproceso), esa revisión ya no hace falta.
-  await cerrarRevisionesPendientes(medplum, documentoRef);
-
-  return { ok: true, diagnosticReportId: informe.id, observaciones: observaciones.length };
+/**
+ * Relee con el catálogo vigente un PDF que ya tiene informe. Si sale bien, el informe
+ * nuevo reemplaza al anterior en todos los documentos que lo mostraban y el anterior (con
+ * sus valores) pasa a `entered-in-error`. Si no, no cambia nada: el informe anterior sigue
+ * vigente y no se le avisa al paciente ni se le deja tarea al equipo.
+ */
+async function releer(medplum: MedplumClient, event: BotEvent<unknown>, referencia: string): Promise<ResultadoLaboratorio> {
+  const id = /^DocumentReference\/([^/]+)$/.exec(referencia ?? '')?.[1];
+  if (!id) {
+    return { ok: false, mensaje: 'Entrada inválida: releer espera "DocumentReference/<id>".' };
+  }
+  let doc = await medplum.readResource('DocumentReference', id);
+  if (!esDocumentoLaboratorio(doc)) {
+    return { ok: false, mensaje: 'El documento no es un resultado de laboratorio del portal.' };
+  }
+  const previo = informeYaGenerado(doc);
+  if (!previo) {
+    return { ok: false, mensaje: 'El documento todavía no tiene informe: para procesarlo, npm run laboratorio:reprocesar.' };
+  }
+  const pacienteRef = doc.subject?.reference;
+  if (!pacienteRef?.startsWith('Patient/')) {
+    return { ok: false, mensaje: 'El documento no tiene paciente.' };
+  }
+  const sigue = 'El informe anterior sigue vigente.';
+  if (!(await tieneConsentimiento(medplum, pacienteRef))) {
+    return { ok: false, mensaje: `El paciente no firmó el consentimiento informado. ${sigue}` };
+  }
+  const pdf = adjuntoPdf(doc);
+  const lectura = pdf ? await leerPdf(medplum, pdf.url, pdf.data) : { motivo: 'no se encontró el PDF en el documento' };
+  if ('motivo' in lectura) {
+    return { ok: false, mensaje: `No se pudo releer: ${lectura.motivo}. ${sigue}` };
+  }
+  if (huellaDe(doc) !== lectura.huella) {
+    doc = await medplum.updateResource<DocumentReference>(conHuella(doc, lectura.huella));
+  }
+  const transcripto = await transcribirYGuardar(medplum, event, doc, lectura.base64);
+  if ('motivo' in transcripto) {
+    return { ok: false, mensaje: `No se pudo releer: ${transcripto.motivo}. ${sigue}` };
+  }
+  const nuevo = `DiagnosticReport/${transcripto.informe.id}`;
+  // Todos los documentos que mostraban el informe anterior (este y sus copias) pasan al nuevo.
+  const documentos = await medplum
+    .searchResources('DocumentReference', {
+      subject: pacienteRef,
+      category: `${SYSTEM.documento}|${COD.resultadoLaboratorio}`,
+      _count: '100',
+    })
+    .catch(() => [] as DocumentReference[]);
+  await religarDocumentos(
+    medplum,
+    [doc, ...documentos.filter((d) => d.id !== doc.id)],
+    previo,
+    nuevo,
+  );
+  await anularInforme(medplum, previo, `Reemplazado por ${nuevo}: el PDF se volvió a leer con el catálogo vigente.`);
+  return {
+    ok: true,
+    mensaje: `Releído: ${nuevo} reemplaza a ${previo}.`,
+    diagnosticReportId: transcripto.informe.id,
+    observaciones: transcripto.observaciones.length,
+    reemplazaA: previo,
+  };
 }
 
 const TAREA_ABIERTA: ReadonlySet<Task['status']> = new Set(['draft', 'requested', 'received', 'accepted', 'ready', 'in-progress', 'on-hold']);
