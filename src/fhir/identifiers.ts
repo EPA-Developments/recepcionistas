@@ -74,6 +74,11 @@ export const EXT = {
   patientOrigin: `${SOM_BASE}/StructureDefinition/patient-origin`,
   /** Fecha en que el paciente completó la Bienvenida/Onboarding. La escribe el PORTAL: el backend no la toca. */
   onboardingCompleted: `${SOM_BASE}/StructureDefinition/onboarding-completed`,
+  // ObservationDefinition (catálogo de biomarcadores, `config/biomarcadores.ts`)
+  /** Otro nombre con el que el analito aparece en los informes (uno por extensión). */
+  sinonimoAnalito: `${SOM_BASE}/StructureDefinition/sinonimo-analito`,
+  /** Slug del analito al que cubre este (p. ej. BUN cubre `urea_serica`) para los esenciales. */
+  cuentaComo: `${SOM_BASE}/StructureDefinition/cuenta-como`,
   // Estadificación CKM (Guía AHA/ACC/ADA/ASN 2026) — en el RiskAssessment del informe SOM.
   /** Estadío CKM: `0` | `1` | `2` | `3` | `4a` | `4b`. */
   ckmStage: `${SOM_BASE}/StructureDefinition/ckm-stage`,
@@ -152,12 +157,19 @@ export const SYSTEM = {
   planCuidado: `${BASE}/CodeSystem/care-plans`,
   /** Identifier de los recursos de un programa GLP-1 (CarePlan, Goal, pedidos, tareas). */
   programaGlp1: `${BASE}/Identifier/programa-glp1`,
+  /** Pedido de laboratorio de rutina: `requisition` que agrupa sus ServiceRequest (uno por analito). */
+  pedidoLaboratorio: `${BASE}/Identifier/pedido-laboratorio`,
   /** Identifier de las tareas del Plan Bienestar 100 Días® (una por consulta programada). */
   programaBienestar: `${BASE}/Identifier/programa-bienestar`,
   /** Canal de una Communication (`Communication.category`), p. ej. `whatsapp`: así se busca el chat. */
   canal: `${BASE}/CodeSystem/canal`,
   /** Identifier del mensaje en Twilio (MessageSid): deduplica entrantes y liga los estados de entrega. */
   twilioMessageSid: `${BASE}/Identifier/twilio-message-sid`,
+  /**
+   * Huella del PDF de laboratorio (SHA-256 del archivo, en hex) como Identifier del
+   * DocumentReference: el bot reconoce un PDF que el paciente ya mandó y reutiliza su informe.
+   */
+  huellaPdf: `${BASE}/Identifier/huella-pdf`,
   /**
    * Uso de IA (`AuditEvent.type` `llamada-modelo`; `subtype` = el proceso, p. ej.
    * `laboratorio-pdf`): tokens y costo estimado de cada llamada (`src/lib/uso-ia.ts`).
@@ -184,6 +196,10 @@ export const SYSTEM = {
   biomarker: `${SOM_BASE}/CodeSystem/biomarker`,
   /** Panel del portal al que pertenece cada ObservationDefinition (p. ej. `metabolico`). */
   panelBiomarcador: `${SOM_BASE}/CodeSystem/panel-biomarcador`,
+  /** Nivel del laboratorio de rutina (`ObservationDefinition.category`): `esencial` | `extensivo`. */
+  nivelLaboratorio: `${SOM_BASE}/CodeSystem/nivel-laboratorio`,
+  /** Slug del analito (`ObservationDefinition.identifier`), p. ej. `e_gfr`: el mismo en pedido y portal. */
+  analito: `${SOM_BASE}/Identifier/analito`,
   /**
    * Tipo de rango de referencia de la ObservationDefinition. Este backend publica
    * solo `convencional` (salud convencional: AHA/ACC, ADA, KDIGO); nunca `funcional`.
@@ -328,6 +344,15 @@ export const PLAN_GLP1_VERSION = '1';
 export const BOT_GLP1_INSCRIBIR = 'som-glp1-inscribir';
 /** Equipo médico: con la indicación, arma o recalcula el plan. Recepción NO lo ejecuta. */
 export const BOT_GLP1_PLAN = 'som-glp1-plan';
+
+/** Laboratorio de rutina: pedido estándar (PlanDefinition order-set) por nivel, del catálogo de biomarcadores. */
+export const PLAN_LABORATORIO_RUTINA_URL = {
+  esencial: `${BASE}/PlanDefinition/laboratorio-rutina-esencial`,
+  extensivo: `${BASE}/PlanDefinition/laboratorio-rutina-extensivo`,
+} as const;
+export const PLAN_LABORATORIO_RUTINA_VERSION = '1';
+/** Equipo médico: pide el laboratorio de rutina de un paciente. Recepción NO lo ejecuta. */
+export const BOT_PEDIR_LABORATORIO = 'som-pedir-laboratorio';
 
 /** Clave del recurso de configuración de Tipo de Cambio (Basic). */
 export const CONFIG_TC_ID = 'config-tipo-cambio';

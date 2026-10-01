@@ -139,6 +139,12 @@
       "dist": "dist/bots/glp1-plan.js"
     },
     {
+      "name": "som-pedir-laboratorio",
+      "id": "",
+      "source": "src/bots/pedir-laboratorio.ts",
+      "dist": "dist/bots/pedir-laboratorio.js"
+    },
+    {
       "name": "som-bienestar-inscribir",
       "id": "",
       "source": "src/bots/bienestar-inscribir.ts",

@@ -17,6 +17,9 @@
  *  4) Crea una Observation por analito y el DiagnosticReport (LAB, LOINC 11502-2).
  *  5) Cierra el circuito: suma el DiagnosticReport a `context.related` del documento
  *     (el portal pasa de "En proceso" a "Ver resultados").
+ *  2b) Guarda la huella del PDF (SHA-256, Identifier `huella-pdf`): si el paciente ya mandó
+ *     ese mismo archivo y quedó procesado, liga este documento al mismo informe y termina
+ *     (sin otra lectura de Claude ni valores repetidos).
  *  6) Si no se puede leer: mensaje al paciente (Communication) y Task al equipo, con el
  *     motivo concreto (descarga, archivo que no es PDF, falla de la API, sin valores). Al
  *     reprocesarlo con éxito, esa tarea se cierra sola.
@@ -45,10 +48,15 @@ import {
   construirObservaciones,
   esDocumentoLaboratorio,
   esRevisionLaboratorio,
+  completarEgfr,
+  conHuella,
   esUrlExterna,
+  huellaDe,
+  huellaPdf,
   informeYaGenerado,
   motivoSinResultados,
   normalizarExtraccion,
+  originalProcesado,
   pareceUnPdf,
   pedidoExtraccionLaboratorio,
   relatedConInforme,
@@ -66,6 +74,8 @@ export interface ResultadoLaboratorio {
   observaciones?: number;
   /** true si no se pudo procesar y quedó derivado al equipo (Task + mensaje al paciente). */
   derivadoAlEquipo?: boolean;
+  /** El documento original cuando este es el mismo PDF mandado otra vez. */
+  duplicadoDe?: string;
 }
 
 export async function handler(
@@ -77,7 +87,7 @@ export async function handler(
     return { ok: false, mensaje: 'Entrada inválida: se esperaba un DocumentReference.' };
   }
   // Versión vigente del servidor (la Subscription manda la del momento del create).
-  const doc = await medplum.readResource('DocumentReference', entrada.id);
+  let doc = await medplum.readResource('DocumentReference', entrada.id);
   if (!esDocumentoLaboratorio(doc)) {
     return { ok: false, mensaje: 'El documento no es un resultado de laboratorio del portal.' };
   }
@@ -103,7 +113,27 @@ export async function handler(
   if ('motivo' in lectura) {
     return derivarAlEquipo(medplum, pacienteRef, documentoRef, lectura.motivo);
   }
-  const { base64 } = lectura;
+  const { base64, huella } = lectura;
+
+  // 2b) ¿Es el mismo PDF que el paciente ya mandó y quedó procesado? Se reutiliza ese
+  // informe: ni otra lectura de Claude ni valores repetidos en su historia.
+  if (huellaDe(doc) !== huella) {
+    doc = await medplum.updateResource<DocumentReference>(conHuella(doc, huella));
+  }
+  const iguales = await medplum
+    .searchResources('DocumentReference', { subject: pacienteRef, identifier: `${SYSTEM.huellaPdf}|${huella}`, _count: '20' })
+    .catch(() => [] as DocumentReference[]);
+  const original = originalProcesado(iguales, doc.id);
+  if (original) {
+    await medplum.updateResource<DocumentReference>({ ...doc, context: relatedConInforme(doc, original.informe) });
+    await cerrarRevisionesPendientes(medplum, documentoRef);
+    return {
+      ok: true,
+      mensaje: `Es el mismo PDF que DocumentReference/${original.documento.id}: se reutiliza su informe.`,
+      diagnosticReportId: original.informe.split('/')[1],
+      duplicadoDe: `DocumentReference/${original.documento.id}`,
+    };
+  }
 
   // 3) Claude transcribe; el catálogo del servidor define los códigos.
   const claude = clienteClaude(event.secrets);
@@ -133,8 +163,11 @@ export async function handler(
 
   // 4) Observations + DiagnosticReport.
   const refs = { pacienteRef, documentoRef, fechaRespaldo: (doc.date ?? new Date().toISOString()).slice(0, 10), pdf };
+  // El eGFR: si el informe no lo trae con un número, se calcula (CKD-EPI 2021) con la
+  // creatinina, la edad y el sexo de la paciente.
+  const paciente = await medplum.readResource('Patient', pacienteRef.split('/')[1] as string).catch(() => undefined);
   const observaciones: Observation[] = [];
-  for (const o of construirObservaciones(extraccion, catalogo, refs)) {
+  for (const o of completarEgfr(construirObservaciones(extraccion, catalogo, refs), paciente ?? {}, catalogo)) {
     observaciones.push(await medplum.createResource<Observation>(o));
   }
   const informe = await medplum.createResource<DiagnosticReport>(
@@ -179,9 +212,14 @@ async function cerrarRevisionesPendientes(medplum: MedplumClient, documentoRef: 
  * estado HTTP (devolvía la página de error de S3 como si fuera el PDF). Se verifica que lo
  * bajado sea un PDF antes de mandarlo a Claude.
  */
-async function leerPdf(medplum: MedplumClient, url?: string, data?: string): Promise<{ base64: string } | { motivo: string }> {
+async function leerPdf(
+  medplum: MedplumClient,
+  url?: string,
+  data?: string,
+): Promise<{ base64: string; huella: string } | { motivo: string }> {
   if (data) {
-    return pareceUnPdf(Buffer.from(data, 'base64')) ? { base64: data } : { motivo: 'el archivo adjunto no es un PDF' };
+    const embebido = Buffer.from(data, 'base64');
+    return pareceUnPdf(embebido) ? { base64: data, huella: huellaPdf(embebido) } : { motivo: 'el archivo adjunto no es un PDF' };
   }
   if (!url) {
     return { motivo: 'no se encontró el PDF en el documento' };
@@ -206,7 +244,7 @@ async function leerPdf(medplum: MedplumClient, url?: string, data?: string): Pro
     console.error(`som-procesar-laboratorio: lo descargado no es un PDF (${bytes.length} bytes).`);
     return { motivo: 'el archivo descargado no es un PDF' };
   }
-  return { base64: bytes.toString('base64') };
+  return { base64: bytes.toString('base64'), huella: huellaPdf(bytes) };
 }
 
 interface Transcripcion {

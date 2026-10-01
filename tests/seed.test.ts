@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildSeed, gruposSeed } from '../src/seed/builders.js';
-import { BOT_GLP1_INSCRIBIR, BOT_GLP1_PLAN, EXT, PLAN_BIENESTAR_URL, PLAN_GLP1_URL } from '../src/fhir/identifiers.js';
+import {
+  BOT_GLP1_INSCRIBIR,
+  BOT_GLP1_PLAN,
+  EXT,
+  PLAN_BIENESTAR_URL,
+  PLAN_GLP1_URL,
+  PLAN_LABORATORIO_RUTINA_URL,
+} from '../src/fhir/identifiers.js';
 import { BOTS_RECEPCION } from '../src/fhir/access-policies.js';
 import { MEDICOS } from '../src/config/medicos.js';
 
@@ -24,7 +31,12 @@ describe('Seed — composición', () => {
     // 12 consultas por especialidad + 9 derivaciones del catálogo firmado del plan +
     // consulta del Plan Bienestar + control GLP-1.
     expect(seed.activityDefinitions.length).toBe(12 + 9 + 2);
-    expect(seed.planDefinitions.map((p) => p.url)).toEqual([PLAN_GLP1_URL, PLAN_BIENESTAR_URL]);
+    expect(seed.planDefinitions.map((p) => p.url)).toEqual([
+      PLAN_GLP1_URL,
+      PLAN_BIENESTAR_URL,
+      PLAN_LABORATORIO_RUTINA_URL.esencial,
+      PLAN_LABORATORIO_RUTINA_URL.extensivo,
+    ]);
     // Instrumentos del equipo del Plan Bienestar (generados del monorepo del plan): cinco
     // Questionnaire con la URL y la versión que el menú del equipo espera en cada respuesta.
     expect(seed.questionnaires.map((q) => q.url)).toEqual([

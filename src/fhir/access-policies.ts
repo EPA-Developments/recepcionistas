@@ -14,6 +14,7 @@ import {
   BOT_BORRADOR_RESPUESTA,
   BOT_GLP1_INSCRIBIR,
   BOT_GLP1_PLAN,
+  BOT_PEDIR_LABORATORIO,
   BOT_TELECONSULTA_TOKEN,
   BOT_WEBHOOK_MERCADOPAGO,
   BOT_WHATSAPP_ENTRANTE,
@@ -155,12 +156,14 @@ export const BOT_REFEPS_VERIFY = 'refeps-verify';
 /**
  * Bots que ejecuta un médico desde el dashboard: entrar a la teleconsulta como
  * moderador, marcarla en curso y cerrarla, el programa GLP-1 (la indicación es
- * médica), la cobertura en el PUCO y la matrícula en REFEPS al emitir una receta.
+ * médica), el pedido de laboratorio de rutina, la cobertura en el PUCO y la matrícula
+ * en REFEPS al emitir una receta.
  */
 export const BOTS_MEDICO = [
   BOT_TELECONSULTA_TOKEN,
   'som-estado-turno',
   BOT_GLP1_PLAN,
+  BOT_PEDIR_LABORATORIO,
   BOT_PUCO_COBERTURA,
   BOT_REFEPS_VERIFY,
 ] as const;

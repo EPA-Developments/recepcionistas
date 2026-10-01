@@ -17,6 +17,7 @@ import { build, type Plugin } from 'esbuild';
 import type { MedplumClient } from '@medplum/core';
 import type { Bot, Subscription } from '@medplum/fhirtypes';
 import {
+  BOT_PEDIR_LABORATORIO,
   BOT_SOM_LABORATORIO,
   BOT_SOM_REPORT,
   BOT_WEBHOOK_MERCADOPAGO,
@@ -71,6 +72,7 @@ const BOTS: DefBot[] = [
   // Seguimiento GLP-1 (docs/glp1.md).
   { name: 'som-glp1-inscribir', source: 'src/bots/glp1-inscribir.ts', dist: 'dist/bots/glp1-inscribir.js', description: 'GLP-1 (Recepción): inscribe al paciente en el seguimiento; deja la indicación pendiente al equipo médico.' },
   { name: 'som-glp1-plan', source: 'src/bots/glp1-plan.ts', dist: 'dist/bots/glp1-plan.js', description: 'GLP-1 (equipo médico): arma o recalcula el programa (CarePlan, meta, laboratorio y controles a agendar).' },
+  { name: BOT_PEDIR_LABORATORIO, source: 'src/bots/pedir-laboratorio.ts', dist: 'dist/bots/pedir-laboratorio.js', description: 'Laboratorio de rutina (equipo médico): pide los esenciales (y extensivos) del catálogo, un ServiceRequest por analito, y avisa al paciente por Mensajes.' },
   // Mensajes (Recepción): borrador de respuesta con Claude; nada sale sin que una persona toque Enviar.
   { name: 'som-borrador-respuesta', source: 'src/bots/borrador-respuesta.ts', dist: 'dist/bots/borrador-respuesta.js', description: 'Mensajes (Recepción): sugiere el borrador de la próxima respuesta (Claude). No envía nada ni escribe datos del paciente; solo registra su uso de IA.', timeout: TIMEOUT_CLAUDE_INTERACTIVO },
   // Plan Bienestar 100 Días® (portal: tarjeta de progreso; Recepción: sus tres consultas).

@@ -17,23 +17,30 @@
  */
 import type {
   Attachment,
+  Coding,
   DiagnosticReport,
   DocumentReference,
   Observation,
   ObservationDefinition,
   ObservationReferenceRange,
+  Patient,
+  Quantity,
   Task,
 } from '@medplum/fhirtypes';
+import { createHash } from 'node:crypto';
 import type Anthropic from '@anthropic-ai/sdk';
 import {
   COD,
   ESFUERZO_CLAUDE_LABORATORIO,
+  EXT,
   LOINC_INFORME_LABORATORIO,
   MODELO_CLAUDE_LABORATORIO,
   SYSTEM,
 } from '../fhir/identifiers.js';
+import { LOINC_CKM } from './ckm-fhir.js';
 
 const UCUM = 'http://unitsofmeasure.org';
+const LOINC = 'http://loinc.org';
 
 /** Un biomarcador del catálogo del servidor (derivado de su ObservationDefinition). */
 export interface EntradaCatalogo {
@@ -44,6 +51,12 @@ export interface EntradaCatalogo {
   nombre: string;
   /** Unidad UCUM de referencia del catálogo, si la tiene. */
   unidad?: string;
+  /** Todos los códigos del analito (el principal y sus equivalentes): van todos a la Observation. */
+  codings?: Coding[];
+  /** Otros nombres con los que aparece en los informes. */
+  sinonimos?: string[];
+  /** Slug del analito (`e_gfr`, `creatinina_serica`, …). */
+  slug?: string;
 }
 
 /** Catálogo de biomarcadores a partir de las ObservationDefinition del proyecto. */
@@ -56,12 +69,20 @@ export function catalogoDesdeObservationDefinitions(defs: ObservationDefinition[
     }
     const clave = `${c.system}|${c.code}`;
     if (!out.has(clave)) {
+      const nombre = c.display ?? od.code?.text ?? c.code;
+      const sinonimos = (od.extension ?? []).filter((e) => e.url === EXT.sinonimoAnalito && e.valueString).map((e) => e.valueString as string);
+      const slug = od.identifier?.find((i) => i.system === SYSTEM.analito)?.value;
       out.set(clave, {
         clave,
         system: c.system,
         code: c.code,
-        nombre: c.display ?? od.code?.text ?? c.code,
+        nombre,
         unidad: od.quantitativeDetails?.unit?.coding?.[0]?.code ?? od.quantitativeDetails?.unit?.text,
+        codings: (od.code?.coding ?? [])
+          .filter((x) => x.system && x.code)
+          .map((x) => ({ system: x.system, code: x.code, display: x.display ?? nombre })),
+        ...(sinonimos.length ? { sinonimos } : {}),
+        ...(slug ? { slug } : {}),
       });
     }
   }
@@ -147,10 +168,12 @@ export const SYSTEM_PROMPT_LABORATORIO =
 
 /** Mensaje de usuario: el catálogo de códigos permitido (el PDF va aparte). */
 export function construirPromptLaboratorio(catalogo: EntradaCatalogo[]): string {
-  const lineas = catalogo.map((c) => `- ${c.clave} — ${c.nombre}${c.unidad ? ` (${c.unidad})` : ''}`);
+  const lineas = catalogo.map(
+    (c) => `- ${c.clave} — ${c.nombre}${c.unidad ? ` (${c.unidad})` : ''}${c.sinonimos?.length ? ` · también: ${c.sinonimos.join(', ')}` : ''}`,
+  );
   return [
     'Extraé los resultados del informe de laboratorio adjunto.',
-    'Catálogo de biomarcadores (clave — nombre (unidad)):',
+    'Catálogo de biomarcadores (clave — nombre (unidad) · también: otros nombres con los que aparece en los informes):',
     lineas.length ? lineas.join('\n') : '- (catálogo vacío: codigo siempre null)',
   ].join('\n\n');
 }
@@ -260,6 +283,39 @@ export function pendientesDeProcesar(docs: DocumentReference[]): DocumentReferen
     .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
 }
 
+/** Huella de un PDF: SHA-256 del archivo en hex. Mismo archivo ⇒ misma huella. */
+export function huellaPdf(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+/** La huella guardada en el DocumentReference, si ya se calculó. */
+export function huellaDe(doc: DocumentReference): string | undefined {
+  return doc.identifier?.find((i) => i.system === SYSTEM.huellaPdf)?.value;
+}
+
+/** El documento con su huella (reemplaza una anterior; no toca otros identifiers). */
+export function conHuella(doc: DocumentReference, huella: string): DocumentReference {
+  return {
+    ...doc,
+    identifier: [...(doc.identifier ?? []).filter((i) => i.system !== SYSTEM.huellaPdf), { system: SYSTEM.huellaPdf, value: huella }],
+  };
+}
+
+/**
+ * Entre los PDF del paciente con la misma huella, el que ya tiene informe (el más viejo):
+ * el original del que `docId` es un duplicado. undefined si no hay ninguno procesado.
+ */
+export function originalProcesado(
+  candidatos: DocumentReference[],
+  docId: string | undefined,
+): { documento: DocumentReference; informe: string } | undefined {
+  const original = candidatos
+    .filter((d) => d.id !== docId && d.status === 'current' && informeYaGenerado(d))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))[0];
+  const informe = original ? informeYaGenerado(original) : undefined;
+  return original && informe ? { documento: original, informe } : undefined;
+}
+
 /** ¿Es la tarea "revisar-laboratorio" que el bot le deja al equipo cuando no puede leer un PDF? */
 export function esRevisionLaboratorio(t: Task): boolean {
   return Boolean(t.code?.coding?.some((c) => c.system === SYSTEM.taskTipo && c.code === COD.revisarLaboratorio));
@@ -310,6 +366,54 @@ function referenciaFhir(a: AnalitoExtraido, ucum?: string): ObservationReference
   ];
 }
 
+/** Formas equivalentes conocidas de cada unidad UCUM del catálogo (en minúsculas, sin espacios). */
+const UNIDADES_EQUIVALENTES: Readonly<Record<string, readonly string[]>> = {
+  'mL/min/{1.73_m2}': ['ml/min/1.73m2', 'ml/min/1.73m²', 'ml/min/1,73m2', 'ml/min/1,73m²', 'ml/min/1.73_m2', 'ml/min/sc'],
+  'meq/L': ['meq/l', 'mmol/l'],
+  'm[IU]/L': ['mui/l', 'miu/l', 'uui/ml', 'µui/ml'],
+  'm[IU]/mL': ['mui/ml', 'miu/ml'],
+  'u[IU]/mL': ['uui/ml', 'µui/ml', 'uiu/ml', 'µiu/ml', 'uu/ml', 'µu/ml'],
+  'umol/L': ['umol/l', 'µmol/l'],
+  'ug/dL': ['ug/dl', 'µg/dl', 'mcg/dl'],
+  '10*3/uL': ['10*3/ul', '10^3/ul', '10³/µl', '10³/ul', 'x10³/µl', 'x10^3/ul', 'mil/µl', 'mil/ul'],
+  'ng/mL{FEU}': ['ng/mlfeu', 'ngfeu/ml', 'ng/ml'],
+  '{INR}': ['rin', 'inr'],
+  s: ['s', 'seg', 'segundos', 'sec'],
+  '{index}': ['índice', 'indice'],
+};
+
+const normalizarUnidad = (u: string) => u.toLowerCase().replace(/\s+/g, '').replace(/μ/g, 'µ');
+
+/** ¿La unidad del informe es la del catálogo? (igual, sin distinguir mayúsculas, o una forma equivalente). */
+export function mismaUnidad(delInforme: string, delCatalogo: string): boolean {
+  const u = normalizarUnidad(delInforme);
+  return u === normalizarUnidad(delCatalogo) || (UNIDADES_EQUIVALENTES[delCatalogo] ?? []).includes(u);
+}
+
+const COMPARADORES: Readonly<Record<string, NonNullable<Quantity['comparator']>>> = {
+  '<': '<',
+  '>': '>',
+  '<=': '<=',
+  '>=': '>=',
+  '≤': '<=',
+  '≥': '>=',
+  'menor a': '<',
+  'menor de': '<',
+  'mayor a': '>',
+  'mayor de': '>',
+};
+
+/** "> 90", "≥ 60", "menor a 5", "<0,5": el número con su comparador (undefined si no es eso). */
+export function cantidadConComparador(texto: string): { comparator: NonNullable<Quantity['comparator']>; value: number } | undefined {
+  const m = /^\s*(<=|>=|≤|≥|<|>|menor (?:a|de)|mayor (?:a|de))\s*(\d+(?:[.,]\d+)?)(?:\s*[^\d\s<>≤≥=][^<>≤≥]*)?$/i.exec(texto);
+  if (!m) {
+    return undefined;
+  }
+  const comparator = COMPARADORES[m[1]!.toLowerCase()];
+  const value = Number(m[2]!.replace(',', '.'));
+  return comparator && Number.isFinite(value) ? { comparator, value } : undefined;
+}
+
 /** Una Observation por analito (lo que buscan los paneles de Biomarcadores del portal). */
 export function construirObservaciones(
   extraccion: ExtraccionLaboratorio,
@@ -320,12 +424,19 @@ export function construirObservaciones(
   const efectiva = extraccion.fechaExtraccion ?? refs.fechaRespaldo;
   return extraccion.analitos.map((a) => {
     const cat = a.codigo ? porClave.get(a.codigo) : undefined;
-    // UCUM solo si la unidad del informe coincide con la del catálogo (no se adivina).
-    const ucum = cat?.unidad && a.unidad && cat.unidad === a.unidad ? cat.unidad : undefined;
+    // UCUM solo si la unidad del informe es la del catálogo (escrita igual o de una forma
+    // equivalente conocida): no se adivina.
+    const ucum = cat?.unidad && a.unidad && mismaUnidad(a.unidad, cat.unidad) ? cat.unidad : undefined;
+    const unidad = { ...(a.unidad ? { unit: a.unidad } : {}), ...(ucum ? { system: UCUM, code: ucum } : {}) };
+    // "> 90" o "< 5" son números con comparador (Quantity.comparator), no texto: así los
+    // gráficos y los cálculos (eGFR, PREVENT, hGraph) los pueden usar.
+    const comparado = a.valor === null && a.valorTexto ? cantidadConComparador(a.valorTexto) : undefined;
     const valor: Partial<Observation> =
       a.valor !== null
-        ? { valueQuantity: { value: a.valor, ...(a.unidad ? { unit: a.unidad } : {}), ...(ucum ? { system: UCUM, code: ucum } : {}) } }
-        : { valueString: a.valorTexto ?? '' };
+        ? { valueQuantity: { value: a.valor, ...unidad } }
+        : comparado
+          ? { valueQuantity: { comparator: comparado.comparator, value: comparado.value, ...unidad } }
+          : { valueString: a.valorTexto ?? '' };
     const referenceRange = referenciaFhir(a, ucum);
     return {
       resourceType: 'Observation',
@@ -336,7 +447,7 @@ export function construirObservaciones(
         },
       ],
       code: cat
-        ? { coding: [{ system: cat.system, code: cat.code, display: cat.nombre }], text: a.nombre }
+        ? { coding: cat.codings?.length ? cat.codings : [{ system: cat.system, code: cat.code, display: cat.nombre }], text: a.nombre }
         : { text: a.nombre },
       subject: { reference: refs.pacienteRef },
       effectiveDateTime: efectiva,
@@ -384,3 +495,106 @@ export function relatedConInforme(doc: DocumentReference, informeRef: string): N
 export const MENSAJE_NO_PROCESADO =
   'Recibimos tu estudio de laboratorio, pero no pudimos leerlo automáticamente. ' +
   'Nuestro equipo lo va a revisar y te vamos a contactar por Mensajes.';
+
+// ───────────────────── Filtrado glomerular estimado (eGFR) ─────────────────────
+
+/** Todos los códigos LOINC de eGFR que leen el portal, Recepción y hGraph (62238-1, 33914-3, …). */
+const CODIGOS_EGFR: ReadonlySet<string> = new Set(LOINC_CKM.egfr);
+/** Creatinina en suero/plasma (2160-0) o en sangre (38483-4). */
+const CODIGOS_CREATININA: ReadonlySet<string> = new Set(['2160-0', '38483-4']);
+/** eGFR por creatinina, ecuación CKD-EPI 2021. */
+export const LOINC_EGFR_CKD_EPI_2021 = '98979-8';
+
+/**
+ * eGFR por creatinina con la ecuación CKD-EPI 2021, sin coeficiente de raza (Inker LA et al.,
+ * N Engl J Med 2021;385:1737-49), la que usan KDIGO y la guía CKM 2026. En mL/min/1,73 m².
+ */
+export function egfrCkdEpi2021(creatininaMgDl: number, edad: number, sexo: 'female' | 'male'): number {
+  const mujer = sexo === 'female';
+  const kappa = mujer ? 0.7 : 0.9;
+  const alfa = mujer ? -0.241 : -0.302;
+  const r = creatininaMgDl / kappa;
+  return 142 * Math.min(r, 1) ** alfa * Math.max(r, 1) ** -1.2 * 0.9938 ** edad * (mujer ? 1.012 : 1);
+}
+
+/** Edad en años cumplidos a una fecha (AAAA-MM-DD…). */
+export function edadEn(fechaNacimiento: string, fecha: string): number | undefined {
+  const n = new Date(fechaNacimiento.slice(0, 10));
+  const f = new Date(fecha.slice(0, 10));
+  if (Number.isNaN(n.getTime()) || Number.isNaN(f.getTime())) {
+    return undefined;
+  }
+  const cumplio = f.getUTCMonth() > n.getUTCMonth() || (f.getUTCMonth() === n.getUTCMonth() && f.getUTCDate() >= n.getUTCDate());
+  return f.getUTCFullYear() - n.getUTCFullYear() - (cumplio ? 0 : 1);
+}
+
+const tieneCodigoLoinc = (o: Observation, codigos: ReadonlySet<string>) =>
+  Boolean(o.code?.coding?.some((c) => c.system === LOINC && c.code && codigos.has(c.code)));
+
+/** La creatinina en mg/dL (convierte µmol/L); undefined si la unidad no se reconoce. */
+function creatininaMgDl(q: Quantity | undefined): number | undefined {
+  if (q?.value === undefined || q.comparator) {
+    return undefined;
+  }
+  const u = normalizarUnidad(q.code ?? q.unit ?? 'mg/dL');
+  if (u === 'mg/dl') {
+    return q.value;
+  }
+  return u === 'umol/l' || u === 'µmol/l' ? q.value / 88.4 : undefined;
+}
+
+/**
+ * El filtrado glomerular del informe, siempre que haya creatinina. Si el laboratorio lo
+ * informó con un número, queda el suyo. Si no lo informó, o lo informó como "> 90" o en
+ * texto, se calcula con CKD-EPI 2021 desde la creatinina, la edad a la fecha del estudio y
+ * el sexo (adultos; sin sexo masculino/femenino no se calcula). La Observation calculada
+ * lleva los códigos del catálogo (62238-1, que lee hGraph, y 33914-3, que leen el portal y
+ * el Plan Bienestar) más 98979-8 (CKD-EPI 2021), y dice cómo se obtuvo.
+ */
+export function completarEgfr(
+  observaciones: Observation[],
+  paciente: Pick<Patient, 'gender' | 'birthDate'>,
+  catalogo: EntradaCatalogo[],
+): Observation[] {
+  const egfr = observaciones.find((o) => tieneCodigoLoinc(o, CODIGOS_EGFR));
+  if (egfr?.valueQuantity?.value !== undefined && !egfr.valueQuantity.comparator) {
+    return observaciones;
+  }
+  const creatinina = observaciones.find((o) => tieneCodigoLoinc(o, CODIGOS_CREATININA) && creatininaMgDl(o.valueQuantity) !== undefined);
+  const mgDl = creatininaMgDl(creatinina?.valueQuantity);
+  const sexo = paciente.gender === 'female' || paciente.gender === 'male' ? paciente.gender : undefined;
+  const fecha = creatinina?.effectiveDateTime;
+  const edad = paciente.birthDate && fecha ? edadEn(paciente.birthDate, fecha) : undefined;
+  if (!creatinina || mgDl === undefined || !sexo || edad === undefined || edad < 18) {
+    return observaciones;
+  }
+  const delCatalogo = catalogo.find((c) => CODIGOS_EGFR.has(c.code))?.codings ?? [
+    { system: LOINC, code: '62238-1', display: 'Filtrado glomerular estimado (eGFR)' },
+    { system: LOINC, code: '33914-3', display: 'Filtrado glomerular estimado (eGFR)' },
+  ];
+  const informado = egfr
+    ? egfr.valueString || `${egfr.valueQuantity?.comparator ?? ''} ${egfr.valueQuantity?.value ?? ''}`.trim()
+    : undefined;
+  const calculada: Observation = {
+    resourceType: 'Observation',
+    status: 'final',
+    category: creatinina.category,
+    code: {
+      coding: [...delCatalogo, { system: LOINC, code: LOINC_EGFR_CKD_EPI_2021, display: 'eGFR por creatinina (CKD-EPI 2021)' }],
+      text: 'Filtrado glomerular estimado (CKD-EPI 2021)',
+    },
+    subject: creatinina.subject,
+    effectiveDateTime: fecha,
+    valueQuantity: { value: Math.round(egfrCkdEpi2021(mgDl, edad, sexo)), unit: 'mL/min/1,73 m²', system: UCUM, code: 'mL/min/{1.73_m2}' },
+    method: { text: 'CKD-EPI 2021 (sin coeficiente de raza), calculado desde la creatinina' },
+    note: [
+      {
+        text:
+          `Calculado con la creatinina del informe (${Number(mgDl.toFixed(2))} mg/dL), la edad (${edad} años) y el sexo.` +
+          (informado ? ` El laboratorio lo informó como "${informado}".` : ' El informe no traía el filtrado.'),
+      },
+    ],
+    ...(creatinina.derivedFrom ? { derivedFrom: creatinina.derivedFrom } : {}),
+  };
+  return egfr ? observaciones.map((o) => (o === egfr ? calculada : o)) : [...observaciones, calculada];
+}
