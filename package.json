@@ -30,6 +30,7 @@
     "uso:ia": "tsx src/seed/uso-ia.ts",
     "laboratorio:seguimiento": "tsx src/seed/seguimiento-laboratorio.ts",
     "laboratorio:reprocesar": "tsx src/seed/reprocesar-laboratorio.ts",
+    "laboratorio:actualizar": "tsx src/seed/actualizar-laboratorio.ts",
     "claude:probar": "tsx src/seed/probar-claude.ts",
     "webhooks": "tsx src/seed/webhooks.ts",
     "mercadopago:test": "tsx src/seed/diagnostico-mercadopago.ts",

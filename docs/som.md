@@ -262,6 +262,24 @@ por especialidad. Recepción los evalúa con su propia estadificación:
    los lista (dry-run) y con `--apply` ejecuta el bot con cada uno, de a uno. Si sale bien
    cierra su tarea `revisar-laboratorio`; si vuelve a fallar, actualiza el motivo de esa
    tarea sin avisarle de nuevo al paciente.
+6. PDF ya procesados (antes del catálogo vigente, o cargados dos veces):
+   `npm run laboratorio:actualizar -- [<id del paciente>]` muestra el plan (dry-run; sin
+   id, todo el proyecto) y con `--apply`:
+   - **Duplicados** (mismo paciente, misma fecha, mismos valores): queda el más viejo; el
+     otro y sus valores pasan a `entered-in-error` y su PDF muestra el original.
+   - **Relectura**: los informes emitidos antes de que el servidor publicara el catálogo
+     vigente (la creación de la `ObservationDefinition` del eGFR) que tienen valores del
+     catálogo guardados sin código, como la creatinina. Ejecuta el bot con
+     `{ "releer": "DocumentReference/<id>" }`: una lectura de Claude por PDF (queda en
+     `uso:ia`). El informe nuevo, con los códigos y el eGFR, reemplaza al anterior en todos
+     los documentos que lo mostraban, y el anterior pasa a `entered-in-error`. Si la
+     relectura falla, no cambia nada: ni aviso al paciente ni tarea al equipo.
+   - **eGFR**: los informes con la creatinina codificada y sin filtrado con un número lo
+     reciben calculado (CKD-EPI 2021), sin Claude: se suma al informe o reemplaza en el
+     lugar al "> 60".
+   - Lista a quién le falta la **fecha de nacimiento** o el **sexo** (femenino o
+     masculino) para calcularlo. El eGFR necesita tres datos: la edad, el sexo biológico
+     y la creatinina en sangre.
 
 ## Patient Journey y Plan Bienestar
 
