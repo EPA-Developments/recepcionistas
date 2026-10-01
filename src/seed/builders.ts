@@ -22,7 +22,7 @@ import type {
 } from '@medplum/fhirtypes';
 import type { Servicio } from '../domain/types.js';
 import { MEDICOS, type Medico } from '../config/medicos.js';
-import { BIOMARCADORES, PANEL_DISPLAY, type Biomarcador } from '../config/biomarcadores.js';
+import { BIOMARCADORES, NIVEL_DISPLAY, PANEL_DISPLAY, type Biomarcador } from '../config/biomarcadores.js';
 import { CODIGO_CONSULTA_PB100D, CODIGO_CONTROL_GLP1, GRUPOS_ESPECIALIDAD, SERVICIOS } from '../config/catalogo.js';
 import { INSTRUMENTOS_PB100D } from '../config/instrumentos-pb100d.js';
 import { NOMBRE_PLAN_BIENESTAR } from '../config/plan-bienestar.js';
@@ -296,21 +296,46 @@ const UCUM = 'http://unitsofmeasure.org';
  * si es por sexo). Solo rangos de salud convencional: nunca `funcional`.
  */
 export function buildObservationDefinition(b: Biomarcador): ObservationDefinition {
+  const sistema = b.sistema === 'som' ? SYSTEM.biomarker : LOINC;
   return {
     resourceType: 'ObservationDefinition',
-    code: { coding: [{ system: LOINC, code: b.codigo, display: b.nombre }], text: b.nombre },
-    category: [{ coding: [{ system: SYSTEM.panelBiomarcador, code: b.panel, display: PANEL_DISPLAY[b.panel] }] }],
+    // Otros códigos LOINC del mismo valor (p. ej. eGFR 62238-1 + 33914-3): el bot los
+    // escribe todos en la Observation, así la encuentra cada lector.
+    code: {
+      coding: [
+        { system: sistema, code: b.codigo, display: b.nombre },
+        ...(b.codigosEquivalentes ?? []).map((code) => ({ system: LOINC, code, display: b.nombre })),
+      ],
+      text: b.nombre,
+    },
+    identifier: [{ system: SYSTEM.analito, value: b.slug }],
+    category: [
+      { coding: [{ system: SYSTEM.panelBiomarcador, code: b.panel, display: PANEL_DISPLAY[b.panel] }] },
+      { coding: [{ system: SYSTEM.nivelLaboratorio, code: b.nivel, display: NIVEL_DISPLAY[b.nivel] }] },
+    ],
+    ...(b.sinonimos?.length || b.cuentaComo
+      ? {
+          extension: [
+            ...(b.sinonimos ?? []).map((valueString) => ({ url: EXT.sinonimoAnalito, valueString })),
+            ...(b.cuentaComo ? [{ url: EXT.cuentaComo, valueString: b.cuentaComo }] : []),
+          ],
+        }
+      : {}),
     permittedDataType: ['Quantity'],
-    quantitativeDetails: { unit: { coding: [{ system: UCUM, code: b.unidad }], text: b.unidad } },
-    qualifiedInterval: b.rangos.map((r) => ({
-      category: 'reference' as const,
-      context: { coding: [{ system: SYSTEM.tipoRango, code: r.tipo }] },
-      range: {
-        ...(r.bajo !== undefined ? { low: { value: r.bajo, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
-        ...(r.alto !== undefined ? { high: { value: r.alto, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
-      },
-      ...(r.sexo ? { gender: r.sexo } : {}),
-    })),
+    quantitativeDetails: { unit: { coding: [{ system: UCUM, code: b.unidad }], text: b.unidadTexto ?? b.unidad } },
+    ...(b.rangos.length
+      ? {
+          qualifiedInterval: b.rangos.map((r) => ({
+            category: 'reference' as const,
+            context: { coding: [{ system: SYSTEM.tipoRango, code: r.tipo }] },
+            range: {
+              ...(r.bajo !== undefined ? { low: { value: r.bajo, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
+              ...(r.alto !== undefined ? { high: { value: r.alto, unit: b.unidad, system: UCUM, code: b.unidad } } : {}),
+            },
+            ...(r.sexo ? { gender: r.sexo } : {}),
+          })),
+        }
+      : {}),
   };
 }
 

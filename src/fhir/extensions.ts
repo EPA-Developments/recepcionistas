@@ -64,6 +64,8 @@ const SPECS: SpecExtension[] = [
   // Patient Journey del portal
   { url: EXT.patientOrigin, nombre: 'patient-origin', contexto: ['Patient'], tipoValor: 'code', descripcion: 'Origen del paciente: reception (invitado por Recepción) | referral (derivado por un colega). Ausente = auto-registrado.' },
   { url: EXT.onboardingCompleted, nombre: 'onboarding-completed', contexto: ['Patient'], tipoValor: 'dateTime', descripcion: 'Fecha en que el paciente completó la Bienvenida/Onboarding del portal (la escribe el portal).' },
+  { url: EXT.sinonimoAnalito, nombre: 'sinonimo-analito', contexto: ['ObservationDefinition'], tipoValor: 'string', descripcion: 'Otro nombre con el que el analito aparece en los informes de laboratorio (una extensión por sinónimo); lo usa el bot de laboratorio en PDF.' },
+  { url: EXT.cuentaComo, nombre: 'cuenta-como', contexto: ['ObservationDefinition'], tipoValor: 'string', descripcion: 'Slug del analito al que cubre este para el laboratorio de rutina (p. ej. BUN cubre urea_serica).' },
 ];
 
 function buildStructureDefinition(spec: SpecExtension): StructureDefinition {

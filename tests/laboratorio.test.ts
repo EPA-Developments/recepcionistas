@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent } from '@medplum/core';
-import type { AuditEvent, Communication, DiagnosticReport, DocumentReference, Observation, Resource, Task } from '@medplum/fhirtypes';
+import type { AuditEvent, Communication, DiagnosticReport, DocumentReference, Observation, Patient, Resource, Task } from '@medplum/fhirtypes';
 import {
+  LOINC_EGFR_CKD_EPI_2021,
+  cantidadConComparador,
   catalogoDesdeObservationDefinitions,
+  completarEgfr,
   construirDiagnosticReportLaboratorio,
   construirObservaciones,
+  construirPromptLaboratorio,
+  edadEn,
+  egfrCkdEpi2021,
+  mismaUnidad,
   normalizarExtraccion,
   relatedConInforme,
   type ExtraccionLaboratorio,
@@ -21,12 +28,25 @@ import { fakeMedplum } from './fake-medplum.js';
 const defs = buildSeed().observationDefinitions.map((d, i) => ({ ...d, id: `od${i}` }));
 const catalogo = catalogoDesdeObservationDefinitions(defs);
 const LDL = 'http://loinc.org|13457-7';
+const EGFR = 'http://loinc.org|62238-1';
+const CREATININA = 'http://loinc.org|2160-0';
 const refs = { pacienteRef: 'Patient/p1', documentoRef: 'DocumentReference/lab1', fechaRespaldo: '2026-09-20' };
 
 describe('Laboratorio — catálogo y normalización', () => {
   it('el catálogo sale de las ObservationDefinition del servidor (system|code + unidad)', () => {
     expect(catalogo.find((c) => c.clave === LDL)).toMatchObject({ code: '13457-7', unidad: 'mg/dL' });
     expect(catalogo.find((c) => c.clave === 'http://loinc.org|4548-4')).toMatchObject({ unidad: '%' });
+  });
+
+  it('cada analito con todos sus códigos, su slug y los nombres con los que aparece en los informes', () => {
+    const egfr = catalogo.find((c) => c.clave === EGFR);
+    expect(egfr).toMatchObject({ slug: 'e_gfr', unidad: 'mL/min/{1.73_m2}' });
+    expect(egfr?.codings?.map((c) => c.code)).toEqual(['62238-1', '33914-3']);
+    // Una entrada por analito: el código equivalente (33914-3) no se ofrece aparte.
+    expect(catalogo.find((c) => c.code === '33914-3')).toBeUndefined();
+    const prompt = construirPromptLaboratorio(catalogo);
+    expect(prompt).toContain(`${EGFR} — Filtrado glomerular estimado (eGFR) (mL/min/{1.73_m2}) · también: Filtrado glomerular estimado`);
+    expect(prompt).toMatch(/http:\/\/loinc\.org\|2160-0 — Creatinina/);
   });
 
   it('descarta códigos que no están en el catálogo y analitos sin resultado; valida la fecha', () => {
@@ -117,6 +137,139 @@ describe('Laboratorio — recursos FHIR', () => {
     const una = relatedConInforme(doc, 'DiagnosticReport/d1');
     expect(una.related).toEqual([{ reference: 'X/1' }, { reference: 'DiagnosticReport/d1' }]);
     expect(relatedConInforme({ ...doc, context: una }, 'DiagnosticReport/d1').related).toHaveLength(2);
+  });
+});
+
+describe('Laboratorio — valores con comparador y unidades', () => {
+  it('"> 90", "≥ 60", "menor a 5": número con comparador; lo demás no', () => {
+    expect(cantidadConComparador('> 90')).toEqual({ comparator: '>', value: 90 });
+    expect(cantidadConComparador('>90 mL/min/1,73 m²')).toEqual({ comparator: '>', value: 90 });
+    expect(cantidadConComparador('≥ 60')).toEqual({ comparator: '>=', value: 60 });
+    expect(cantidadConComparador('<0,5')).toEqual({ comparator: '<', value: 0.5 });
+    expect(cantidadConComparador('menor a 5')).toEqual({ comparator: '<', value: 5 });
+    expect(cantidadConComparador('Mayor de 60')).toEqual({ comparator: '>', value: 60 });
+    expect(cantidadConComparador('No reactivo')).toBeUndefined();
+    expect(cantidadConComparador('90')).toBeUndefined();
+    expect(cantidadConComparador('> 60 < 90')).toBeUndefined();
+  });
+
+  it('la unidad del informe es la del catálogo si se escribe igual o de una forma equivalente', () => {
+    expect(mismaUnidad('mg/dl', 'mg/dL')).toBe(true);
+    expect(mismaUnidad('mL/min/1.73m2', 'mL/min/{1.73_m2}')).toBe(true);
+    expect(mismaUnidad('ml/min/1,73 m²', 'mL/min/{1.73_m2}')).toBe(true);
+    expect(mismaUnidad('mEq/L', 'meq/L')).toBe(true);
+    expect(mismaUnidad('µUI/mL', 'u[IU]/mL')).toBe(true);
+    expect(mismaUnidad('μUI/ml', 'u[IU]/mL')).toBe(true); // mu griega
+    expect(mismaUnidad('mmol/L', 'mg/dL')).toBe(false);
+    expect(mismaUnidad('mg/L', 'mg/dL')).toBe(false);
+  });
+
+  it('el valor con comparador va como Quantity (y la unidad equivalente, con su UCUM)', () => {
+    const [egfr] = construirObservaciones(
+      {
+        esInformeDeLaboratorio: true,
+        fechaExtraccion: '2026-09-18',
+        laboratorio: null,
+        analitos: [{ nombre: 'Filtrado glomerular', codigo: EGFR, valor: null, valorTexto: '> 90', unidad: 'mL/min/1.73m2', referencia: null }],
+      },
+      catalogo,
+      refs,
+    );
+    expect(egfr?.valueQuantity).toEqual({
+      comparator: '>',
+      value: 90,
+      unit: 'mL/min/1.73m2',
+      system: 'http://unitsofmeasure.org',
+      code: 'mL/min/{1.73_m2}',
+    });
+    expect(egfr?.valueString).toBeUndefined();
+    expect(egfr?.code?.coding?.map((c) => c.code)).toEqual(['62238-1', '33914-3']);
+  });
+});
+
+describe('Laboratorio — filtrado glomerular (eGFR) por creatinina, CKD-EPI 2021', () => {
+  const paciente: Pick<Patient, 'gender' | 'birthDate'> = { gender: 'female', birthDate: '1976-03-10' };
+  const observaciones = (analitos: ExtraccionLaboratorio['analitos']) =>
+    construirObservaciones({ esInformeDeLaboratorio: true, fechaExtraccion: '2026-09-18', laboratorio: null, analitos }, catalogo, refs);
+  const creatinina = (valor: number, unidad = 'mg/dL') => ({
+    nombre: 'Creatinina',
+    codigo: CREATININA,
+    valor,
+    valorTexto: null,
+    unidad,
+    referencia: null,
+  });
+  const egfrDe = (obs: Observation[]) => obs.find((o) => o.code?.coding?.some((c) => c.code === '62238-1'));
+
+  it('la ecuación (Inker 2021, sin raza): valores de referencia', () => {
+    expect(egfrCkdEpi2021(0.8, 50, 'female')).toBeCloseTo(89.7, 1);
+    expect(egfrCkdEpi2021(1.0, 60, 'male')).toBeCloseTo(86.2, 1);
+    expect(egfrCkdEpi2021(0.6, 55, 'female')).toBeCloseTo(105.9, 1); // por debajo de κ: exponente α
+    expect(egfrCkdEpi2021(2.0, 70, 'female')).toBeCloseTo(26.4, 1); // ERC G4
+  });
+
+  it('edad en años cumplidos a la fecha del estudio', () => {
+    expect(edadEn('1976-03-10', '2026-09-18')).toBe(50);
+    expect(edadEn('1976-09-19', '2026-09-18')).toBe(49);
+    expect(edadEn('1976-09-18', '2026-09-18T08:00:00')).toBe(50);
+    expect(edadEn('sin fecha', '2026-09-18')).toBeUndefined();
+  });
+
+  it('si el informe trae creatinina y no el filtrado, lo calcula con los códigos que lee hGraph', () => {
+    const obs = completarEgfr(observaciones([creatinina(0.8)]), paciente, catalogo);
+    expect(obs).toHaveLength(2);
+    expect(egfrDe(obs)).toMatchObject({
+      resourceType: 'Observation',
+      status: 'final',
+      subject: { reference: 'Patient/p1' },
+      effectiveDateTime: '2026-09-18',
+      valueQuantity: { value: 90, unit: 'mL/min/1,73 m²', system: 'http://unitsofmeasure.org', code: 'mL/min/{1.73_m2}' },
+      method: { text: expect.stringMatching(/CKD-EPI 2021/) },
+      derivedFrom: [{ reference: 'DocumentReference/lab1' }],
+    });
+    expect(egfrDe(obs)?.code?.coding?.map((c) => c.code)).toEqual(['62238-1', '33914-3', LOINC_EGFR_CKD_EPI_2021]);
+    expect(egfrDe(obs)?.category?.[0]?.coding?.[0]?.code).toBe('laboratory');
+    expect(egfrDe(obs)?.note?.[0]?.text).toMatch(/0\.8 mg\/dL.*50 años.*no traía el filtrado/);
+  });
+
+  it('"> 60" o en texto: lo reemplaza por el calculado, y anota lo que informó el laboratorio', () => {
+    const conTexto = completarEgfr(
+      observaciones([
+        creatinina(0.8),
+        { nombre: 'Filtrado glomerular', codigo: EGFR, valor: null, valorTexto: '> 60', unidad: 'mL/min/1.73m2', referencia: null },
+      ]),
+      paciente,
+      catalogo,
+    );
+    expect(conTexto).toHaveLength(2);
+    expect(egfrDe(conTexto)?.valueQuantity).toMatchObject({ value: 90 });
+    expect(egfrDe(conTexto)?.valueQuantity?.comparator).toBeUndefined();
+    expect(egfrDe(conTexto)?.note?.[0]?.text).toContain('El laboratorio lo informó como "> 60".');
+  });
+
+  it('si el laboratorio lo informó con un número, queda el suyo', () => {
+    const obs = observaciones([
+      creatinina(0.8),
+      { nombre: 'Filtrado glomerular', codigo: EGFR, valor: 88, valorTexto: null, unidad: 'mL/min/1,73 m²', referencia: null },
+    ]);
+    const completas = completarEgfr(obs, paciente, catalogo);
+    expect(completas).toEqual(obs);
+    expect(egfrDe(completas)?.valueQuantity).toMatchObject({ value: 88, code: 'mL/min/{1.73_m2}' });
+  });
+
+  it('creatinina en µmol/L: la pasa a mg/dL (÷ 88,4)', () => {
+    const obs = completarEgfr(observaciones([creatinina(70.72, 'µmol/L')]), paciente, catalogo);
+    expect(egfrDe(obs)?.valueQuantity?.value).toBe(90);
+  });
+
+  it('no lo calcula sin sexo masculino/femenino, en menores, sin edad o con una unidad que no reconoce', () => {
+    const base = observaciones([creatinina(0.8)]);
+    expect(completarEgfr(base, { birthDate: '1976-03-10' }, catalogo)).toHaveLength(1);
+    expect(completarEgfr(base, { gender: 'other', birthDate: '1976-03-10' }, catalogo)).toHaveLength(1);
+    expect(completarEgfr(base, { gender: 'female', birthDate: '2010-01-01' }, catalogo)).toHaveLength(1);
+    expect(completarEgfr(base, { gender: 'female' }, catalogo)).toHaveLength(1);
+    expect(completarEgfr(observaciones([creatinina(0.8, 'mg/L')]), paciente, catalogo)).toHaveLength(1);
+    expect(completarEgfr(observaciones([]), paciente, catalogo)).toHaveLength(0);
   });
 });
 
@@ -263,6 +416,39 @@ describe('Bot som-procesar-laboratorio', () => {
       'costo-usd': '0.136000',
       esfuerzo: 'high',
     });
+  });
+
+  it('calcula el eGFR con la creatinina del PDF y los datos de la paciente (lo ve hGraph)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (..._a: unknown[]) =>
+        respuestaClaude({
+          esInformeDeLaboratorio: true,
+          fechaExtraccion: '2026-09-18',
+          laboratorio: null,
+          analitos: [
+            { nombre: 'Creatinina', codigo: CREATININA, valor: 0.8, valorTexto: null, unidad: 'mg/dl', referencia: null },
+            { nombre: 'Filtrado glomerular estimado', codigo: EGFR, valor: null, valorTexto: '>60', unidad: null, referencia: null },
+          ],
+        }),
+      ),
+    );
+    const paciente: Patient = { resourceType: 'Patient', id: 'p1', gender: 'female', birthDate: '1976-03-10' };
+    const { medplum, todos } = fakeMedplum([consentimiento, docLab, paciente, ...defs]);
+
+    expect(await procesar(medplum, evento(docLab))).toMatchObject({ ok: true, observaciones: 2 });
+    const obs = todos<Observation>('Observation');
+    const egfr = obs.find((o) => o.code?.coding?.some((c) => c.code === '62238-1'));
+    expect(egfr?.code?.coding?.map((c) => c.code)).toEqual(['62238-1', '33914-3', LOINC_EGFR_CKD_EPI_2021]);
+    expect(egfr?.valueQuantity).toMatchObject({ value: 90, code: 'mL/min/{1.73_m2}' });
+    const [dr] = todos<DiagnosticReport>('DiagnosticReport');
+    expect(dr?.result?.map((x) => x.reference)).toContain(`Observation/${egfr?.id}`);
+
+    // Sin la paciente (o sin su sexo/edad) queda lo que informó el laboratorio.
+    const sinPaciente = fakeMedplum([consentimiento, docLab, ...defs]);
+    await procesar(sinPaciente.medplum, evento(docLab));
+    const informado = sinPaciente.todos<Observation>('Observation').find((o) => o.code?.coding?.some((c) => c.code === '62238-1'));
+    expect(informado?.valueQuantity).toMatchObject({ comparator: '>', value: 60 });
   });
 
   it('registra el uso aunque la respuesta no sirva, y si el servidor no lo acepta el PDF igual se procesa', async () => {

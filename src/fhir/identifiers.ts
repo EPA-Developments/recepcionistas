@@ -74,6 +74,11 @@ export const EXT = {
   patientOrigin: `${SOM_BASE}/StructureDefinition/patient-origin`,
   /** Fecha en que el paciente completó la Bienvenida/Onboarding. La escribe el PORTAL: el backend no la toca. */
   onboardingCompleted: `${SOM_BASE}/StructureDefinition/onboarding-completed`,
+  // ObservationDefinition (catálogo de biomarcadores, `config/biomarcadores.ts`)
+  /** Otro nombre con el que el analito aparece en los informes (uno por extensión). */
+  sinonimoAnalito: `${SOM_BASE}/StructureDefinition/sinonimo-analito`,
+  /** Slug del analito al que cubre este (p. ej. BUN cubre `urea_serica`) para los esenciales. */
+  cuentaComo: `${SOM_BASE}/StructureDefinition/cuenta-como`,
   // Estadificación CKM (Guía AHA/ACC/ADA/ASN 2026) — en el RiskAssessment del informe SOM.
   /** Estadío CKM: `0` | `1` | `2` | `3` | `4a` | `4b`. */
   ckmStage: `${SOM_BASE}/StructureDefinition/ckm-stage`,
@@ -189,6 +194,10 @@ export const SYSTEM = {
   biomarker: `${SOM_BASE}/CodeSystem/biomarker`,
   /** Panel del portal al que pertenece cada ObservationDefinition (p. ej. `metabolico`). */
   panelBiomarcador: `${SOM_BASE}/CodeSystem/panel-biomarcador`,
+  /** Nivel del laboratorio de rutina (`ObservationDefinition.category`): `esencial` | `extensivo`. */
+  nivelLaboratorio: `${SOM_BASE}/CodeSystem/nivel-laboratorio`,
+  /** Slug del analito (`ObservationDefinition.identifier`), p. ej. `e_gfr`: el mismo en pedido y portal. */
+  analito: `${SOM_BASE}/Identifier/analito`,
   /**
    * Tipo de rango de referencia de la ObservationDefinition. Este backend publica
    * solo `convencional` (salud convencional: AHA/ACC, ADA, KDIGO); nunca `funcional`.

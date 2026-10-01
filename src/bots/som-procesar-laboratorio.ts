@@ -48,6 +48,7 @@ import {
   construirObservaciones,
   esDocumentoLaboratorio,
   esRevisionLaboratorio,
+  completarEgfr,
   conHuella,
   esUrlExterna,
   huellaDe,
@@ -162,8 +163,11 @@ export async function handler(
 
   // 4) Observations + DiagnosticReport.
   const refs = { pacienteRef, documentoRef, fechaRespaldo: (doc.date ?? new Date().toISOString()).slice(0, 10), pdf };
+  // El eGFR: si el informe no lo trae con un número, se calcula (CKD-EPI 2021) con la
+  // creatinina, la edad y el sexo de la paciente.
+  const paciente = await medplum.readResource('Patient', pacienteRef.split('/')[1] as string).catch(() => undefined);
   const observaciones: Observation[] = [];
-  for (const o of construirObservaciones(extraccion, catalogo, refs)) {
+  for (const o of completarEgfr(construirObservaciones(extraccion, catalogo, refs), paciente ?? {}, catalogo)) {
     observaciones.push(await medplum.createResource<Observation>(o));
   }
   const informe = await medplum.createResource<DiagnosticReport>(

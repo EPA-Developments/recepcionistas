@@ -208,12 +208,26 @@ por especialidad. Recepción los evalúa con su propia estadificación:
    extracción. El **catálogo de códigos sale de las `ObservationDefinition` del
    servidor** (LOINC o `CodeSystem/biomarker`): Claude solo elige una clave de ese
    catálogo o `null`; un analito fuera del catálogo se guarda con su nombre
-   (`code.text`), sin inventar códigos. UCUM solo si la unidad coincide con la del
-   catálogo.
+   (`code.text`), sin inventar códigos. Cada entrada del catálogo va con sus sinónimos
+   (extensión `sinonimo-analito`: "TFG estimada", "BUN", "PCR ultrasensible"…) para que
+   Claude la reconozca. UCUM solo si la unidad es la del catálogo, escrita igual o de una
+   forma equivalente conocida (`mEq/L` = `meq/L`, `mL/min/1.73m2` = `mL/min/{1.73_m2}`,
+   `µUI/mL` = `u[IU]/mL`…): no se adivina.
 3. Crea una `Observation` por analito (`status=final`, category `laboratory`,
-   `referenceRange` del informe, `derivedFrom` = el documento) y el
+   `referenceRange` del informe, `derivedFrom` = el documento) con **todos los códigos**
+   del analito en el catálogo (p. ej. eGFR: `62238-1` y `33914-3`), y el
    `DiagnosticReport` (LAB, LOINC `11502-2`, `result` = las Observation,
-   `presentedForm` = el PDF si está por `url`).
+   `presentedForm` = el PDF si está por `url`). Un valor como "> 90" o "< 0,5" va como
+   número con `valueQuantity.comparator` (no como texto), así lo pueden usar los
+   gráficos y los cálculos.
+   **Filtrado glomerular (eGFR)**: si el informe trae creatinina (`2160-0`/`38483-4`, en
+   mg/dL o µmol/L) y no trae el filtrado con un número (falta, o viene "> 60" o en texto),
+   el bot lo calcula con **CKD-EPI 2021** sin coeficiente de raza (Inker, NEJM 2021) con la
+   edad a la fecha del estudio y el sexo del `Patient` (adultos; sin sexo masculino o
+   femenino no se calcula). La `Observation` calculada lleva `62238-1` (la que lee
+   hGraph), `33914-3` (portal y Plan Bienestar) y `98979-8` (eGFR por creatinina
+   CKD-EPI 2021), `method` y una `note` con la creatinina, la edad y lo que informó el
+   laboratorio; reemplaza al "> 60". Si el laboratorio informó un número, queda el suyo.
 4. Suma `DiagnosticReport/<id>` a `DocumentReference.context.related`: el portal
    pasa de "En proceso" a "Ver resultados".
 5. Si no se puede leer (o falta `ANTHROPIC_API_KEY`): `Communication` al paciente
@@ -275,23 +289,65 @@ especialidad y la del Plan Bienestar (`CONSULTA_PB100D`). `modalidad` es
 teleconsulta firmado. El contrato anterior (`terapia`/`terapiaCodigo`) se sigue
 aceptando para portales viejos.
 
-## Biomarcadores (panel Cardiometabólico) — solo rangos convencionales
+## Laboratorio de rutina (biomarcadores) — solo rangos convencionales
 
 Las `ObservationDefinition` viven en `src/config/biomarcadores.ts` y las carga
 `npm run seed` (upsert por `system|code`: R4 no define search params para
 `ObservationDefinition`, así que no duplica y reusa las que ya estén en el servidor).
-LOINC + UCUM, **solo rangos convencionales** con la guía citada:
+Es el **laboratorio de rutina de la salud cardiovascular de la mujer en la
+menopausia**: los mismos analitos usa el bot de laboratorio en PDF para codificar y el
+portal para armar sus paneles.
+
+Cada `ObservationDefinition` lleva:
+
+- `code`: LOINC (el HOMA-IR, sin LOINC estándar, va con `CodeSystem/biomarker|homa-ir`)
+  y, si el mismo valor tiene otro LOINC en uso, también ese (eGFR: `62238-1` +
+  `33914-3`). Donde el portal ya usaba un código, se reutiliza.
+- `identifier` `…/Identifier/analito` = la clave del analito (`e_gfr`,
+  `creatinina_serica`, …), la misma en el pedido y en el portal.
+- `category`: el panel (`CodeSystem/panel-biomarcador`) y el nivel
+  (`CodeSystem/nivel-laboratorio`: `esencial` | `extensivo`).
+- `extension`: `sinonimo-analito` (cómo aparece en los informes) y `cuenta-como` (para
+  "te faltan estudios esenciales": el BUN cubre la urea, el LDL directo el LDL, el
+  calcio iónico el calcio).
+- `quantitativeDetails.unit`: UCUM, con el texto legible (`mEq/L`, `mUI/L`,
+  `mL/min/1,73 m²`).
+- `qualifiedInterval` **solo si hay rango de guía** (tipo `convencional`, por sexo si
+  corresponde). Sin rango de guía no se publica rango: vale el del laboratorio de cada
+  informe (`Observation.referenceRange`).
+
+| Panel (`panel-biomarcador`) | Nivel | Analitos |
+|---|---|---|
+| `metabolico` · Perfil básico y riesgo cardiovascular | esencial | colesterol total, LDL (calculado y directo), HDL, no-HDL, triglicéridos, glucemia en ayunas, HbA1c |
+| `renal` · Función renal y síndrome cardiorrenal | esencial | creatinina, **eGFR**, urea, BUN, cistatina C, albuminuria (ACR) |
+| `electrolitos` · Electrolitos y conducción eléctrica | esencial | potasio, sodio, magnesio, calcio (total e iónico), cloro |
+| `cardiaco` · Biomarcadores cardíacos | extensivo | troponina T e I de alta sensibilidad, BNP, NT-proBNP, CK-MB masa, CK total |
+| `inflamatorios` · Inflamación y riesgo residual | extensivo | hs-PCR, homocisteína, ácido úrico, Lp(a) (nmol/L y mg/dL), ApoB, ApoA1 |
+| `hematologia` · Hematología, coagulación y trombosis | extensivo | hemoglobina, hematocrito, plaquetas, RIN, KPTT, dímero D, ferritina, saturación de transferrina |
+| `endocrinologia` · Eje endocrino y metabólico secundario | extensivo | TSH, T4 libre, cortisol, vitamina D, ALT, AST, GGT |
+| `menopausia` · Menopausia | extensivo | FSH, estradiol, SHBG, testosterona total, insulina en ayunas, HOMA-IR |
+
+Rangos de guía publicados:
 
 | Biomarcador | Umbral | Fuente |
 |---|---|---|
 | Colesterol total | < 200 mg/dL | NCEP ATP III |
 | HDL | ≥ 40 (V) / ≥ 50 (M) mg/dL | AHA/NHLBI (síndrome metabólico) |
-| LDL | < 100 mg/dL (la meta depende del riesgo) | NCEP ATP III |
+| LDL (calculado o directo) | < 100 mg/dL (la meta depende del riesgo) | NCEP ATP III |
 | Triglicéridos | < 150 mg/dL | NCEP ATP III |
-| ApoB | < 130 mg/dL | AHA/ACC 2018 (factor que aumenta el riesgo) |
-| Lp(a) | < 125 nmol/L | AHA/ACC 2018 (factor que aumenta el riesgo) |
 | Glucemia en ayunas | 70–100 mg/dL | ADA |
 | HbA1c | < 5,7 % | ADA |
+| eGFR | ≥ 60 mL/min/1,73 m² (< 60 = ERC G3a o peor) | Guía CKM 2026 (Ndumele et al.) / KDIGO |
+| Albuminuria (ACR) | < 30 mg/g | Guía CKM 2026 (Ndumele et al.) / KDIGO |
+| Troponina T us | < 14 (M) / < 22 (V) ng/L (por encima: pre-IC, Estadío 3) | Guía CKM 2026 (Ndumele et al.) |
+| Troponina I us | < 10 (M) / < 12 (V) ng/L (por encima: pre-IC, Estadío 3) | Guía CKM 2026 (Ndumele et al.) |
+| BNP / NT-proBNP | < 35 / < 125 pg/mL (por encima: pre-IC, Estadío 3) | Guía CKM 2026 (Ndumele et al.) |
+| hs-PCR | < 2,0 mg/L | AHA/ACC 2018 (factor que aumenta el riesgo) |
+| ApoB | < 130 mg/dL | AHA/ACC 2018 (factor que aumenta el riesgo) |
+| Lp(a) | < 125 nmol/L · < 50 mg/dL | AHA/ACC 2018 (factor que aumenta el riesgo) |
+
+El resto de los analitos no tiene rango publicado: se usa el del laboratorio. La fuente
+exacta de cada uno está en `fuente` de `biomarcadores.ts`.
 
 Sin rangos `funcional` y sin LDL-P (no está en las guías). Para limpiar las
 definiciones que ya estaban en el servidor con rangos funcionales:
@@ -306,8 +362,10 @@ conserva los convencionales; Medplum guarda el historial).
   hasta la firma del equipo médico (el contrato pide `final`; el portal no filtra por
   estado).
 - **A confirmar**: índice tobillo-brazo "bajo" (la guía no fija el valor; se usa
-  ≤ 0,90); umbrales de ApoB (< 130 mg/dL) y Lp(a) (< 125 nmol/L) de los biomarcadores
-  (AHA/ACC 2018). Ascendencia asiática: no se aplican sus umbrales (la ficha no la
+  ≤ 0,90); umbrales de ApoB (< 130 mg/dL), Lp(a) (< 125 nmol/L / < 50 mg/dL) y hs-PCR
+  (< 2,0 mg/L) de los biomarcadores (AHA/ACC 2018); el corte de las troponinas
+  depende del ensayo de cada laboratorio. Los códigos LOINC del laboratorio de rutina
+  falta validarlos contra los informes de los laboratorios con los que trabajamos. Ascendencia asiática: no se aplican sus umbrales (la ficha no la
   registra).
 - **Modelos PREVENT con UACR / HbA1c / SDI** (complementos del modelo base): no se
   usan todavía.
