@@ -5,7 +5,7 @@
  *  - **Bienvenida:** el primer WhatsApp de un **número nuevo** (alguien que no estaba en
  *    SOM). Saluda y le pide nombre y apellido, e-mail y DNI (opcional) para darlo de alta
  *    como usuario registrado. Con el centro cerrado, sale con el horario al final (y vale
- *    como aviso de fuera de horario). Pedida por el Dr. D'Alessandro el 03/10/2026.
+ *    como aviso de fuera de horario). Texto aprobado por el Dr. D'Alessandro el 03/10/2026.
  *  - **Acuse:** cuando un paciente que ya está en SOM abre una conversación nueva por
  *    WhatsApp.
  *  - **Fuera de horario:** cuando llega un WhatsApp con el centro cerrado, una vez por

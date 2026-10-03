@@ -17,7 +17,7 @@ Decisiones del Dr. D'Alessandro (26/09/2026):
 | ¿La respuesta sale por WhatsApp? | **Por donde escribió último el paciente** en esa conversación (y solo dentro de la ventana de 24 h de WhatsApp). Si escribió por el portal, queda en el portal. |
 | ¿Qué avisa la campanita? | Solo **números nuevos** (alguien que no estaba en SOM): cada uno es un aviso pendiente de la pestaña **WhatsApp** hasta que se resuelve. |
 | Pestaña **WhatsApp** | El "Avisos" del demo: una tarjeta por número nuevo con lo que escribió y lo que ya se le contestó; **Responder**, **Completar ficha**, **Ver conversación** y **Resolver**. Al completar la ficha, el aviso se resuelve solo. |
-| Respuestas automáticas | **Bienvenida** al primer WhatsApp de un **número nuevo**: saluda y le pide nombre y apellido, e-mail y DNI (opcional) para darlo de alta como usuario registrado (pedida el 03/10/2026). **Acuse** cuando un paciente que ya está en SOM abre una conversación nueva y **fuera de horario** (una vez por período cerrado), con los textos aprobados el 26/09/2026. |
+| Respuestas automáticas | **Bienvenida** al primer WhatsApp de un **número nuevo**: saluda y le pide nombre y apellido, e-mail y DNI (opcional) para darlo de alta como usuario registrado (texto aprobado el 03/10/2026). **Acuse** cuando un paciente que ya está en SOM abre una conversación nueva y **fuera de horario** (una vez por período cerrado), con los textos aprobados el 26/09/2026. |
 | Adjuntos | Recepción adjunta PDF/fotos (hasta 15 MB) y ve las fotos en la burbuja: tiene acceso a `Binary` (Medplum no deja listarlos: solo se abre un archivo con su link). |
 
 Código:
@@ -129,7 +129,7 @@ las pendientes salen solas, en orden, texto y adjuntos.
 
 ### Respuestas automáticas
 
-| Cuándo | Texto | Plantilla |
+| Cuándo | Texto (aprobado) | Plantilla |
 |---|---|---|
 | Escribe un **número nuevo** (primer WhatsApp de alguien que no estaba en SOM) | «¡Hola! 👋 Gracias por comunicarte con Segunda Opinión Médica.<br><br>Para darte de alta como usuario registrado y acompañarte mejor, ¿nos compartís estos datos?<br>• Nombre y apellido<br>• E-mail<br>• DNI (opcional)<br><br>Tus datos se tratan con total confidencialidad. En breve te responde alguien de nuestro equipo de Recepción. 💙» | `som_bienvenida` |
 | Escribe un número nuevo con el centro cerrado | La misma bienvenida, cerrando con «Ahora estamos fuera del horario de atención (lunes a viernes de 8 a 22 y sábados de 8 a 20): te respondemos apenas abramos. 💙». Vale como aviso de fuera de horario de ese cierre | `som_bienvenida_fuera_de_horario` (horario) |
@@ -141,7 +141,8 @@ La bienvenida, el acuse y el aviso de fuera de horario salen dentro de la ventan
 abrió el paciente, así que no necesitan plantilla; con la suya aprobada salen igual con
 plantilla (mismo texto; una UTILITY dentro de la ventana no tiene costo). La bienvenida
 tiene plantillas propias (no se cambió el texto de `som_acuse`: una plantilla de Twilio no
-se edita) y sus textos los aprueban los médicos antes de `--aplicar`. El horario es el de la agenda
+se edita); su texto lo aprobó el Dr. D'Alessandro el 03/10/2026, así que ya se puede mandar
+a Meta con `npm run whatsapp:plantillas -- --aplicar`. El horario es el de la agenda
 ([`config/horario.ts`](../src/config/horario.ts), hoy **provisorio**): al cargar el real,
 el texto y el momento del aviso se ajustan solos. Las automáticas no le quitan al
 paciente el aviso del portal cuando después responde una persona.
