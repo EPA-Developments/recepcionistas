@@ -18,10 +18,10 @@
  *    laboratorio) tiene dos plantillas: sin y con nota, porque Meta no admite una variable
  *    vacía. Un aviso sin plantilla específica (los internos a Recepción, el informe SOM)
  *    sale con la genérica `som_aviso`.
- *  - **Respuestas automáticas** (`acuse`, `fuera-de-horario`): salen dentro de la ventana
- *    que abrió el paciente, así que la plantilla no es obligatoria; con ella aprobada,
- *    igual salen con plantilla (Meta revisó el texto y una UTILITY dentro de la ventana no
- *    tiene costo).
+ *  - **Respuestas automáticas** (`bienvenida`, `acuse`, `fuera-de-horario`): salen dentro
+ *    de la ventana que abrió el paciente, así que la plantilla no es obligatoria; con ella
+ *    aprobada, igual salen con plantilla (Meta revisó el texto y una UTILITY dentro de la
+ *    ventana no tiene costo). La bienvenida tiene dos: en horario y fuera de horario.
  *  - **Mensaje nuevo** (`mensaje-nuevo`): cuando Recepción responde con la ventana cerrada,
  *    el paciente recibe este aviso; su respuesta se reenvía cuando él contesta.
  *
@@ -32,7 +32,13 @@
  * Los textos los aprueban los médicos de SOM antes de `--aplicar`
  * (docs/decisiones-pendientes.md).
  */
-import { TEXTO_ACUSE, TEXTO_MENSAJE_NUEVO, textoFueraDeHorario } from './auto-respuesta.js';
+import {
+  TEXTO_ACUSE,
+  TEXTO_BIENVENIDA,
+  TEXTO_MENSAJE_NUEVO,
+  textoBienvenidaFueraDeHorario,
+  textoFueraDeHorario,
+} from './auto-respuesta.js';
 import { NOMBRE_PLAN_BIENESTAR } from './plan-bienestar.js';
 
 export interface PlantillaWhatsApp {
@@ -229,6 +235,13 @@ const PLANTILLAS_INVITACION: readonly PlantillaWhatsApp[] = [
 
 /** Respuestas automáticas y el aviso de mensaje nuevo (`config/auto-respuesta.ts`). */
 const PLANTILLAS_MENSAJES: readonly PlantillaWhatsApp[] = [
+  plantilla('bienvenida', TEXTO_BIENVENIDA, {}, ['bienvenida']),
+  plantilla(
+    'bienvenida_fuera_de_horario',
+    textoBienvenidaFueraDeHorario('{{1}}'),
+    { '1': 'lunes a viernes de 8 a 22 y sábados de 8 a 20' },
+    ['bienvenida'],
+  ),
   plantilla('acuse', TEXTO_ACUSE, {}, ['acuse']),
   plantilla(
     'fuera_de_horario',

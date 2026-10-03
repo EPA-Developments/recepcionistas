@@ -23,7 +23,7 @@
 import type { MedplumClient, MedplumRequestOptions } from '@medplum/core';
 import type { Communication, Meta, Patient, Task } from '@medplum/fhirtypes';
 import { COD, SYSTEM } from '../fhir/identifiers.js';
-import { esSinFicha, formatoTelefono, nombreDePaciente, tipoAutomatica } from './whatsapp.js';
+import { esSinFicha, esSoloNumero, formatoTelefono, nombreDePaciente, textoDe, tipoAutomatica } from './whatsapp.js';
 
 export const TITULO_AVISO_CONTACTO = 'Contacto nuevo por WhatsApp';
 
@@ -125,7 +125,7 @@ export function esDemo(r: { meta?: Meta }): boolean {
 
 /**
  * ¿Falta que una persona le conteste? Sí, si lo último que no mandó solo el sistema es
- * del paciente: el acuse automático no cuenta como respuesta.
+ * del paciente: la bienvenida y el acuse automáticos no cuentan como respuesta.
  */
 export function faltaResponder(mensajes: Communication[]): boolean {
   const ultimo = [...mensajes]
@@ -133,6 +133,121 @@ export function faltaResponder(mensajes: Communication[]): boolean {
     .sort((a, b) => (a.sent ?? '').localeCompare(b.sent ?? ''))
     .pop();
   return !ultimo || Boolean(ultimo.sender?.reference?.startsWith('Patient/'));
+}
+
+// ───────────────────────────── los datos para el alta ─────────────────────────────
+
+/**
+ * Lo que el contacto mandó para darlo de alta (la bienvenida le pide nombre y apellido,
+ * e-mail y DNI), para precargar «Completar ficha». Solo lo que se reconoce con
+ * seguridad; Recepción lo revisa antes de dar de alta.
+ */
+export interface DatosDeAlta {
+  nombre?: string;
+  email?: string;
+  /** Solo los dígitos ("30.123.456" → "30123456"). */
+  dni?: string;
+}
+
+const RE_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
+/** DNI argentino: 7 u 8 dígitos, con o sin puntos. Rotulado ("DNI: 30.123.456") o solo en su renglón. */
+const RE_DNI_ROTULADO = /\bD\.?\s?N\.?\s?I\.?(?:\s*(?:n(?:[°º.]|ro\.?|úmero)|nro\.?))?\s*[:#-]?\s*(\d{1,2}[.\s]?\d{3}[.\s]?\d{3})(?!\d)/i;
+const RE_DNI_SOLO = /^(\d{1,2}\.?\d{3}\.?\d{3})$/;
+const RE_NOMBRE_ROTULADO = /(?:^|[\s,;:])(?:nombre\s+y\s+apellido|nombre\s+completo|mi\s+nombre\s+es|me\s+llamo|nombre|soy)\s*:?\s+(.+)/i;
+/** De 2 a 5 palabras, solo letras (con tildes, apóstrofes y guiones). */
+const RE_NOMBRE = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’-]{2,}(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’-]{2,}){1,4}$/;
+/** Palabras con las que no empieza un nombre (saludos, conectores, rótulos). */
+const NO_ES_NOMBRE = new Set([
+  'hola', 'buenas', 'buen', 'buenos', 'gracias', 'muchas', 'saludos', 'mi', 'me', 'soy', 'el', 'la', 'los', 'las',
+  'de', 'del', 'un', 'una', 'que', 'es', 'dni', 'mail', 'email', 'e-mail', 'correo', 'nombre', 'apellido', 'paciente',
+  'quisiera', 'quería', 'queria', 'necesito', 'tengo', 'por', 'para', 'con', 'sin', 'ok', 'dale', 'perfecto', 'si', 'sí', 'no',
+]);
+
+function comoNombre(texto: string | undefined): string | undefined {
+  const t = texto?.replace(/\s+/g, ' ').trim();
+  if (!t || !RE_NOMBRE.test(t) || NO_ES_NOMBRE.has(t.split(' ')[0]!.toLowerCase())) {
+    return undefined;
+  }
+  // "juan pérez" o "JUAN PÉREZ" → "Juan Pérez"; si ya viene con mayúsculas, tal cual.
+  return t === t.toLowerCase() || t === t.toUpperCase()
+    ? t.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (_, sep: string, letra: string) => sep + letra.toUpperCase())
+    : t;
+}
+
+/** El nombre rotulado ("Nombre y apellido: …", "me llamo …", "soy …") hasta la coma o el siguiente dato. */
+function nombreRotulado(linea: string): string | undefined {
+  const resto = RE_NOMBRE_ROTULADO.exec(linea)?.[1];
+  const corte = resto?.split(/[,;.\n]|\s+(?:y\s+)?(?:mi\s+|el\s+)?(?:dni|d\.n\.i|e-?mail|mail|correo)\b|\s+y\s+mi\b/i)[0];
+  return comoNombre(corte);
+}
+
+/**
+ * Nombre, e-mail y DNI que mandó el contacto después de la bienvenida (si no hubo
+ * bienvenida, en todo lo que escribió). Gana lo más reciente. El nombre sin rótulo solo se
+ * toma de un mensaje que trae también el e-mail o el DNI (el renglón con nombre y apellido
+ * de la respuesta), para no confundirlo con una frase cualquiera.
+ */
+export function datosDeAlta(mensajes: Communication[]): DatosDeAlta {
+  const ordenados = [...mensajes].sort((a, b) => (a.sent ?? '').localeCompare(b.sent ?? ''));
+  const desde = ordenados.map((m) => tipoAutomatica(m)).lastIndexOf('bienvenida');
+  const suyos = ordenados
+    .slice(desde + 1)
+    .filter((m) => m.sender?.reference?.startsWith('Patient/'))
+    .map(textoDe)
+    .filter((t) => t.trim());
+
+  const datos: DatosDeAlta = {};
+  for (const texto of suyos) {
+    const emails = texto.match(RE_EMAIL);
+    const email = emails?.[emails.length - 1]?.toLowerCase();
+    const renglones = texto
+      .split(/\n|[,;]/)
+      .map((r) => r.trim())
+      .filter(Boolean);
+    const dniRotulado = RE_DNI_ROTULADO.exec(texto)?.[1];
+    const dniSolo = renglones.map((r) => RE_DNI_SOLO.exec(r)?.[1]).find(Boolean);
+    const dni = (dniRotulado ?? dniSolo)?.replace(/\D/g, '');
+    const conDatos = Boolean(email || dni);
+    const nombre =
+      renglones.map(nombreRotulado).find(Boolean) ??
+      (conDatos ? renglones.filter((r) => !r.includes('@') && !/\d/.test(r)).map((r) => comoNombre(r)).find(Boolean) : undefined);
+    if (email) {
+      datos.email = email;
+    }
+    if (dni && (dni.length === 7 || dni.length === 8)) {
+      datos.dni = dni;
+    }
+    if (nombre) {
+      datos.nombre = nombre;
+    }
+  }
+  return datos;
+}
+
+/** Con qué abre «Completar ficha». */
+export interface FichaInicial {
+  nombre: string;
+  telefono: string;
+  email: string;
+  dni: string;
+  /** Algún dato salió de lo que mandó por WhatsApp: el formulario pide revisarlo. */
+  desdeWhatsApp: boolean;
+}
+
+/**
+ * «Completar ficha» precargado: lo que mandó para el alta y, si no mandó su nombre, el del
+ * perfil de WhatsApp (nunca el número puesto como nombre).
+ */
+export function fichaInicial(p: { mensajes: Communication[]; perfil?: string; telefono?: string }): FichaInicial {
+  const datos = datosDeAlta(p.mensajes);
+  const perfil = p.perfil && !esSoloNumero(p.perfil) ? p.perfil : '';
+  return {
+    nombre: datos.nombre ?? perfil,
+    telefono: p.telefono ?? '',
+    email: datos.email ?? '',
+    dni: datos.dni ?? '',
+    desdeWhatsApp: Boolean(datos.nombre || datos.email || datos.dni),
+  };
 }
 
 function idDe(ref: string | undefined, tipo: string): string | undefined {
@@ -217,7 +332,7 @@ export interface ContactoNuevo {
   mensajes: Communication[];
   /** Solo tiene el apodo del perfil de WhatsApp: falta completar la ficha. */
   sinFicha: boolean;
-  /** Nadie de Recepción le contestó todavía lo último que escribió (el acuse no cuenta). */
+  /** Nadie de Recepción le contestó todavía lo último que escribió (las automáticas no cuentan). */
   sinResponder: boolean;
   demo: boolean;
 }

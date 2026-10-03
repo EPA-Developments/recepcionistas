@@ -53,7 +53,7 @@ const SPECS: SpecExtension[] = [
   { url: EXT.telefonoWhatsapp, nombre: 'telefono-whatsapp', contexto: ['Communication'], tipoValor: 'string', descripcion: 'Número de WhatsApp (E.164) del otro lado del mensaje: a dónde se responde.' },
   { url: EXT.estadoEntrega, nombre: 'estado-entrega', contexto: ['Communication'], tipoValor: 'code', descripcion: 'Estado de entrega de un WhatsApp que salió (Twilio): en-cola | enviado | entregado | leido | fallido (los ✓✓ de la burbuja).' },
   { url: EXT.inicioContacto, nombre: 'inicio-contacto', contexto: ['Communication'], tipoValor: 'boolean', descripcion: 'Primer WhatsApp de un número nuevo (un contacto que no estaba en SOM): lo avisa la campanita de Recepción.' },
-  { url: EXT.autoRespuesta, nombre: 'auto-respuesta', contexto: ['Communication'], tipoValor: 'code', descripcion: 'Mensajes: mensaje que mandó solo el sistema por WhatsApp — acuse | fuera-de-horario | mensaje-nuevo (se ve «🤖 Automática»).' },
+  { url: EXT.autoRespuesta, nombre: 'auto-respuesta', contexto: ['Communication'], tipoValor: 'code', descripcion: 'Mensajes: mensaje que mandó solo el sistema por WhatsApp — bienvenida | acuse | fuera-de-horario | mensaje-nuevo (se ve «🤖 Automática»).' },
   { url: EXT.pendienteWhatsapp, nombre: 'pendiente-whatsapp', contexto: ['Communication'], tipoValor: 'boolean', descripcion: 'Respuesta de Recepción que espera la ventana de 24 h de WhatsApp: se le avisó al paciente con plantilla y se reenvía sola cuando vuelve a escribir.' },
   { url: EXT.borradorUsado, nombre: 'borrador-usado', contexto: ['Communication'], tipoValor: 'code', descripcion: 'La respuesta de Mensajes partió de un borrador de "Sugerir": sin-editar | editado.' },
   // SOM — Segunda Opinión Médica

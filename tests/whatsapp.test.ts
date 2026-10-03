@@ -37,6 +37,7 @@ import {
   telefonoDe,
   tipoAdjunto,
   tipoAutomatica,
+  ultimoAvisoDeCierre,
   ultimoDelPaciente,
   variantesTelefonoAR,
   vistaPrevia,
@@ -297,6 +298,18 @@ describe('WhatsApp · el mensaje entra en una conversación de Mensajes', () => 
     });
     expect(tipoAutomatica(r)).toBe('acuse');
     expect(tipoAutomatica(deRecepcion('x', ''))).toBeUndefined();
+    const bienvenida = construirRespuestaAutomatica({ conversacionRef: CONV, pacienteRef: ANA, tipo: 'bienvenida', texto: '¡Hola!', ahora: '2026-09-26T12:00:01Z' });
+    expect(tipoAutomatica(bienvenida)).toBe('bienvenida');
+  });
+
+  it('El último aviso de que el centro estaba cerrado: el de fuera de horario o la bienvenida que salió cerrado', () => {
+    const auto = (id: string, tipo: 'bienvenida' | 'acuse' | 'fuera-de-horario', sent: string): Communication =>
+      ({ ...construirRespuestaAutomatica({ conversacionRef: CONV, pacienteRef: ANA, tipo, texto: tipo, ahora: sent }), id });
+    const domingo = '2026-10-04T13:00:00.000Z'; // domingo 10 h en Argentina: cerrado
+    const lunes = '2026-09-28T15:00:00.000Z'; // lunes 12 h: abierto
+    expect(ultimoAvisoDeCierre([auto('a', 'bienvenida', lunes), auto('b', 'acuse', domingo)])).toBeUndefined();
+    expect(ultimoAvisoDeCierre([auto('a', 'bienvenida', domingo), delPaciente('m', domingo, true)])).toBe(domingo);
+    expect(ultimoAvisoDeCierre([auto('a', 'fuera-de-horario', '2026-10-03T01:00:00.000Z'), auto('b', 'bienvenida', domingo)])).toBe(domingo);
   });
 
   it('Los datos del envío por WhatsApp: canal, número, ✓, MessageSid y el motivo si falló', () => {

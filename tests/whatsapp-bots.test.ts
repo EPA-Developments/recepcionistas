@@ -3,7 +3,7 @@ import type { BotEvent } from '@medplum/core';
 import type { Binary, Communication, Patient, Task } from '@medplum/fhirtypes';
 import { BOT_WHATSAPP_ENTRANTE, BOT_WHATSAPP_RESPONDER, COD, EXT, SYSTEM } from '../src/fhir/identifiers.js';
 import { BOTS_RECEPCION, POLICY_RECEPCIONISTA, POLICY_WEBHOOK_TWILIO } from '../src/fhir/access-policies.js';
-import { TEXTO_ACUSE } from '../src/config/auto-respuesta.js';
+import { TEXTO_ACUSE, TEXTO_BIENVENIDA } from '../src/config/auto-respuesta.js';
 import { enviarWhatsApp } from '../src/bots/_shared.js';
 import { handler as entrante } from '../src/bots/whatsapp-entrante.js';
 import { handler as responder } from '../src/bots/whatsapp-responder.js';
@@ -115,7 +115,7 @@ afterEach(() => {
 });
 
 describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => {
-  it('Número nuevo: lead + conversación nueva («Otro motivo») + mensaje sin leer + aviso a Recepción + acuse', async () => {
+  it('Número nuevo: lead + conversación nueva («Otro motivo») + mensaje sin leer + aviso a Recepción + bienvenida', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(LUNES_12);
     const fetchMock = twilioOk();
@@ -124,7 +124,7 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
 
     const r = await entrante(medplum, evento(mensaje()));
 
-    expect(r).toMatchObject({ ok: true, tipo: 'entrante', pacienteNuevo: true, conversacionNueva: true, respuestaAutomatica: 'acuse' });
+    expect(r).toMatchObject({ ok: true, tipo: 'entrante', pacienteNuevo: true, conversacionNueva: true, respuestaAutomatica: 'bienvenida' });
     const [lead] = todos<Patient>('Patient');
     expect(lead?.name).toEqual([{ use: 'nickname', text: 'Ana Pérez' }]);
     expect(lead?.extension).toEqual(expect.arrayContaining([{ url: EXT.origenLead, valueString: 'whatsapp' }]));
@@ -134,20 +134,21 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     expect(conversacion).toMatchObject({ status: 'in-progress', subject: { reference: `Patient/${lead!.id}` } });
     expect(conversacion.topic?.coding?.[0]).toMatchObject({ system: SYSTEM.motivoMensaje, code: 'otro' });
 
-    const [entrado, acuse] = hijosDe(comms, r.conversacionId!);
+    const [entrado, bienvenida] = hijosDe(comms, r.conversacionId!);
     expect(entrado).toMatchObject({ status: 'in-progress', sender: { reference: `Patient/${lead!.id}` } });
     expect(entrado!.identifier).toEqual([{ system: SYSTEM.twilioMessageSid, value: 'SM1' }]);
     expect(esInicioContacto(entrado!)).toBe(true);
     expect(telefonoDe(entrado!)).toBe('+5491122334455');
 
-    // El acuse salió por WhatsApp y quedó en la conversación, marcado automático.
+    // La bienvenida (con el pedido de datos para el alta) salió por WhatsApp y quedó en la
+    // conversación, marcada automática.
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(formDe(fetchMock.mock.calls[0]).get('Body')).toBe(TEXTO_ACUSE);
+    expect(formDe(fetchMock.mock.calls[0]).get('Body')).toBe(TEXTO_BIENVENIDA);
     expect(formDe(fetchMock.mock.calls[0]).get('To')).toBe('whatsapp:+5491122334455');
-    expect(tipoAutomatica(acuse!)).toBe('acuse');
-    expect(esWhatsApp(acuse!)).toBe(true);
-    expect(estadoEntregaDe(acuse!)).toBe('en-cola');
-    expect(acuse!.identifier).toEqual([{ system: SYSTEM.twilioMessageSid, value: 'SMout1' }]);
+    expect(tipoAutomatica(bienvenida!)).toBe('bienvenida');
+    expect(esWhatsApp(bienvenida!)).toBe(true);
+    expect(estadoEntregaDe(bienvenida!)).toBe('en-cola');
+    expect(bienvenida!.identifier).toEqual([{ system: SYSTEM.twilioMessageSid, value: 'SMout1' }]);
 
     // El aviso a Recepción (pestaña WhatsApp y campanita): pendiente, con el primer mensaje.
     const [aviso, ...otros] = todos<Task>('Task');
@@ -207,7 +208,7 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     vi.setSystemTime(DOMINGO_10);
     const fetchMock = twilioOk();
     vi.stubGlobal('fetch', fetchMock);
-    const { medplum, todos } = fakeMedplum();
+    const { medplum, todos } = fakeMedplum([paciente('p1', '+5491122334455')]);
 
     const r1 = await entrante(medplum, evento(mensaje()));
     expect(r1.respuestaAutomatica).toBe('fuera-de-horario');
@@ -225,6 +226,33 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el WhatsApp entra en Mensajes`, () => 
     expect(r3.respuestaAutomatica).toBe('fuera-de-horario');
     const hilo = hijosDe(todos<Communication>('Communication'), r1.conversacionId!);
     expect(hilo.map(tipoAutomatica)).toEqual([undefined, 'fuera-de-horario', undefined, undefined, 'fuera-de-horario']);
+  });
+
+  it('Número nuevo con el centro cerrado: la bienvenida lleva el horario y vale como aviso de ese cierre', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(DOMINGO_10);
+    const fetchMock = twilioOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum, todos } = fakeMedplum();
+
+    const r1 = await entrante(medplum, evento(mensaje()));
+    expect(r1.respuestaAutomatica).toBe('bienvenida');
+    const cuerpo = formDe(fetchMock.mock.calls[0]).get('Body')!;
+    expect(cuerpo).toMatch(/• Nombre y apellido\n• E-mail\n• DNI \(opcional\)/);
+    expect(cuerpo).toMatch(/fuera del horario de atención \(lunes a viernes de 8 a 22 y sábados de 8 a 20\): te respondemos apenas abramos/);
+
+    // Otro mensaje el mismo domingo: la bienvenida ya avisó el horario.
+    vi.setSystemTime(new Date(DOMINGO_10.getTime() + 2 * H));
+    const r2 = await entrante(medplum, evento(mensaje({ MessageSid: 'SM2', Body: 'Ana Pérez, ana@mail.com' })));
+    expect(r2.respuestaAutomatica).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    // El lunes a la noche (otro cierre): el aviso de fuera de horario de siempre.
+    vi.setSystemTime(AR('2026-10-05T23:00'));
+    const r3 = await entrante(medplum, evento(mensaje({ MessageSid: 'SM3', Body: '¿Hola?' })));
+    expect(r3.respuestaAutomatica).toBe('fuera-de-horario');
+    const hilo = hijosDe(todos<Communication>('Communication'), r1.conversacionId!);
+    expect(hilo.map(tipoAutomatica)).toEqual([undefined, 'bienvenida', undefined, undefined, 'fuera-de-horario']);
   });
 
   it('Twilio reintenta el mismo mensaje: no se duplica', async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { BotEvent } from '@medplum/core';
 import type { Communication, Patient } from '@medplum/fhirtypes';
 import { BOT_WHATSAPP_ENTRANTE, BOT_WHATSAPP_RESPONDER, EXT, SYSTEM } from '../src/fhir/identifiers.js';
-import { TEXTO_ACUSE, TEXTO_MENSAJE_NUEVO } from '../src/config/auto-respuesta.js';
+import { TEXTO_ACUSE, TEXTO_BIENVENIDA, TEXTO_MENSAJE_NUEVO } from '../src/config/auto-respuesta.js';
 import { handler as entrante } from '../src/bots/whatsapp-entrante.js';
 import { handler as responder } from '../src/bots/whatsapp-responder.js';
 import { firmaTwilio } from '../src/lib/firma-twilio.js';
@@ -265,11 +265,12 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el paciente contesta y salen las respu
     vi.setSystemTime(LUNES_12);
     const fetchMock = twilioOk();
     vi.stubGlobal('fetch', fetchMock);
-    const { medplum, todos } = fakeMedplum([]);
+    // Un paciente que ya está en SOM y abre una conversación nueva (a un número nuevo le toca la bienvenida).
+    const { medplum, todos } = fakeMedplum([paciente('p1', TELEFONO)]);
 
     const r = await entrante(medplum, evento(mensaje(), conPlantillas({ TWILIO_CONTENT_SID_ACUSE: 'HXacuse', TWILIO_CONTENT_SID_AVISO: 'HXaviso' })));
 
-    expect(r).toMatchObject({ ok: true, pacienteNuevo: true, respuestaAutomatica: 'acuse' });
+    expect(r).toMatchObject({ ok: true, pacienteNuevo: false, respuestaAutomatica: 'acuse' });
     expect(fetchMock).toHaveBeenCalledOnce();
     const form = formDe(fetchMock.mock.calls[0]);
     expect(form.get('ContentSid')).toBe('HXacuse');
@@ -285,12 +286,52 @@ describe(`Bot ${BOT_WHATSAPP_ENTRANTE} · el paciente contesta y salen las respu
     vi.setSystemTime(LUNES_12);
     const fetchMock = twilioOk();
     vi.stubGlobal('fetch', fetchMock);
-    const { medplum } = fakeMedplum([]);
+    const { medplum } = fakeMedplum([paciente('p1', TELEFONO)]);
 
     await entrante(medplum, evento(mensaje(), conPlantillas({ TWILIO_CONTENT_SID_AVISO: 'HXaviso' })));
 
     const form = formDe(fetchMock.mock.calls[0]);
     expect(form.has('ContentSid')).toBe(false);
     expect(form.get('Body')).toBe(TEXTO_ACUSE);
+  });
+
+  it('La bienvenida de un número nuevo sale con su plantilla aprobada (no con la del acuse)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(LUNES_12);
+    const fetchMock = twilioOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum, todos } = fakeMedplum([]);
+
+    const r = await entrante(
+      medplum,
+      evento(mensaje(), conPlantillas({ TWILIO_CONTENT_SID_BIENVENIDA: 'HXbienvenida', TWILIO_CONTENT_SID_ACUSE: 'HXacuse' })),
+    );
+
+    expect(r).toMatchObject({ ok: true, pacienteNuevo: true, respuestaAutomatica: 'bienvenida' });
+    const form = formDe(fetchMock.mock.calls[0]);
+    expect(form.get('ContentSid')).toBe('HXbienvenida');
+    expect(form.get('ContentVariables')).toBe('{}');
+    const bienvenida = todos<Communication>('Communication').find((c) => tipoAutomatica(c) === 'bienvenida')!;
+    expect(bienvenida.payload?.[0]?.contentString).toBe(TEXTO_BIENVENIDA);
+  });
+
+  it('Con el centro cerrado, la bienvenida sale con la plantilla de fuera de horario y el horario como variable', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-04T10:00:00-03:00')); // domingo
+    const fetchMock = twilioOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const { medplum } = fakeMedplum([]);
+
+    await entrante(
+      medplum,
+      evento(
+        mensaje(),
+        conPlantillas({ TWILIO_CONTENT_SID_BIENVENIDA: 'HXbienvenida', TWILIO_CONTENT_SID_BIENVENIDA_FUERA_DE_HORARIO: 'HXbienvenidaCerrado' }),
+      ),
+    );
+
+    const form = formDe(fetchMock.mock.calls[0]);
+    expect(form.get('ContentSid')).toBe('HXbienvenidaCerrado');
+    expect(JSON.parse(form.get('ContentVariables')!)).toEqual({ '1': 'lunes a viernes de 8 a 22 y sábados de 8 a 20' });
   });
 });

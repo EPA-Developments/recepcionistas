@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { HorarioDia } from '../src/config/horario.js';
-import { TEXTO_ACUSE, textoFueraDeHorario } from '../src/config/auto-respuesta.js';
+import { TEXTO_ACUSE, TEXTO_BIENVENIDA, textoBienvenidaFueraDeHorario, textoFueraDeHorario } from '../src/config/auto-respuesta.js';
 import {
+  avisoDeCierre,
   describirHorario,
   estaAbierto,
   respuestaAutomatica,
@@ -107,5 +108,50 @@ describe('Qué responde solo el sistema', () => {
     // Avisado en un cierre anterior (el viernes a la noche): se avisa de nuevo.
     const cierreAnterior = AR('2026-10-02T23:00').toISOString();
     expect(respuestaAutomatica({ conversacionNueva: false, ahora: cerrado, ultimoAvisoFueraDeHorario: cierreAnterior })).toEqual(aviso);
+  });
+});
+
+describe('Bienvenida a un número nuevo: pide los datos para darlo de alta', () => {
+  const abierto = AR('2026-09-28T12:00'); // lunes 12 h
+  const cerrado = AR('2026-10-04T10:00'); // domingo 10 h
+
+  it('El texto: saludo cordial, nombre y apellido, e-mail, DNI opcional y confidencialidad', () => {
+    expect(TEXTO_BIENVENIDA).toBe(
+      '¡Hola! 👋 Gracias por comunicarte con Segunda Opinión Médica.\n\n' +
+        'Para darte de alta como usuario registrado y acompañarte mejor, ¿nos compartís estos datos?\n' +
+        '• Nombre y apellido\n' +
+        '• E-mail\n' +
+        '• DNI (opcional)\n\n' +
+        'Tus datos se tratan con total confidencialidad. En breve te responde alguien de nuestro equipo de Recepción. 💙',
+    );
+    // Fuera de horario: el mismo pedido, con el horario en lugar de "en breve".
+    const cerradoTexto = textoBienvenidaFueraDeHorario(describirHorario());
+    expect(cerradoTexto.startsWith(TEXTO_BIENVENIDA.slice(0, TEXTO_BIENVENIDA.indexOf(' En breve')))).toBe(true);
+    expect(cerradoTexto).toMatch(
+      /Ahora estamos fuera del horario de atención \(lunes a viernes de 8 a 22 y sábados de 8 a 20\): te respondemos apenas abramos\. 💙$/,
+    );
+  });
+
+  it('En horario: la bienvenida, no el acuse (el acuse queda para quien ya está en SOM)', () => {
+    expect(respuestaAutomatica({ numeroNuevo: true, conversacionNueva: true, ahora: abierto })).toEqual({
+      tipo: 'bienvenida',
+      texto: TEXTO_BIENVENIDA,
+    });
+    expect(respuestaAutomatica({ numeroNuevo: false, conversacionNueva: true, ahora: abierto })?.tipo).toBe('acuse');
+  });
+
+  it('Cerrado: una sola respuesta, la bienvenida con el horario (deja sus datos y Recepción los ve al abrir)', () => {
+    expect(respuestaAutomatica({ numeroNuevo: true, conversacionNueva: true, ahora: cerrado })).toEqual({
+      tipo: 'bienvenida',
+      texto: textoBienvenidaFueraDeHorario(describirHorario()),
+    });
+  });
+
+  it('La bienvenida que salió con el centro cerrado vale como aviso de ese cierre; en horario, no', () => {
+    expect(avisoDeCierre('fuera-de-horario', AR('2026-09-28T12:00').toISOString())).toBe(true);
+    expect(avisoDeCierre('bienvenida', AR('2026-10-04T10:00').toISOString())).toBe(true);
+    expect(avisoDeCierre('bienvenida', AR('2026-09-28T12:00').toISOString())).toBe(false);
+    expect(avisoDeCierre('acuse', AR('2026-10-04T10:00').toISOString())).toBe(false);
+    expect(avisoDeCierre('bienvenida', undefined)).toBe(false);
   });
 });

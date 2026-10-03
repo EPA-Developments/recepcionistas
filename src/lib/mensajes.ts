@@ -77,7 +77,7 @@ export function textoMensaje(m: Communication): string {
     .join('\n');
 }
 
-/** Lo que mandó solo el sistema (acuse / fuera de horario): se ve «🤖 Automática». */
+/** Lo que mandó solo el sistema (bienvenida, acuse, fuera de horario…): se ve «🤖 Automática». */
 export function esAutomatica(m: Communication): boolean {
   return tipoAutomatica(m) !== undefined;
 }

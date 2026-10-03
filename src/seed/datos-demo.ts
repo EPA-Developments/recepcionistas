@@ -19,7 +19,7 @@ import type { Appointment, Communication, Patient, Slot, Task } from '@medplum/f
 import { getServicio } from '../config/catalogo.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
 import { META_DEMO, borrarRecursosDemo } from '../bots/_shared.js';
-import { TEXTO_ACUSE } from '../config/auto-respuesta.js';
+import { TEXTO_BIENVENIDA } from '../config/auto-respuesta.js';
 import {
   CATEGORIA_WHATSAPP,
   conEnvioWhatsApp,
@@ -219,8 +219,9 @@ async function generar(medplum: MedplumClient): Promise<void> {
   }
 
   // Mensajes (bandeja de Recepción): WhatsApp y portal en las mismas conversaciones.
-  //  - Un número NUEVO escribe por WhatsApp y recibe el acuse automático; su aviso queda
-  //    pendiente en la pestaña WhatsApp (y suena la campanita).
+  //  - Un número NUEVO escribe por WhatsApp y recibe la bienvenida (que le pide nombre y
+  //    apellido, e-mail y DNI); contesta con sus datos, así «Completar ficha» abre
+  //    precargado. Su aviso queda pendiente en la pestaña WhatsApp (y suena la campanita).
   //  - Sofía escribió por WhatsApp, Recepción le respondió (salió por WhatsApp ✓✓) y volvió a escribir.
   //  - Diego escribe desde el portal (su respuesta queda en el portal).
   const lead = await medplum.createResource<Patient>({ ...construirLeadWhatsApp('+5491155550000', 'Carla (demo)'), meta: META_DEMO });
@@ -262,11 +263,23 @@ async function generar(medplum: MedplumClient): Promise<void> {
     avisosWhatsApp++;
     await crear(
       conEnvioWhatsApp(
-        construirRespuestaAutomatica({ conversacionRef: convRef, pacienteRef: ref, tipo: 'acuse', texto: TEXTO_ACUSE, ahora: hace(5) }),
-        { telefono: '+5491155550000', entrega: 'entregado', messageSids: [] },
+        construirRespuestaAutomatica({ conversacionRef: convRef, pacienteRef: ref, tipo: 'bienvenida', texto: TEXTO_BIENVENIDA, ahora: hace(5) }),
+        { telefono: '+5491155550000', entrega: 'leido', messageSids: [] },
       ),
     );
-    mensajes += 2;
+    await crear(
+      construirMensajeEntrante({
+        conversacionRef: convRef,
+        pacienteRef: ref,
+        texto: 'Soy Carla Gómez, mi mail es carla.demo@example.com y mi DNI 30.111.222 (demo)',
+        adjuntos: [],
+        messageSid: `SMdemo${Date.now()}d`,
+        telefono: '+5491155550000',
+        inicioContacto: false,
+        ahora: hace(3),
+      }),
+    );
+    mensajes += 3;
   }
 
   const sofia = porNombre.get('Sofía');

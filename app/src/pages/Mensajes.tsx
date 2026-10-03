@@ -57,9 +57,9 @@ import {
 } from '@som/lib/whatsapp';
 import { textoRestante, ventana24h } from '@som/lib/auto-respuesta';
 import { borradorRespuesta, mensajeError, responderWhatsApp } from '../lib/bots';
-import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
+import { AVISO_DATOS_WHATSAPP, NuevoPacienteModal } from '../components/NuevoPacienteModal';
 import { Burbuja, fecha } from '../components/Burbuja';
-import { resolverAvisosDelPaciente } from '@som/lib/contactos-whatsapp';
+import { fichaInicial, resolverAvisosDelPaciente } from '@som/lib/contactos-whatsapp';
 
 /**
  * Mensajes: la bandeja de las conversaciones con los pacientes, estilo WhatsApp. Cada
@@ -71,7 +71,7 @@ import { resolverAvisosDelPaciente } from '@som/lib/contactos-whatsapp';
  *    del paciente llegó por ahí y la ventana de 24 h sigue abierta (lo decide el bot
  *    `som-whatsapp-responder`); la burbuja muestra 📱 y los ✓✓, o avisa si no salió.
  *  - 📎 adjuntos (PDF, fotos) de hasta 15 MB; las fotos se ven en la burbuja.
- *  - 🤖 las respuestas automáticas (acuse, fuera de horario) se ven como tales.
+ *  - 🤖 las respuestas automáticas (bienvenida, acuse, fuera de horario) se ven como tales.
  *  - En vivo por la suscripción de Medplum, con refresco de respaldo.
  * Lógica y contrato: `src/lib/mensajes.ts`, `src/lib/whatsapp.ts`, docs/whatsapp.md.
  */
@@ -355,6 +355,12 @@ export function Mensajes({
   };
 
   const nombreProvisorio = elegida && esSoloNumero(elegida.paciente);
+  // «Completar ficha» con lo que mandó para el alta (respondiendo a la bienvenida).
+  const ficha = fichaInicial({
+    mensajes: mensajes ?? [],
+    perfil: elegida && !nombreProvisorio ? elegida.paciente : '',
+    telefono: telefono ?? paciente?.telecom?.find((t) => t.system === 'phone')?.value ?? '',
+  });
 
   return (
     <Stack gap="md" maw={1280} mx="auto" h="calc(100dvh - 64px - 2 * var(--mantine-spacing-md))">
@@ -648,10 +654,9 @@ export function Mensajes({
       <NuevoPacienteModal
         abierto={altaAbierta}
         onCerrar={() => setAltaAbierta(false)}
-        inicial={{
-          nombre: elegida && !nombreProvisorio ? elegida.paciente : '',
-          telefono: telefono ?? paciente?.telecom?.find((t) => t.system === 'phone')?.value ?? '',
-        }}
+        titulo="Completar ficha"
+        inicial={ficha}
+        aviso={ficha.desdeWhatsApp ? AVISO_DATOS_WHATSAPP : undefined}
         onCreado={() => {
           notifications.show({ color: 'teal', title: 'Ficha completada', message: 'La conversación queda con los datos del paciente.' });
           // El aviso de la pestaña WhatsApp ya cumplió: lo resuelve el bot de alta si completó

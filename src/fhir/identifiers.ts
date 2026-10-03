@@ -107,7 +107,7 @@ export const EXT = {
    * `whatsapp-nuevo-contacto`.
    */
   inicioContacto: `${BASE}/StructureDefinition/inicio-contacto`,
-  /** Mensaje que mandó solo el sistema en Mensajes: `acuse` | `fuera-de-horario` | `mensaje-nuevo`. */
+  /** Mensaje que mandó solo el sistema en Mensajes: `bienvenida` | `acuse` | `fuera-de-horario` | `mensaje-nuevo`. */
   autoRespuesta: `${BASE}/StructureDefinition/auto-respuesta`,
   /**
    * true en una respuesta de Recepción que no pudo salir por WhatsApp porque la ventana de

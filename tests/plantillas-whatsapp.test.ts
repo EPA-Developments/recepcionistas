@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { PLANTILLA_AVISO, PLANTILLAS_WHATSAPP, type PlantillaWhatsApp } from '../src/config/plantillas-whatsapp.js';
-import { TEXTO_ACUSE, TEXTO_MENSAJE_NUEVO, textoFueraDeHorario } from '../src/config/auto-respuesta.js';
+import {
+  TEXTO_ACUSE,
+  TEXTO_BIENVENIDA,
+  TEXTO_MENSAJE_NUEVO,
+  textoBienvenidaFueraDeHorario,
+  textoFueraDeHorario,
+} from '../src/config/auto-respuesta.js';
 import {
   alertaRecepcionSinLink,
   avisoConfirmacion,
@@ -73,6 +79,8 @@ const AVISOS: Array<[clave: string, texto: string]> = [
   ['plan-bienestar-mitad', avisoConsultaPlan({ aviso: 'mitad', titulo: 'Consulta del día 30', ventana: VENTANA })],
   ['invitacion-portal', mensajeInvitacion('Ana', LINK_ACCESO, PORTAL).texto],
   ['invitacion-portal', mensajeInvitacion('', LINK_ACCESO, `${PORTAL}/`).texto],
+  ['bienvenida', TEXTO_BIENVENIDA],
+  ['bienvenida', textoBienvenidaFueraDeHorario(HORARIO)],
   ['acuse', TEXTO_ACUSE],
   ['fuera-de-horario', textoFueraDeHorario(HORARIO)],
   ['mensaje-nuevo', TEXTO_MENSAJE_NUEVO],
@@ -220,6 +228,21 @@ describe('Plantillas de WhatsApp · con cuál sale cada mensaje', () => {
     expect(elegirPlantilla('fuera-de-horario', textoFueraDeHorario(HORARIO), todasAprobadas, { generica: false })?.variables).toEqual({ '1': HORARIO });
   });
 
+  it('La bienvenida tiene plantilla nueva (no se edita la del acuse): en horario y fuera de horario', () => {
+    const enHorario = elegirPlantilla('bienvenida', TEXTO_BIENVENIDA, todasAprobadas, { generica: false })!;
+    expect(enHorario.plantilla.nombre).toBe('som_bienvenida');
+    expect(enHorario.variables).toEqual({});
+    expect(enHorario.texto).toBe(TEXTO_BIENVENIDA);
+    const cerrado = elegirPlantilla('bienvenida', textoBienvenidaFueraDeHorario(HORARIO), todasAprobadas, { generica: false })!;
+    expect(cerrado.plantilla.nombre).toBe('som_bienvenida_fuera_de_horario');
+    expect(cerrado.variables).toEqual({ '1': HORARIO });
+    // Los saltos de línea van en el cuerpo (Meta los admite ahí), nunca en una variable.
+    expect(enHorario.plantilla.cuerpo).toContain('\n• Nombre y apellido\n• E-mail\n• DNI (opcional)\n');
+    // Sin las suyas aprobadas sale como texto libre, aunque estén el acuse y la genérica.
+    const otras = (secret: string) => (secret.includes('BIENVENIDA') ? undefined : `HX_${secret}`);
+    expect(elegirPlantilla('bienvenida', TEXTO_BIENVENIDA, otras, { generica: false })).toBeUndefined();
+  });
+
   it('Reconocer el texto: exacto, sin variables vacías ni saltos de línea dentro de una variable', () => {
     const p = plantillasDeAviso('reserva-vencida')[0]!;
     expect(variablesSegunPlantilla(p, 'Segunda Opinión Médica: no recibimos la seña de tu consulta del lunes y el horario se liberó. Podés elegir otro desde el portal. 💙')).toEqual({
@@ -280,7 +303,9 @@ describe('Plantillas de WhatsApp · con qué sale mientras Meta no la aprueba', 
     expect(mientrasNoSeAprueba(por('invitacion_portal_sin_nombre'), true)).toContain('últimas 24 h');
   });
 
-  it('el acuse y el de fuera de horario salen como texto libre y llegan igual (dentro de la ventana)', () => {
+  it('la bienvenida, el acuse y el de fuera de horario salen como texto libre y llegan igual (dentro de la ventana)', () => {
+    expect(mientrasNoSeAprueba(por('bienvenida'), true)).toContain('llega igual');
+    expect(mientrasNoSeAprueba(por('bienvenida_fuera_de_horario'), false)).toContain('llega igual');
     expect(mientrasNoSeAprueba(por('acuse'), true)).toContain('llega igual');
     expect(mientrasNoSeAprueba(por('fuera_de_horario'), false)).toContain('llega igual');
   });
