@@ -10,8 +10,10 @@ import {
   construirAvisoContacto,
   datoAviso,
   esAvisoContacto,
+  datosDeAlta,
   esDemo,
   faltaResponder,
+  fichaInicial,
   resolverAviso,
   resolverAvisosDelPaciente,
   resolverContacto,
@@ -238,5 +240,89 @@ describe('Pestaña WhatsApp · carga y resolución (Medplum)', () => {
 
     await resolverContacto(medplum, 'aviso-ana', 'resuelto');
     expect(await cargarAvisos(medplum)).toEqual({ sinLeer: 0, nuevosContactos: [] });
+  });
+});
+
+describe('Completar ficha · los datos que mandó para el alta (respondiendo a la bienvenida)', () => {
+  let n = 0;
+  const delContacto = (texto: string, sent = `2026-10-03T13:0${++n % 10}:00Z`): Communication => ({
+    resourceType: 'Communication',
+    id: `c${n}`,
+    status: 'in-progress',
+    partOf: [{ reference: 'Communication/conv' }],
+    sender: { reference: 'Patient/lead' },
+    sent,
+    payload: [{ contentString: texto }],
+  });
+  const bienvenida = (sent: string): Communication => ({
+    resourceType: 'Communication',
+    id: 'bienvenida',
+    status: 'completed',
+    partOf: [{ reference: 'Communication/conv' }],
+    sender: { display: 'Segunda Opinión Médica · respuesta automática' },
+    sent,
+    payload: [{ contentString: '¡Hola! 👋 …' }],
+    extension: [{ url: EXT.autoRespuesta, valueCode: 'bienvenida' }],
+  });
+
+  it('Un dato por renglón: nombre, e-mail y DNI con puntos', () => {
+    expect(datosDeAlta([delContacto('Juan Pérez\nJuan.Perez@Gmail.com\n30.123.456')])).toEqual({
+      nombre: 'Juan Pérez',
+      email: 'juan.perez@gmail.com',
+      dni: '30123456',
+    });
+  });
+
+  it('En una frase, con rótulos: "me llamo", "mi mail es", "DNI"', () => {
+    expect(datosDeAlta([delContacto('Hola! Me llamo María Laura Gómez, mi mail es mlgomez@hotmail.com y mi DNI 5.123.456')])).toEqual({
+      nombre: 'María Laura Gómez',
+      email: 'mlgomez@hotmail.com',
+      dni: '5123456',
+    });
+    expect(datosDeAlta([delContacto('Nombre y apellido: ana lópez\nE-mail: ana@mail.com\nDNI: 27555666')])).toEqual({
+      nombre: 'Ana López',
+      email: 'ana@mail.com',
+      dni: '27555666',
+    });
+    expect(datosDeAlta([delContacto('Soy PEDRO RUIZ, pedro@ruiz.com.ar')])).toEqual({ nombre: 'Pedro Ruiz', email: 'pedro@ruiz.com.ar' });
+  });
+
+  it('El DNI es opcional y un teléfono no se confunde con un DNI', () => {
+    expect(datosDeAlta([delContacto('Carla Díaz, carla@mail.com')])).toEqual({ nombre: 'Carla Díaz', email: 'carla@mail.com' });
+    expect(datosDeAlta([delContacto('Carla Díaz\ncarla@mail.com\n1122334455')])).toEqual({ nombre: 'Carla Díaz', email: 'carla@mail.com' });
+  });
+
+  it('No inventa un nombre: una frase cualquiera, un saludo o "soy de…" no son un nombre', () => {
+    expect(datosDeAlta([delContacto('Quería consultar precios')])).toEqual({});
+    expect(datosDeAlta([delContacto('Buenas tardes\ncarla@mail.com')])).toEqual({ email: 'carla@mail.com' });
+    expect(datosDeAlta([delContacto('Soy de Córdoba, mi mail es carla@mail.com')])).toEqual({ email: 'carla@mail.com' });
+    // Sin e-mail ni DNI en el mensaje, un renglón suelto no se toma como nombre.
+    expect(datosDeAlta([delContacto('Muchas gracias')])).toEqual({});
+  });
+
+  it('Solo lo que mandó después de la bienvenida, y gana lo más reciente', () => {
+    const mensajes = [
+      delContacto('Juan Viejo\nviejo@mail.com', '2026-10-03T12:00:00Z'),
+      bienvenida('2026-10-03T12:00:01Z'),
+      delContacto('Juan Pérez\njuan@mail.com', '2026-10-03T12:05:00Z'),
+      delContacto('Perdón, el mail bien es juanp@mail.com', '2026-10-03T12:06:00Z'),
+    ];
+    expect(datosDeAlta(mensajes)).toEqual({ nombre: 'Juan Pérez', email: 'juanp@mail.com' });
+    // Lo que escribe Recepción no cuenta.
+    const deRecepcion: Communication = { ...delContacto('Ana Recepción\nrecepcion@som.org'), sender: { reference: 'Practitioner/ana' } };
+    expect(datosDeAlta([deRecepcion])).toEqual({});
+  });
+
+  it('La ficha abre con lo que mandó; si no mandó el nombre, con el del perfil (nunca el número)', () => {
+    const conDatos = fichaInicial({ mensajes: [delContacto('Juan Pérez\njuan@mail.com')], perfil: 'Juancito 🚀', telefono: '+5491122334455' });
+    expect(conDatos).toEqual({ nombre: 'Juan Pérez', telefono: '+5491122334455', email: 'juan@mail.com', dni: '', desdeWhatsApp: true });
+    expect(fichaInicial({ mensajes: [], perfil: 'Juancito', telefono: '+5491122334455' })).toEqual({
+      nombre: 'Juancito',
+      telefono: '+5491122334455',
+      email: '',
+      dni: '',
+      desdeWhatsApp: false,
+    });
+    expect(fichaInicial({ mensajes: [], perfil: '+54 9 11 2233-4455' }).nombre).toBe('');
   });
 });

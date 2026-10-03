@@ -15,12 +15,12 @@ import {
 import { useMedplum, useMedplumProfile, useSubscription } from '@medplum/react';
 import { createReference } from '@medplum/core';
 import { COD } from '@som/fhir/identifiers';
-import { cargarContactosNuevos, resolverContacto, type ContactoNuevo } from '@som/lib/contactos-whatsapp';
+import { cargarContactosNuevos, fichaInicial, resolverContacto, type ContactoNuevo } from '@som/lib/contactos-whatsapp';
 import { marcarLeidos, responder } from '@som/lib/mensajes';
 import { esSoloNumero, esWhatsApp, formatoTelefono, haceCuanto, iniciales, ultimoDelPaciente } from '@som/lib/whatsapp';
 import { textoRestante, ventana24h } from '@som/lib/auto-respuesta';
 import { borradorRespuesta, mensajeError, responderWhatsApp } from '../lib/bots';
-import { NuevoPacienteModal } from '../components/NuevoPacienteModal';
+import { AVISO_DATOS_WHATSAPP, NuevoPacienteModal } from '../components/NuevoPacienteModal';
 import { Burbuja, fecha } from '../components/Burbuja';
 import classes from './WhatsApp.module.css';
 
@@ -139,6 +139,8 @@ export function WhatsApp({
   }, [resaltado]);
 
   const autor = profile ? createReference(profile) : undefined;
+  // «Completar ficha» con lo que mandó para el alta (respondiendo a la bienvenida).
+  const ficha = altaDe ? fichaInicial({ mensajes: altaDe.mensajes, perfil: altaDe.perfil, telefono: altaDe.telefono }) : undefined;
 
   const sacar = (avisoId: string): void => {
     setContactos((prev) => prev?.filter((x) => x.aviso.id !== avisoId));
@@ -489,11 +491,9 @@ export function WhatsApp({
 
       <NuevoPacienteModal
         abierto={Boolean(altaDe)}
-        inicial={
-          altaDe
-            ? { nombre: altaDe.perfil && !esSoloNumero(altaDe.perfil) ? altaDe.perfil : '', telefono: altaDe.telefono ?? '' }
-            : undefined
-        }
+        titulo="Completar ficha"
+        inicial={ficha}
+        aviso={ficha?.desdeWhatsApp ? AVISO_DATOS_WHATSAPP : undefined}
         onCerrar={() => setAltaDe(undefined)}
         onCreado={(pacienteId) => {
           if (altaDe) {

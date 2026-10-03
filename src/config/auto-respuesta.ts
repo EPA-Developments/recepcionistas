@@ -1,15 +1,40 @@
 /**
  * Respuestas automáticas de Mensajes por WhatsApp (se ven «🤖 Automática» en la bandeja).
  *
- * Textos aprobados por el Dr. D'Alessandro (26/09/2026). Cuándo sale cada una lo
- * decide `src/lib/auto-respuesta.ts`:
- *  - **Acuse:** cuando un WhatsApp abre una conversación nueva.
+ * Cuándo sale cada una lo decide `src/lib/auto-respuesta.ts`:
+ *  - **Bienvenida:** el primer WhatsApp de un **número nuevo** (alguien que no estaba en
+ *    SOM). Saluda y le pide nombre y apellido, e-mail y DNI (opcional) para darlo de alta
+ *    como usuario registrado. Con el centro cerrado, sale con el horario al final (y vale
+ *    como aviso de fuera de horario). Pedida por el Dr. D'Alessandro el 03/10/2026.
+ *  - **Acuse:** cuando un paciente que ya está en SOM abre una conversación nueva por
+ *    WhatsApp.
  *  - **Fuera de horario:** cuando llega un WhatsApp con el centro cerrado, una vez por
  *    cada período cerrado. El horario es el de la agenda (`config/horario.ts`, hoy
  *    provisorio): al cargar el real, el texto y el momento se ajustan solos.
+ * El acuse y el aviso de fuera de horario los aprobó el Dr. D'Alessandro el 26/09/2026.
+ *
+ * Cada texto es también el cuerpo de su plantilla de Meta (`config/plantillas-whatsapp.ts`):
+ * una plantilla de Twilio no se edita, así que cambiar un texto pide una plantilla nueva.
  */
 
-/** Acuse cuando un WhatsApp abre una conversación nueva. */
+/** El saludo y el pedido de datos de la bienvenida (sin el cierre, que depende del horario). */
+const BIENVENIDA =
+  '¡Hola! 👋 Gracias por comunicarte con Segunda Opinión Médica.\n\n' +
+  'Para darte de alta como usuario registrado y acompañarte mejor, ¿nos compartís estos datos?\n' +
+  '• Nombre y apellido\n' +
+  '• E-mail\n' +
+  '• DNI (opcional)\n\n' +
+  'Tus datos se tratan con total confidencialidad.';
+
+/** Bienvenida al primer WhatsApp de un número nuevo, en horario de atención. */
+export const TEXTO_BIENVENIDA = `${BIENVENIDA} En breve te responde alguien de nuestro equipo de Recepción. 💙`;
+
+/** La bienvenida con el centro cerrado; `horario` = "lunes a viernes de 8 a 22 y sábados de 8 a 20". */
+export function textoBienvenidaFueraDeHorario(horario: string): string {
+  return `${BIENVENIDA} Ahora estamos fuera del horario de atención (${horario}): te respondemos apenas abramos. 💙`;
+}
+
+/** Acuse cuando un paciente que ya está en SOM abre una conversación nueva por WhatsApp. */
 export const TEXTO_ACUSE =
   '¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. En breve te responde alguien de Recepción.';
 

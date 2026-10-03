@@ -18,10 +18,10 @@
  *    (`contactos-whatsapp.ts`).
  */
 import type { Attachment, CodeableConcept, Coding, Communication, Patient } from '@medplum/fhirtypes';
-import { TZ } from '../config/horario.js';
+import { TZ, type HorarioDia } from '../config/horario.js';
 import { REMITENTE_AUTOMATICO } from '../config/auto-respuesta.js';
 import { EXT, SYSTEM } from '../fhir/identifiers.js';
-import { ventana24h, type TipoRespuestaAutomatica } from './auto-respuesta.js';
+import { avisoDeCierre, ventana24h, type TipoRespuestaAutomatica } from './auto-respuesta.js';
 
 // ───────────────────────────── teléfonos (Argentina) ─────────────────────────────
 
@@ -361,10 +361,24 @@ export function esInicioContacto(c: Communication): boolean {
   return c.extension?.some((e) => e.url === EXT.inicioContacto && e.valueBoolean === true) === true;
 }
 
-/** Respuesta que mandó solo el sistema (acuse o fuera de horario): se ve «🤖 Automática». */
+/** Respuesta que mandó solo el sistema (bienvenida, acuse, fuera de horario…): se ve «🤖 Automática». */
 export function tipoAutomatica(c: Communication): TipoRespuestaAutomatica | undefined {
   const v = c.extension?.find((e) => e.url === EXT.autoRespuesta)?.valueCode;
-  return v === 'acuse' || v === 'fuera-de-horario' || v === 'mensaje-nuevo' ? v : undefined;
+  return v === 'bienvenida' || v === 'acuse' || v === 'fuera-de-horario' || v === 'mensaje-nuevo' ? v : undefined;
+}
+
+/**
+ * Cuándo se le avisó por última vez al paciente, en esa conversación, que el centro estaba
+ * cerrado (el aviso de fuera de horario o la bienvenida que salió con el centro cerrado):
+ * el aviso sale una vez por período cerrado.
+ */
+export function ultimoAvisoDeCierre(hilo: Communication[], horario?: readonly HorarioDia[]): string | undefined {
+  return hilo
+    .filter((m) => avisoDeCierre(tipoAutomatica(m), m.sent, horario))
+    .map((m) => m.sent)
+    .filter((s): s is string => Boolean(s))
+    .sort()
+    .pop();
 }
 
 /** Respuesta de Recepción que espera la ventana de 24 h para salir por WhatsApp. */

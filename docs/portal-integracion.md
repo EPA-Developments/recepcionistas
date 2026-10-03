@@ -48,7 +48,7 @@ el paciente, que ve **solo lo suyo** vía la AccessPolicy **"Paciente SOM — Po
   lo que el paciente escribe por WhatsApp entra como mensaje hijo de su conversación
   abierta (o de una nueva con motivo `otro`), con la extensión `canal = whatsapp`; las
   respuestas que salieron por WhatsApp llevan la misma extensión. Las **respuestas
-  automáticas** (acuse / fuera de horario) son hijas con `sender.display` =
+  automáticas** (bienvenida a un número nuevo / acuse / fuera de horario) son hijas con `sender.display` =
   «Segunda Opinión Médica · respuesta automática» (sin `reference`) y la extensión
   `auto-respuesta`: el portal las muestra como un mensaje más del equipo.
   El **aviso a Recepción** de un número nuevo es un `Task` `whatsapp-nuevo-contacto`

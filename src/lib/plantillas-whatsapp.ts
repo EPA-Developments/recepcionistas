@@ -168,7 +168,7 @@ export function contenidoTwilio(p: PlantillaWhatsApp): Record<string, unknown> {
 }
 
 /** Las respuestas automáticas que no caen en la genérica: salen dentro de la ventana que abrió el paciente. */
-const SOLO_EN_VENTANA: readonly string[] = ['acuse', 'fuera-de-horario'];
+const SOLO_EN_VENTANA: readonly string[] = ['bienvenida', 'acuse', 'fuera-de-horario'];
 
 /**
  * Con qué sale lo de una plantilla mientras Meta no la aprueba: la genérica si está aprobada

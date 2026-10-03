@@ -5,14 +5,23 @@
  *    último mensaje del paciente; después, solo plantillas aprobadas por Meta. La
  *    bandeja muestra cuánto queda (y se pone naranja cerca del cierre).
  *  - Qué responde solo el sistema (textos en `config/auto-respuesta.ts`):
+ *      · número nuevo (primer WhatsApp de alguien que no estaba en SOM) → bienvenida con
+ *        el pedido de datos para el alta; con el centro cerrado, con el horario al final;
  *      · fuera de horario → aviso con el horario, una vez por cada período cerrado;
  *      · conversación nueva abierta por WhatsApp → acuse.
- *    Nunca las dos juntas: el aviso de fuera de horario ya acusa recibo.
+ *    Nunca dos juntas: el aviso de fuera de horario ya acusa recibo, y la bienvenida
+ *    fuera de horario ya avisa el horario.
  *
  * Horario: el de la agenda (`config/horario.ts`), en hora de Argentina (UTC-3, sin DST).
  */
 import { HORARIO_SEMANAL, type HorarioDia } from '../config/horario.js';
-import { TEXTO_ACUSE, textoFueraDeHorario, VENTANA_AVISO_MINUTOS } from '../config/auto-respuesta.js';
+import {
+  TEXTO_ACUSE,
+  TEXTO_BIENVENIDA,
+  textoBienvenidaFueraDeHorario,
+  textoFueraDeHorario,
+  VENTANA_AVISO_MINUTOS,
+} from '../config/auto-respuesta.js';
 import { diaLocal } from './programas.js';
 
 const OFFSET_ARG = '-03:00';
@@ -145,11 +154,20 @@ export function describirHorario(horario: readonly HorarioDia[] = HORARIO_SEMANA
 // ───────────────────────────── qué responde solo el sistema ─────────────────────────────
 
 /**
- * Lo que manda solo el sistema en una conversación: el acuse y el aviso de fuera de horario
- * (respuestas a un WhatsApp que acaba de llegar) y `mensaje-nuevo`, el aviso con plantilla
- * de que Recepción respondió con la ventana de 24 h cerrada (`som-whatsapp-responder`).
+ * Lo que manda solo el sistema en una conversación: la bienvenida, el acuse y el aviso de
+ * fuera de horario (respuestas a un WhatsApp que acaba de llegar) y `mensaje-nuevo`, el
+ * aviso con plantilla de que Recepción respondió con la ventana de 24 h cerrada
+ * (`som-whatsapp-responder`).
  */
-export type TipoRespuestaAutomatica = 'acuse' | 'fuera-de-horario' | 'mensaje-nuevo';
+export type TipoRespuestaAutomatica = 'bienvenida' | 'acuse' | 'fuera-de-horario' | 'mensaje-nuevo';
+
+/** Cómo se nombra cada respuesta automática en las pantallas y diagnósticos. */
+export const ETIQUETA_AUTOMATICA: Readonly<Record<TipoRespuestaAutomatica, string>> = {
+  bienvenida: 'Bienvenida',
+  acuse: 'Acuse',
+  'fuera-de-horario': 'Fuera de horario',
+  'mensaje-nuevo': 'Aviso de mensaje nuevo',
+};
 
 export interface RespuestaAutomatica {
   tipo: TipoRespuestaAutomatica;
@@ -157,17 +175,42 @@ export interface RespuestaAutomatica {
 }
 
 /**
+ * ¿Ese mensaje automático le avisó al paciente que el centro estaba cerrado? El aviso de
+ * fuera de horario, y la bienvenida que salió con el centro cerrado (lleva el horario).
+ */
+export function avisoDeCierre(
+  tipo: TipoRespuestaAutomatica | undefined,
+  sent: string | undefined,
+  horario: readonly HorarioDia[] = HORARIO_SEMANAL,
+): boolean {
+  if (tipo === 'fuera-de-horario') {
+    return true;
+  }
+  const cuando = sent ? Date.parse(sent) : Number.NaN;
+  return tipo === 'bienvenida' && !Number.isNaN(cuando) && !estaAbierto(new Date(cuando), horario);
+}
+
+/**
  * Qué responde solo el sistema a un WhatsApp que acaba de llegar (o nada).
+ * @param p.numeroNuevo - es el primer WhatsApp de un número que no estaba en SOM.
  * @param p.conversacionNueva - el mensaje abrió una conversación nueva.
- * @param p.ultimoAvisoFueraDeHorario - cuándo salió el último aviso de fuera de horario en esa conversación.
+ * @param p.ultimoAvisoFueraDeHorario - cuándo se le avisó por última vez en esa conversación que el centro estaba cerrado.
  */
 export function respuestaAutomatica(p: {
+  numeroNuevo?: boolean;
   conversacionNueva: boolean;
   ahora: Date;
   ultimoAvisoFueraDeHorario?: string;
   horario?: readonly HorarioDia[];
 }): RespuestaAutomatica | undefined {
   const horario = p.horario ?? HORARIO_SEMANAL;
+  // Un número nuevo recibe la bienvenida con el pedido de datos (con el centro cerrado, con
+  // el horario al final: así deja sus datos y Recepción los encuentra al abrir).
+  if (p.numeroNuevo) {
+    return estaAbierto(p.ahora, horario)
+      ? { tipo: 'bienvenida', texto: TEXTO_BIENVENIDA }
+      : { tipo: 'bienvenida', texto: textoBienvenidaFueraDeHorario(describirHorario(horario)) };
+  }
   if (!estaAbierto(p.ahora, horario)) {
     const cierre = ultimoCierre(p.ahora, horario);
     const yaAvisado =

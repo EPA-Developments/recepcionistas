@@ -17,7 +17,7 @@ Decisiones del Dr. D'Alessandro (26/09/2026):
 | ¿La respuesta sale por WhatsApp? | **Por donde escribió último el paciente** en esa conversación (y solo dentro de la ventana de 24 h de WhatsApp). Si escribió por el portal, queda en el portal. |
 | ¿Qué avisa la campanita? | Solo **números nuevos** (alguien que no estaba en SOM): cada uno es un aviso pendiente de la pestaña **WhatsApp** hasta que se resuelve. |
 | Pestaña **WhatsApp** | El "Avisos" del demo: una tarjeta por número nuevo con lo que escribió y lo que ya se le contestó; **Responder**, **Completar ficha**, **Ver conversación** y **Resolver**. Al completar la ficha, el aviso se resuelve solo. |
-| Respuestas automáticas | **Acuse** cuando un WhatsApp abre una conversación nueva y **fuera de horario** (una vez por período cerrado), con los textos aprobados. |
+| Respuestas automáticas | **Bienvenida** al primer WhatsApp de un **número nuevo**: saluda y le pide nombre y apellido, e-mail y DNI (opcional) para darlo de alta como usuario registrado (pedida el 03/10/2026). **Acuse** cuando un paciente que ya está en SOM abre una conversación nueva y **fuera de horario** (una vez por período cerrado), con los textos aprobados el 26/09/2026. |
 | Adjuntos | Recepción adjunta PDF/fotos (hasta 15 MB) y ve las fotos en la burbuja: tiene acceso a `Binary` (Medplum no deja listarlos: solo se abre un archivo con su link). |
 
 Código:
@@ -62,8 +62,10 @@ Recepción responde (en Mensajes o en la tarjeta de WhatsApp) ─► queda en el
      `whatsapp-nuevo-contacto`, uno por número: pestaña WhatsApp y campanita);
    - lo deja **sin leer** en la conversación abierta del paciente, o abre una nueva
      («Otro motivo»); guarda fotos, audios y documentos en `Binary` (hasta 10 MB);
-   - **responde solo** si corresponde: fuera de horario, el aviso con el horario (una vez
-     por período cerrado); si abrió una conversación nueva, el acuse. Nunca las dos.
+   - **responde solo** si corresponde: a un número nuevo, la **bienvenida** con el pedido
+     de datos para el alta (con el centro cerrado, con el horario al final); si no, fuera
+     de horario el aviso con el horario (una vez por período cerrado) y, si abrió una
+     conversación nueva, el acuse. Nunca dos juntas.
      Si no pudo dejar el aviso a Recepción, igual responde y le pide a Twilio que
      reintente: el reintento deja el aviso sin repetir la respuesta automática.
 2. **La campanita** (arriba) cuenta los avisos pendientes, con aviso emergente
@@ -94,7 +96,7 @@ Cada tarjeta es un aviso pendiente, del más nuevo al más viejo:
 
 - **Quién y cuándo:** el nombre del perfil de WhatsApp (o el número, si no tiene), el
   teléfono, cuándo escribió y cuánto queda de la ventana de 24 h; etiquetas **Sin ficha**,
-  **Sin responder** / **Respondido** (el acuse automático no cuenta como respuesta) y
+  **Sin responder** / **Respondido** (las automáticas no cuentan como respuesta) y
   **DEMO** si es un dato de demostración.
 - **La conversación**, con el fondo del chat de WhatsApp: los últimos 4 mensajes con las
   mismas burbujas que Mensajes (📱, 🤖, ✓✓); los anteriores, en «Ver conversación».
@@ -102,7 +104,9 @@ Cada tarjeta es un aviso pendiente, del más nuevo al más viejo:
   (`som-whatsapp-responder`) y marca leído lo que escribió. **Sugerir** pide un borrador,
   como en Mensajes. Con la ventana cerrada avisa que la respuesta queda en Mensajes y que,
   con la plantilla de Meta aprobada, se le avisa por WhatsApp y se le reenvía cuando conteste.
-- **Completar ficha:** el alta con el teléfono y el nombre del perfil precargados. El bot
+- **Completar ficha:** el alta precargada con lo que mandó respondiendo a la bienvenida
+  (nombre y apellido, e-mail y DNI, si se reconocen: `datosDeAlta`, con un aviso de que
+  hay que revisarlos) o, si no lo mandó, con el teléfono y el nombre del perfil. El bot
   `som-alta-paciente` encuentra el contacto por el número, le pone el nombre real y
   **resuelve el aviso solo** (`ficha-completada`); después se abre el paciente para
   seguir (reservar, invitar al portal…), como en el demo. Si esos datos ya eran de otra
@@ -125,15 +129,19 @@ las pendientes salen solas, en orden, texto y adjuntos.
 
 ### Respuestas automáticas
 
-| Cuándo | Texto (aprobado) | Plantilla |
+| Cuándo | Texto | Plantilla |
 |---|---|---|
-| Un WhatsApp abre una conversación nueva | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. En breve te responde alguien de Recepción.» | `som_acuse` |
+| Escribe un **número nuevo** (primer WhatsApp de alguien que no estaba en SOM) | «¡Hola! 👋 Gracias por comunicarte con Segunda Opinión Médica.<br><br>Para darte de alta como usuario registrado y acompañarte mejor, ¿nos compartís estos datos?<br>• Nombre y apellido<br>• E-mail<br>• DNI (opcional)<br><br>Tus datos se tratan con total confidencialidad. En breve te responde alguien de nuestro equipo de Recepción. 💙» | `som_bienvenida` |
+| Escribe un número nuevo con el centro cerrado | La misma bienvenida, cerrando con «Ahora estamos fuera del horario de atención (lunes a viernes de 8 a 22 y sábados de 8 a 20): te respondemos apenas abramos. 💙». Vale como aviso de fuera de horario de ese cierre | `som_bienvenida_fuera_de_horario` (horario) |
+| Un paciente que ya está en SOM abre una conversación nueva | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. En breve te responde alguien de Recepción.» (aprobado el 26/09/2026) | `som_acuse` |
 | Llega un WhatsApp con el centro cerrado (una vez por período cerrado) | «¡Hola! Recibimos tu mensaje en Segunda Opinión Médica. Ahora estamos fuera del horario de atención (lunes a viernes de 8 a 22 y sábados de 8 a 20). Te respondemos apenas abramos.» | `som_fuera_de_horario` |
 | Recepción responde con la ventana de 24 h cerrada (una vez por período) | «Segunda Opinión Médica: Recepción te respondió en Mensajes. Podés leerlo en el portal o respondé este mensaje y te lo reenviamos por acá. 💙» | `som_mensaje_nuevo` (obligatoria: sin ella no se le puede avisar) |
 
-Las dos primeras salen dentro de la ventana que abrió el paciente, así que no necesitan
-plantilla; con la suya aprobada salen igual con plantilla (mismo texto; una UTILITY
-dentro de la ventana no tiene costo). El horario es el de la agenda
+La bienvenida, el acuse y el aviso de fuera de horario salen dentro de la ventana que
+abrió el paciente, así que no necesitan plantilla; con la suya aprobada salen igual con
+plantilla (mismo texto; una UTILITY dentro de la ventana no tiene costo). La bienvenida
+tiene plantillas propias (no se cambió el texto de `som_acuse`: una plantilla de Twilio no
+se edita) y sus textos los aprueban los médicos antes de `--aplicar`. El horario es el de la agenda
 ([`config/horario.ts`](../src/config/horario.ts), hoy **provisorio**): al cargar el real,
 el texto y el momento del aviso se ajustan solos. Las automáticas no le quitan al
 paciente el aviso del portal cuando después responde una persona.
@@ -320,6 +328,7 @@ texto libre.
 | `som_reserva_vencida` | `reserva-vencida` | consulta · fecha |
 | `som_plan_consulta_apertura` / `som_plan_consulta_pendiente` | `plan-bienestar-apertura` / `plan-bienestar-mitad` | consulta · ventana |
 | `som_invitacion_portal_sin_nombre` | `invitacion-portal` (link mágico al portal), **siempre sin el nombre** en el saludo: la versión con el nombre (`som_invitacion_portal`) la rechazó Meta el 28/09/2026 sin motivo; `adaptar` saca el nombre y el paciente recibe (y queda registrado) «¡Hola! Te damos…». El mail y el QR siguen con el nombre | link · URL del portal |
+| `som_bienvenida` / `som_bienvenida_fuera_de_horario` | bienvenida a un número nuevo (pide los datos para el alta) | — / horario |
 | `som_acuse` / `som_fuera_de_horario` | respuestas automáticas | — / horario |
 | `som_mensaje_nuevo` | Recepción respondió con la ventana cerrada | — |
 
@@ -381,20 +390,21 @@ número** lo dice. Solo lee (no manda ni cambia nada).
    el número de `RECEPCION_WHATSAPP_TO`: el bot ignora a propósito sus mensajes (no es un
    paciente) y parece que el webhook no anda (paso 2 ✗ «Es el número de Recepción»).
 4. **Primero escribir** (sin la plantilla aprobada) al WhatsApp de SOM desde ese celular
-   (abre la ventana de 24 h): llega el acuse (o el aviso de fuera de horario), suena la
+   (abre la ventana de 24 h): llega la bienvenida con el pedido de datos, suena la
    campanita, el contacto aparece en la pestaña **WhatsApp** y la conversación en
    **Mensajes**. Seguimiento: pasos 1 a 4 en ✓.
 5. Responder desde la tarjeta (o desde Mensajes) y ver llegar los ✓✓ (en el celular, en la
    burbuja y en el paso 5 del seguimiento: ✓ enviado → ✓✓ entregado → ✓✓ leído).
-6. «Completar ficha» desde la tarjeta: el aviso se resuelve solo (paso 6 en ✓ y la
-   campanita se apaga).
+6. Contestar desde el celular con nombre y apellido, e-mail y DNI; «Completar ficha» desde
+   la tarjeta abre precargado con esos datos y, al dar de alta, el aviso se resuelve solo
+   (paso 6 en ✓ y la campanita se apaga).
 7. `npm run whatsapp:test -- +549…` → envío de prueba a ese celular (dice si falta un
    secret o qué rechazó Twilio) y revisión del webhook: qué Project Secrets de Twilio están
    (nunca sus valores) y si `TWILIO_WEBHOOK_URL` es la URL pública. Sin la plantilla
    aprobada y fuera de la ventana de 24 h, Twilio lo acepta pero no llega (63016); con
    `TWILIO_CONTENT_SID_AVISO`, llega aunque el celular no haya escrito.
 8. Para ver las pantallas con datos sin Twilio: `npm run datos-demo` (un número nuevo con
-   su acuse y su aviso en la pestaña WhatsApp, una conversación por WhatsApp con
+   su bienvenida, sus datos y su aviso en la pestaña WhatsApp, una conversación por WhatsApp con
    respuesta y una del portal).
 
 > Tiempo real: la bandeja se actualiza al instante si el proyecto de Medplum tiene
@@ -410,7 +420,7 @@ número** lo dice. Solo lee (no manda ni cambia nada).
 | Conversación | `Communication` sin `partOf`, `subject` = el paciente, `topic` = el motivo (el mismo contrato que el portal). Las que abre un WhatsApp: motivo `otro` + extensión `canal = whatsapp` + identifier `communication\|conversacion-whatsapp-<paciente>` (evita abrir dos a la vez) |
 | Mensaje del paciente por WhatsApp | hija (`partOf`), `sender` = el paciente, `status` `in-progress` = sin leer, extensión `canal = whatsapp`, `telefono-whatsapp` (a dónde se responde), identifier `twilio-message-sid`; `inicio-contacto = true` si es un número nuevo |
 | Respuesta de Recepción | hija con `sender` = quien respondió; si salió por WhatsApp: `canal = whatsapp`, `telefono-whatsapp`, `estado-entrega` (✓✓) y un `twilio-message-sid` por mensaje de Twilio |
-| Respuesta automática | hija con `sender.display` = «Segunda Opinión Médica · respuesta automática» y extensión `auto-respuesta` = `acuse` \| `fuera-de-horario` |
+| Respuesta automática | hija con `sender.display` = «Segunda Opinión Médica · respuesta automática» y extensión `auto-respuesta` = `bienvenida` \| `acuse` \| `fuera-de-horario` \| `mensaje-nuevo` |
 | Adjuntos | `payload.contentAttachment` → `Binary/<id>` con `securityContext` = el paciente |
 | Aviso automático (confirmación, recordatorio, …) | `Communication` suelta (sin `partOf`), `category` `canal\|whatsapp`, con su `MessageSid` y ✓✓ |
 | Número nuevo | `Patient` con `name.use = nickname`, `origen-lead = whatsapp`, `ciclo-vida-cliente = lead`; **Completar ficha** (alta) lo encuentra por el número y agrega el nombre real sin duplicarlo |

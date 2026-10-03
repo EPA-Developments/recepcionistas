@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Communication, Patient } from '@medplum/fhirtypes';
-import { TEXTO_ACUSE } from '../src/config/auto-respuesta.js';
+import { TEXTO_ACUSE, TEXTO_BIENVENIDA } from '../src/config/auto-respuesta.js';
 import { RUTA_WEBHOOK_TWILIO } from '../src/config/urls.js';
 import { construirAvisoContacto, resolverAviso } from '../src/lib/contactos-whatsapp.js';
 import {
@@ -66,6 +66,18 @@ function acuse(entrega: 'enviado' | 'entregado' | 'leido' | 'fallido' = 'entrega
   return { ...conEnvioWhatsApp(base, { telefono: TEL, entrega, messageSids: ['SMacuse'] }), id: 'acuse' };
 }
 
+/** La bienvenida que recibe un número nuevo (pide los datos para el alta). */
+function bienvenida(): Communication {
+  const base = construirRespuestaAutomatica({
+    conversacionRef: CONV,
+    pacienteRef: PAC,
+    tipo: 'bienvenida',
+    texto: TEXTO_BIENVENIDA,
+    ahora: '2026-09-28T13:00:01.000Z',
+  });
+  return { ...conEnvioWhatsApp(base, { telefono: TEL, entrega: 'leido', messageSids: ['SMbienvenida'] }), id: 'bienvenida' };
+}
+
 function respuesta(p: { whatsapp?: boolean; entrega?: 'enviado' | 'entregado' | 'leido'; codigoError?: string } = {}): Communication {
   const base: Communication = {
     resourceType: 'Communication',
@@ -111,6 +123,12 @@ describe('pasosSeguimiento: el paso a paso de la prueba de WhatsApp', () => {
     expect(pasos[2]!.detalle).toContain('campanita');
     expect(pasos[3]!.detalle).toContain('Acuse');
     expect(pasos[3]!.detalle).toContain('✓✓ entregado');
+  });
+
+  it('número nuevo con la bienvenida leída: la respuesta automática se nombra «Bienvenida»', () => {
+    const pasos = pasosSeguimiento({ paciente: lead, aviso, mensajes: [entrante(), bienvenida()], ahora: AHORA });
+    expect(pasos[3]!.estado).toBe('ok');
+    expect(pasos[3]!.detalle).toMatch(/^Bienvenida /);
   });
 
   it('número nuevo sin aviso a Recepción: falla (el bot tenía que dejarlo)', () => {

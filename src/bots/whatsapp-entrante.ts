@@ -14,8 +14,10 @@
  *       ninguna, abre una nueva con motivo «Otro motivo». El paciente también la ve en el
  *       portal.
  *     - Guarda fotos, audios y documentos en `Binary` (en el compartimento del paciente).
- *     - **Respuesta automática** (`lib/auto-respuesta.ts`): fuera de horario, un aviso
- *       una vez por período cerrado; si abrió una conversación nueva, un acuse.
+ *     - **Respuesta automática** (`lib/auto-respuesta.ts`): a un número nuevo, la
+ *       bienvenida con el pedido de datos para el alta (con el horario si el centro está
+ *       cerrado); si no, fuera de horario un aviso una vez por período cerrado y, si abrió
+ *       una conversación nueva, un acuse.
  *  2) **Estado de entrega** (`StatusCallback` de lo que salió): actualiza los ✓✓
  *     (enviado → entregado → leído, o fallido con el motivo).
  *
@@ -56,7 +58,7 @@ import {
   pendientesDeReenvio,
   telefonoDe,
   textoDe,
-  tipoAutomatica,
+  ultimoAvisoDeCierre,
   variantesTelefonoAR,
   vistaPrevia,
   type EstadoEntrega,
@@ -229,10 +231,11 @@ async function registrarEntrante(
         return 0;
       });
 
-  // 8) Lo que responde solo el sistema (acuse / fuera de horario).
+  // 8) Lo que responde solo el sistema (bienvenida / acuse / fuera de horario).
   const automatica = await responderSolo(medplum, secrets, {
     conversacionRef,
     conversacionNueva,
+    numeroNuevo: nuevo,
     pacienteRef,
     telefono: w.desde,
     ahora,
@@ -355,23 +358,29 @@ async function conversacionDelPaciente(
 async function responderSolo(
   medplum: MedplumClient,
   secrets: Secrets,
-  p: { conversacionRef: string; conversacionNueva: boolean; pacienteRef: string; telefono: string; ahora: Date },
+  p: {
+    conversacionRef: string;
+    conversacionNueva: boolean;
+    numeroNuevo: boolean;
+    pacienteRef: string;
+    telefono: string;
+    ahora: Date;
+  },
 ): Promise<TipoRespuestaAutomatica | undefined> {
   const previos = p.conversacionNueva
     ? []
     : await medplum.searchResources('Communication', { 'part-of': p.conversacionRef, _sort: '-sent', _count: '200' });
-  const ultimoAviso = previos
-    .filter((m) => tipoAutomatica(m) === 'fuera-de-horario')
-    .map((m) => m.sent)
-    .filter((s): s is string => Boolean(s))
-    .sort()
-    .pop();
-  const r = respuestaAutomatica({ conversacionNueva: p.conversacionNueva, ahora: p.ahora, ultimoAvisoFueraDeHorario: ultimoAviso });
+  const r = respuestaAutomatica({
+    numeroNuevo: p.numeroNuevo,
+    conversacionNueva: p.conversacionNueva,
+    ahora: p.ahora,
+    ultimoAvisoFueraDeHorario: ultimoAvisoDeCierre(previos),
+  });
   if (!r) {
     return undefined;
   }
   // Sale dentro de la ventana que abrió el paciente: como texto libre está bien; con su
-  // plantilla aprobada (acuse / fuera de horario), sale con ella (mismo texto).
+  // plantilla aprobada (bienvenida / acuse / fuera de horario), sale con ella (mismo texto).
   const plantilla = elegirPlantilla(r.tipo, r.texto, (s) => secrets[s]?.valueString, { generica: false });
   const envio = await mandarWhatsApp(secrets, {
     to: p.telefono,

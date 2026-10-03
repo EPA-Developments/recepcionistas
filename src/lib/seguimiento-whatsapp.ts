@@ -9,7 +9,7 @@
  */
 import type { Communication, Patient, Task } from '@medplum/fhirtypes';
 import { SYSTEM } from '../fhir/identifiers.js';
-import { textoRestante, ventana24h } from './auto-respuesta.js';
+import { ETIQUETA_AUTOMATICA, textoRestante, ventana24h } from './auto-respuesta.js';
 import { esAvisoContacto } from './contactos-whatsapp.js';
 import { ocultarClaveUrl } from './webhooks.js';
 import {
@@ -193,7 +193,7 @@ export function pasosSeguimiento(d: DatosSeguimiento): PasoSeguimiento[] {
     });
   }
 
-  // 4) La respuesta automática (acuse o fuera de horario).
+  // 4) La respuesta automática (bienvenida, acuse o fuera de horario).
   const automaticas = hilo.filter((m) => tipoAutomatica(m) !== undefined);
   const ultimaAutomatica = automaticas[automaticas.length - 1];
   if (ultimaAutomatica) {
@@ -201,13 +201,13 @@ export function pasosSeguimiento(d: DatosSeguimiento): PasoSeguimiento[] {
     pasos.push({
       titulo: 'Respuesta automática',
       estado: s.estado,
-      detalle: `${tipoAutomatica(ultimaAutomatica) === 'acuse' ? 'Acuse' : 'Fuera de horario'} ${cuando(ultimaAutomatica.sent, d.ahora)} · ${s.texto}`,
+      detalle: `${ETIQUETA_AUTOMATICA[tipoAutomatica(ultimaAutomatica)!]} ${cuando(ultimaAutomatica.sent, d.ahora)} · ${s.texto}`,
     });
   } else if (hilo[0] && delPaciente(hilo[0]) && esWhatsApp(hilo[0])) {
     pasos.push({
       titulo: 'Respuesta automática',
       estado: 'falla',
-      detalle: 'El WhatsApp abrió la conversación y no salió el acuse: revisá los logs de som-whatsapp-entrante.',
+      detalle: 'El WhatsApp abrió la conversación y no salió la respuesta automática (bienvenida o acuse): revisá los logs de som-whatsapp-entrante.',
     });
   } else {
     pasos.push({
@@ -215,7 +215,7 @@ export function pasosSeguimiento(d: DatosSeguimiento): PasoSeguimiento[] {
       estado: ultimoEntrante ? 'no-aplica' : 'pendiente',
       detalle: ultimoEntrante
         ? 'La conversación ya estaba abierta y era horario de atención: no corresponde.'
-        : 'Sale sola cuando el WhatsApp abre una conversación (acuse) o llega fuera de horario.',
+        : 'Sale sola cuando escribe un número nuevo (bienvenida), cuando el WhatsApp abre una conversación (acuse) o llega fuera de horario.',
     });
   }
 

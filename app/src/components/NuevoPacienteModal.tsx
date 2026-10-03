@@ -3,6 +3,9 @@ import { Alert, Button, Group, Modal, Stack, TextInput } from '@mantine/core';
 import { IconInfoCircle, IconUserPlus } from '@tabler/icons-react';
 import { altaPaciente, mensajeError } from '../lib/bots';
 
+/** La nota del alta cuando se precargó con lo que el contacto mandó por WhatsApp. */
+export const AVISO_DATOS_WHATSAPP = 'Completamos con los datos que mandó por WhatsApp: revisalos antes de dar de alta.';
+
 /**
  * Alta rápida de paciente (registrar cliente). Crea/actualiza el Patient vía el bot
  * som-alta-paciente (dedupe por DNI/email/teléfono). No da acceso al portal: eso es
@@ -13,12 +16,20 @@ export function NuevoPacienteModal({
   onCerrar,
   onCreado,
   inicial,
+  titulo = 'Nuevo paciente',
+  aviso,
 }: {
   abierto: boolean;
   onCerrar: () => void;
   onCreado: (patientId: string) => void;
-  /** Datos con los que abre (p. ej. un número nuevo que escribió por WhatsApp). */
-  inicial?: { nombre?: string; telefono?: string };
+  /**
+   * Datos con los que abre (p. ej. un número nuevo que escribió por WhatsApp, con lo que
+   * mandó para el alta: nombre y apellido, e-mail y DNI).
+   */
+  inicial?: { nombre?: string; telefono?: string; email?: string; dni?: string };
+  titulo?: string;
+  /** Nota arriba del formulario (p. ej. "revisá los datos que mandó por WhatsApp"). */
+  aviso?: string;
 }): JSX.Element {
   const [nombre, setNombre] = useState('');
   const [dni, setDni] = useState('');
@@ -31,6 +42,8 @@ export function NuevoPacienteModal({
     if (abierto && inicial) {
       setNombre(inicial.nombre ?? '');
       setTelefono(inicial.telefono ?? '');
+      setEmail(inicial.email ?? '');
+      setDni(inicial.dni ?? '');
     }
     // Solo al abrir: después manda lo que tipea Recepción.
   }, [abierto]);
@@ -72,8 +85,13 @@ export function NuevoPacienteModal({
   }
 
   return (
-    <Modal opened={abierto} onClose={onCerrar} title="Nuevo paciente" centered>
+    <Modal opened={abierto} onClose={onCerrar} title={titulo} centered>
       <Stack gap="sm">
+        {aviso && (
+          <Alert color="blue" variant="light" icon={<IconInfoCircle size={16} />}>
+            {aviso}
+          </Alert>
+        )}
         <TextInput
           label="Nombre y apellido"
           placeholder="Ej.: Ana Pérez"
