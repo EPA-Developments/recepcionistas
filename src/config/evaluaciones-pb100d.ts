@@ -461,7 +461,7 @@ export const EVALUACIONES_CATALOGO: readonly EvaluacionCatalogoPb100d[] = [
   },
   {
     "codigo": "E1-EVAL-04",
-    "label": "AMPA, 7 días antes del hito",
+    "label": "AMPA, 2 días antes del hito",
     "estadios": [
       "1"
     ],
@@ -874,7 +874,7 @@ export const EVALUACIONES_CATALOGO: readonly EvaluacionCatalogoPb100d[] = [
   },
   {
     "codigo": "E2-EVAL-03",
-    "label": "AMPA, 7 días antes del hito; semanal entre hitos",
+    "label": "AMPA, 2 días antes del hito; semanal entre hitos",
     "estadios": [
       "2",
       "3",
